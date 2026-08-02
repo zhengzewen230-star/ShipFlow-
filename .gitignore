@@ -1,0 +1,49 @@
+# Java build outputs
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Python virtual environments and caches
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# IDE configuration
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# Logs
+*.log
+logs/
+
+# Allure temporary results and reports
+allure-results/
+allure-report/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Database data directories
+data/
+db-data/
+database-data/
+postgres-data/
+mysql-data/
+
+# OS files
+.DS_Store
+Thumbs.db
