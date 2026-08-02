@@ -129,3 +129,15 @@ GENERATED ALWAYS AS (IFNULL(tenant_id, 0)) STORED
 所有 API 输入的重量统一转换为 kg，尺寸统一转换为 cm 后入库。数据库内部不混合保存多种单位。API 接收其他单位时必须先完成单位转换、范围校验和精度校验。
 
 金额使用 `DECIMAL(18,2)`；重量和尺寸使用 `DECIMAL(18,3)`。
+
+## 8. API 支撑持久化对象
+
+### ApiIdempotencyRecord
+
+`api_idempotency_record` 保存通用写接口的幂等处理状态、规范化请求摘要和脱敏响应。`scope_tenant_id=0` 表示平台作用域，租户接口使用真实 `tenant_id`；该字段不建立租户外键。最终唯一边界为 `scope_tenant_id + operation_id + idempotency_key`，`request_path` 只用于请求摘要和审计。
+
+认证、Token 和密码接口不使用通用响应缓存。相同唯一键且摘要一致时返回原结果，摘要不同返回 `COMMON-1009`，处理中返回 `COMMON-1010`。
+
+### AuthRefreshSession
+
+`auth_refresh_session` 保存 Refresh Token 会话链的摘要和轮换状态。数据库只保存 HMAC-SHA256 或 SHA-256 摘要，不保存明文 Token。`previous_session_id` 唯一约束保证同一个会话最多生成一个后继会话，避免并发刷新产生多个后继。

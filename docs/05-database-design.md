@@ -223,3 +223,13 @@ WHERE tenant_id = ?
 - `bill_import_batch(tenant_id, provider_id, file_hash)` 唯一，确保文件不重复导入。
 - `bill_detail(tenant_id, provider_id, provider_bill_detail_no)` 唯一，确保账单明细不跨文件重复。
 - `reconciliation_record.bill_detail_id` 唯一，确保一条账单明细最多一个对账记录。
+
+## 9. API 支撑表
+
+### api_idempotency_record
+
+该表用于持久化通用幂等请求。最终唯一索引为 `UNIQUE(scope_tenant_id, operation_id, idempotency_key)`；`request_path` 保留用于请求摘要和审计，不进入唯一索引。状态只能是 `PROCESSING`、`SUCCEEDED`、`FAILED` 或 `EXPIRED`。`response_body` 只允许保存脱敏响应，认证、Token 和密码接口不得使用通用响应缓存。
+
+### auth_refresh_session
+
+该表保存 Refresh Token 会话摘要和轮换链，具有 `UNIQUE(token_hash)`、`UNIQUE(previous_session_id)`、`INDEX(user_id, status, expires_at)`、`INDEX(family_id, status)` 和 `INDEX(expires_at)`。`user_id`、`tenant_id` 和 `previous_session_id` 分别关联现有用户、租户和本表；只保存 HMAC-SHA256 或 SHA-256 摘要，不保存明文 Token。

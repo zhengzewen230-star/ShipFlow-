@@ -85,3 +85,22 @@ SOURCE /tmp/shipflow-verify.sql;
 - 尚未开发 Controller、Service 或接口自动化代码。
 - 报价快照不可变、价格阶梯发布校验、跨租户业务校验仍需后续后端实现和测试验证。
 - 初始化 BCrypt 值仅用于测试环境，不是生产密码。
+
+## 7. V002 迁移状态
+
+V002 已在 Ubuntu 的 `my-mysql-docker` 容器中实际执行并验证通过，数据库现为30张表。
+
+| 检查项 | 实际结果 |
+|---|---|
+| `table_count` | 30/30 PASS |
+| `table_collation` | 30张表全部正确 PASS |
+| `required_unique_indexes` | 18/18 PASS |
+| `support_tables_exist` | 2/2 PASS |
+| `support_table_collation` | 2/2 PASS |
+| `refresh_foreign_keys` | 3/3 PASS |
+| `support_status_checks` | 2/2 PASS |
+| `approved_order_status_values` | 0个异常值 PASS |
+| 原有初始化数据 | 数量保持不变 |
+| 执行过程 | 无 ERROR |
+
+本次记录不包含服务器 IP、数据库密码、备份文件或其他敏感信息。
