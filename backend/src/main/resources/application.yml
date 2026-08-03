@@ -21,6 +21,10 @@ shipflow:
       active-kid: ${SHIPFLOW_JWT_ACTIVE_KID:local-dev}
       private-key-location: ${SHIPFLOW_JWT_PRIVATE_KEY_LOCATION:}
       public-key-location: ${SHIPFLOW_JWT_PUBLIC_KEY_LOCATION:}
+    refresh-token:
+      enabled: ${SHIPFLOW_REFRESH_TOKEN_ENABLED:false}
+      hmac-key: ${SHIPFLOW_REFRESH_TOKEN_HMAC_KEY:}
+      family-ttl: ${SHIPFLOW_REFRESH_TOKEN_FAMILY_TTL:30d}
 
 management:
   endpoints:
