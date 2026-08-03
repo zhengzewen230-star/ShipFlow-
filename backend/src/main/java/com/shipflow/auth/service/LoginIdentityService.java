@@ -4,6 +4,7 @@ import com.shipflow.auth.mapper.SysUserMapper;
 import com.shipflow.auth.mapper.UserAuthorityMapper;
 import com.shipflow.auth.model.LoginCredentials;
 import com.shipflow.auth.model.LoginIdentity;
+import com.shipflow.auth.model.LoginIdentityLookup;
 import com.shipflow.auth.model.SysUserDO;
 import com.shipflow.auth.model.UserAuthorityView;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -62,6 +63,27 @@ public class LoginIdentityService {
             throw exception;
         } catch (RuntimeException exception) {
             // Do not expose mapper, encoder or driver messages to a public login endpoint.
+            throw failure();
+        }
+    }
+
+    /** Loads the identity and internal password hash in one database pass. */
+    public LoginIdentityLookup lookup(LoginCredentials credentials) {
+        try {
+            String username = credentials == null ? null : credentials.username();
+            String tenantCode = credentials == null ? null : credentials.tenantCode();
+            SysUserDO user = findUser(username, tenantCode);
+            if (user == null || !isValidUser(user)) {
+                throw failure();
+            }
+
+            String roleScope = user.tenantId() == null ? PLATFORM : TENANT;
+            List<UserAuthorityView> authorities = userAuthorityMapper.findActiveAuthorities(
+                    user.id(), user.tenantId(), roleScope);
+            return new LoginIdentityLookup(toIdentity(user, roleScope, authorities), user.passwordHash());
+        } catch (LoginIdentityAuthenticationException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
             throw failure();
         }
     }
