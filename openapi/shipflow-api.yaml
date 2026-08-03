@@ -26,12 +26,35 @@ tags:
 security:
   - bearerAuth: []
 paths:
+  /auth/csrf:
+    get:
+      tags: [Auth]
+      summary: 获取 CSRF Token
+      operationId: getCsrfToken
+      security: []
+      description: |
+        匿名获取 CSRF Token。服务端使用 Spring Security CookieCsrfTokenRepository
+        设置可由前端读取的 XSRF-TOKEN Cookie，不返回 Refresh Token。
+      responses:
+        '204':
+          description: CSRF Cookie 已设置
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/XsrfCookie'
+
   /auth/login:
     post:
       tags: [Auth]
       summary: 登录
       operationId: login
       security: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfCookie'
+        - $ref: '#/components/parameters/XsrfHeader'
       requestBody:
         required: true
         content:
@@ -44,12 +67,105 @@ paths:
           headers:
             X-Trace-Id:
               $ref: '#/components/headers/TraceId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/AuthCookies'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessLogin'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/CsrfError'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: 刷新 Token
+      operationId: refreshToken
+      description: |
+        从 HttpOnly Refresh Cookie 读取令牌，校验 CSRF 双提交请求头并执行 Refresh Token 轮换。
+        客户端必须串行刷新；ROTATED Token 重复使用会撤销整个 family。
+      security:
+        - refreshCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfCookie'
+        - $ref: '#/components/parameters/XsrfHeader'
+      responses:
+        '200':
+          description: 刷新成功
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/AuthCookies'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessLogin'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/CsrfError'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 退出登录
+      operationId: logout
+      description: |
+        撤销当前 Refresh Token family 并清除 Refresh/XSRF Cookie。
+        仅通过 Refresh Cookie 定位 family；Access Token 只是可选审计身份，不能单独定位或撤销 family。
+        Refresh Cookie 已撤销、过期或不存在时保持幂等成功，不泄露具体原因。
+        不要求 auth:logout 权限。logout-all 留待后续版本。
+      security:
+        - bearerAuth: []
+        - refreshCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfCookie'
+        - $ref: '#/components/parameters/XsrfHeader'
+      responses:
+        '200':
+          description: 退出成功
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/ClearedAuthCookies'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccess'
+        '403':
+          $ref: '#/components/responses/CsrfError'
+
+  /users/me:
+    get:
+      tags: [Auth]
+      summary: 获取当前用户
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 当前用户
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessCurrentUser'
         '401':
           $ref: '#/components/responses/AuthError'
 
@@ -548,6 +664,11 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: SHIPFLOW_REFRESH_TOKEN
+      description: HttpOnly Refresh Token Cookie；客户端不可读取。
     providerHmac:
       type: apiKey
       in: header
@@ -556,6 +677,29 @@ components:
   headers:
     TraceId:
       description: 与响应体 traceId 一致的链路追踪 ID。
+      schema:
+        type: string
+    NoStore:
+      description: 禁止缓存认证凭证相关响应。
+      schema:
+        type: string
+        enum: [no-store]
+        default: no-store
+    WWWAuthenticate:
+      description: RFC 6750 Bearer 认证挑战；具体错误详情不在 Header 中泄露敏感信息。
+      schema:
+        type: string
+        example: Bearer
+    AuthCookies:
+      description: Set-Cookie 下发 Refresh Token 和 XSRF-TOKEN。Refresh Cookie 使用 HttpOnly、Secure（生产）、SameSite=Strict、明确 Path 和 Max-Age=2592000。
+      schema:
+        type: string
+    XsrfCookie:
+      description: Set-Cookie 下发可读取的 XSRF-TOKEN。使用 Secure（生产）、SameSite=Strict、明确 Path 和 Max-Age=2592000，不设置 HttpOnly 和 Domain。
+      schema:
+        type: string
+    ClearedAuthCookies:
+      description: Set-Cookie 将 Refresh Token 和 XSRF-TOKEN 设置为过期，以清除 Cookie。
       schema:
         type: string
   parameters:
@@ -601,6 +745,24 @@ components:
         type: string
         pattern: '^[0-9]{10}$'
         example: '1785643200'
+    XsrfCookie:
+      name: XSRF-TOKEN
+      in: cookie
+      required: true
+      description: 可由前端读取的 CSRF Cookie；不得设置 HttpOnly。
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 128
+    XsrfHeader:
+      name: X-XSRF-TOKEN
+      in: header
+      required: true
+      description: 必须与 XSRF-TOKEN Cookie 一致，由 CookieCsrfTokenRepository 校验。
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 128
     Page:
       name: page
       in: query
@@ -624,6 +786,8 @@ components:
       headers:
         X-Trace-Id:
           $ref: '#/components/headers/TraceId'
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
       content:
         application/json:
           schema:
@@ -633,6 +797,21 @@ components:
       headers:
         X-Trace-Id:
           $ref: '#/components/headers/TraceId'
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWWAuthenticate'
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    CsrfError:
+      description: CSRF Cookie 与 X-XSRF-TOKEN 请求头缺失或不匹配。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
       content:
         application/json:
           schema:
@@ -802,11 +981,9 @@ components:
           description: 为空时只匹配平台用户，非空时只匹配指定租户用户。
     TokenResponse:
       type: object
-      required: [accessToken, refreshToken, expiresIn]
+      required: [accessToken, expiresIn]
       properties:
         accessToken:
-          type: string
-        refreshToken:
           type: string
         expiresIn:
           type: integer
@@ -815,6 +992,36 @@ components:
           $ref: '#/components/schemas/Id'
         tenantId:
           $ref: '#/components/schemas/Id'
+    CurrentUserView:
+      type: object
+      required: [userId, username, scope]
+      properties:
+        userId:
+          $ref: '#/components/schemas/Id'
+        username:
+          type: string
+        displayName:
+          type: string
+        scope:
+          type: string
+          enum: [PLATFORM, TENANT]
+        tenantId:
+          $ref: '#/components/schemas/Id'
+        roles:
+          type: array
+          items:
+            type: string
+        permissions:
+          type: array
+          items:
+            type: string
+    ApiSuccessCurrentUser:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/CurrentUserView'
     ApiSuccess:
       type: object
       required: [success, traceId, data]

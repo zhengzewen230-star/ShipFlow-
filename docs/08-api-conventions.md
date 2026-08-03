@@ -11,7 +11,7 @@
 
 ## 2. 鉴权和租户隔离
 
-使用 JWT Bearer Token：
+使用 JWT Bearer Token 访问受保护资源；Refresh Token 不通过 JSON 传递，而通过 Cookie 管理：
 
 ```http
 Authorization: Bearer <JWT>
@@ -19,16 +19,30 @@ Authorization: Bearer <JWT>
 
 - `tenant_id` 只能从 JWT 身份上下文读取。
 - 租户业务接口不接受调用方任意传入 `tenant_id`。
-- 平台管理员可以执行平台级租户和公共配置管理。
+- 平台管理接口使用显式 `/platform/.../{tenantId}` 路径和 `tenantId` 路径参数；普通 `X-Tenant-Id` Header 不能决定授权范围。
+- 平台管理员可以执行平台级租户和公共配置管理，无权限时返回 403 并写平台级审计。
 - 租户用户只能访问当前租户数据。
+- 普通租户用户跨租户资源访问统一返回 404，避免泄露资源存在性。
 - 平台公共物流商、渠道和价格规则可以被租户使用，但租户不能修改平台基础配置。
-- 跨租户访问统一返回无权访问错误，并写入安全审计日志。
+- 普通租户用户跨租户资源访问统一返回 404，不泄露资源存在性；平台管理接口无权限返回 403，并写入平台级安全审计日志。
 
 登录请求可选传入 `tenantCode`：
 
 - `tenantCode` 为空时，只允许匹配平台用户；不允许在所有租户范围内模糊查找用户名。
 - `tenantCode` 非空时，只在指定租户内匹配租户用户。
 - 同名用户跨租户登录必须通过明确的 `tenantCode` 区分。
+- 用户不存在、密码错误、tenantCode 错误、用户禁用、租户禁用和 Mock 系统账号尝试登录统一返回 `AUTH-1001`。
+
+Refresh Cookie 约定：
+
+- Cookie 名称为 `SHIPFLOW_REFRESH_TOKEN`，只用于 `/api/v1/auth` 路径，`HttpOnly`、生产 `Secure`、`SameSite=Strict`，并明确 `Max-Age=2592000`（30天）。
+- Refresh Cookie 与 XSRF Cookie 均不设置 `Domain`；Refresh Cookie 使用明确 Path、HttpOnly、生产 Secure、SameSite=Strict、Max-Age=2592000；XSRF Cookie 不设置 HttpOnly，使用明确 Path、生产 Secure、SameSite=Strict 和 Max-Age=2592000。local/test 可通过配置关闭 Secure，生产必须开启。
+- 登录成功下发 Refresh Cookie；刷新成功轮换并覆盖 Cookie；退出登录撤销当前 family 并下发过期 Cookie 清除它。
+- Access Token 通过 JSON 返回，前端只保存在内存；Refresh Token 不进入 JSON 或 LocalStorage。
+- `GET /api/v1/auth/csrf` 匿名获取并设置 XSRF Cookie，不返回 Refresh Token，响应必须 `Cache-Control: no-store`。
+- 获取 CSRF 后，登录、刷新和退出都必须携带 `XSRF-TOKEN` Cookie 与标准 `X-XSRF-TOKEN` 请求头；使用 Spring Security `CookieCsrfTokenRepository` 校验，不自定义 CSRF 算法或过滤器。CSRF 失败统一返回 `403 AUTH-1005`。
+- 登录、刷新、退出响应必须包含 `Cache-Control: no-store`。
+- 认证接口不使用 `api_idempotency_record` 通用响应缓存。
 
 ## 3. 成功和错误响应
 

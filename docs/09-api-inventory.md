@@ -2,7 +2,7 @@
 
 ## 1. 通用字段约定
 
-除登录和刷新 Token 外，接口默认需要 `Authorization: Bearer <JWT>`、`X-Request-Id`（可选）和响应 `X-Trace-Id`。租户业务接口的 `tenant_id` 从 JWT 读取，不允许请求体或查询参数覆盖。
+除登录、刷新 Token 和退出登录外，接口默认需要 `Authorization: Bearer <JWT>`、`X-Request-Id`（可选）和响应 `X-Trace-Id`。登录、刷新和退出需要 `XSRF-TOKEN` Cookie 与 `X-XSRF-TOKEN`；刷新和退出还需要 Refresh Cookie；租户业务接口的 `tenant_id` 从 JWT 读取，不允许请求体、查询参数或普通 Header 覆盖。
 
 表中“请求体”只列业务字段；统一响应包装为 `ApiSuccess<T>`，错误使用 `ApiError`。分页接口使用 `page`、`pageSize`、`sortBy`、`sortDirection` 及白名单筛选字段。所有写接口的审计和幂等规则以 `08-api-conventions.md` 为准。
 
@@ -10,7 +10,7 @@
 
 | 模块 | 接口数量 |
 |---|---:|
-| 认证与当前用户 | 3 |
+| 认证与当前用户 | 5 |
 | 平台租户管理 | 5 |
 | 租户用户与角色 | 5 |
 | 店铺管理 | 3 |
@@ -23,31 +23,33 @@
 | 费用对账 | 4 |
 | 异常件与索赔 | 4 |
 | 审计日志 | 1 |
-| **合计** | **52** |
+| **合计** | **54** |
 
 ## 3. 认证与当前用户
 
 | 编号/用途 | 方法 URL | 角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| AUTH-001 登录 | `POST /api/v1/auth/login` | 匿名；JSON | `username`、`password`、可选 `tenantCode` | `accessToken`、`refreshToken`、过期时间、用户摘要 | `AUTH-1001`、`AUTH-1004`、`COMMON-1008` | 非幂等/记录登录审计/`sys_user`、`audit_log` | 正常、密码错误、禁用用户、平台/租户用户、跨租户同名用户必须指定租户 |
-| AUTH-002 刷新 Token | `POST /api/v1/auth/refresh` | 匿名；JSON | `refreshToken` | 新 Token 对 | `AUTH-1002`、`AUTH-1003` | 幂等窗口内可重试/记录刷新结果/审计 | 正常、过期、重复使用、伪造 Token |
-| AUTH-003 当前用户 | `GET /api/v1/users/me` | 登录用户 | 无 | 用户、角色、权限、租户摘要 | `COMMON-1002`、`COMMON-1003` | 只读/不写审计或仅记录安全访问/`sys_user`、`sys_role`、`sys_permission` | 平台用户、租户用户、权限边界 |
+| AUTH-001 获取CSRF | `GET /api/v1/auth/csrf` | 匿名；无请求体 | 设置可读 `XSRF-TOKEN` Cookie；不返回 Refresh Token；`Cache-Control: no-store` | `COMMON-1008` | 匿名；不需要 Access Token | 只读/不使用通用缓存 | 正常获取、重复获取、Cookie属性 |
+| AUTH-002 登录 | `POST /api/v1/auth/login` | 匿名；`XSRF-TOKEN` Cookie、`X-XSRF-TOKEN`；JSON `username`、`password`、可选 `tenantCode` | JSON `accessToken`、`expiresIn`；Set-Cookie Refresh；`Cache-Control: no-store` | `AUTH-1001`、`AUTH-1005`、`COMMON-1008` | 匿名；不需要 Access Token | 不使用通用幂等缓存/记录登录审计/`sys_user`、`audit_log` | 正常、CSRF错误、密码错误、用户不存在、tenantCode错误、禁用用户/租户、系统账号 |
+| AUTH-003 刷新 Token | `POST /api/v1/auth/refresh` | 匿名；HttpOnly Refresh Cookie、`XSRF-TOKEN` Cookie、`X-XSRF-TOKEN` | JSON 新 `accessToken`、`expiresIn`；Set-Cookie轮换；`Cache-Control: no-store` | `AUTH-1002`、`AUTH-1003`、`AUTH-1005`、`COMMON-1008` | 不需要 Access Token；需要 Cookie 和 CSRF | 不使用通用缓存；客户端必须串行刷新/记录审计/`auth_refresh_session` |
+| AUTH-004 退出登录 | `POST /api/v1/auth/logout` | Refresh Cookie、`XSRF-TOKEN` Cookie、`X-XSRF-TOKEN`；Access Token可选仅用于审计 | 清除 Refresh/XSRF Cookie；幂等成功；`Cache-Control: no-store` | `AUTH-1005`、`COMMON-1008` | 不要求 `auth:logout`；只能由 Refresh Cookie 定位 family | 撤销当前family/记录审计/不使用通用缓存 |
+| AUTH-005 当前用户 | `GET /api/v1/users/me` | `Authorization: Bearer` | 用户、角色、权限、租户摘要 | `COMMON-1002`、`COMMON-1003` | 需要 Access Token | 只读/不写审计或仅记录安全访问/`sys_user`、`sys_role`、`sys_permission` | 平台用户、租户用户、权限边界 |
 
 ## 4. 平台租户管理
 
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| TENANT-001 创建租户 | `POST /api/v1/platform/tenants` | 平台管理员 | `tenantCode`、`tenantName`、`initialAdmin` | `201` 租户和初始管理员 ID | `TENANT-1001`、`COMMON-1001` | `Idempotency-Key`幂等/写审计/`tenant`、`sys_user`、`sys_role`、`sys_user_role` |
+| TENANT-001 创建租户 | `POST /api/v1/platform/tenants` | 平台管理员 | `tenantCode`、`tenantName`、`initialAdmin`（含 `temporaryPassword`） | `201` 租户和初始管理员 ID | `TENANT-1001`、`COMMON-1001` | `Idempotency-Key`幂等/写审计/`tenant`、`sys_user`、`sys_role`、`sys_user_role` |
 | TENANT-002 查询租户 | `GET /api/v1/platform/tenants` | 平台管理员；分页筛选 | `status`、`tenantCode` | 分页租户列表 | `COMMON-1002`、`COMMON-1004` | 只读/审计可选/`tenant` |
 | TENANT-003 查询租户详情 | `GET /api/v1/platform/tenants/{tenantId}` | 平台管理员；路径 `tenantId` | `tenantId` | 租户详情 | `COMMON-1006`、`COMMON-1004` | 只读/审计可选/`tenant` |
 | TENANT-004 启用/停用租户 | `POST /api/v1/platform/tenants/{tenantId}/status` | 平台管理员；JSON `version` | `status`、`version` | 新状态和版本 | `TENANT-1002`、`COMMON-1005` | 非幂等/写审计/`tenant` |
-| TENANT-005 创建初始管理员 | `POST /api/v1/platform/tenants/{tenantId}/initial-admin` | 平台管理员；JSON | `username`、`displayName` | 用户和角色摘要 | `USER-1001`、`TENANT-1002` | `Idempotency-Key`幂等/写审计/`sys_user`、`sys_role`、`sys_user_role` |
+| TENANT-005 创建初始管理员 | `POST /api/v1/platform/tenants/{tenantId}/initial-admin` | 平台管理员；JSON | `username`、`displayName`、`temporaryPassword` | 用户和角色摘要 | `USER-1001`、`TENANT-1002` | `Idempotency-Key`幂等/写审计/`sys_user`、`sys_role`、`sys_user_role` |
 
 ## 5. 租户用户与角色
 
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| USER-001 创建用户 | `POST /api/v1/users` | 商家管理员 | `username`、`displayName`、`roleIds` | `201` 用户摘要 | `USER-1001`、`COMMON-1001` | `Idempotency-Key`幂等/写审计/`sys_user`、`sys_user_role` |
+| USER-001 创建用户 | `POST /api/v1/users` | 商家管理员 | `username`、`displayName`、`temporaryPassword`、`roleIds` | `201` 用户摘要 | `USER-1001`、`COMMON-1001` | `Idempotency-Key`幂等/写审计/`sys_user`、`sys_user_role` |
 | USER-002 查询用户 | `GET /api/v1/users` | 商家管理员；分页 | `status`、`username` | 分页用户列表 | `COMMON-1004` | 只读/审计可选/`sys_user` |
 | USER-003 启用/停用用户 | `POST /api/v1/users/{userId}/status` | 商家管理员；JSON `version` | `status`、`version` | 新状态和版本 | `USER-1002`、`COMMON-1005`、`USER-1003` | 非幂等/写审计/`sys_user` |
 | USER-004 分配角色 | `PUT /api/v1/users/{userId}/roles` | 商家管理员；JSON `version` | `roleIds`、`version` | 用户角色列表 | `USER-1003`、`COMMON-1005` | 非幂等/写审计/`sys_user_role`、`audit_log` |
@@ -57,7 +59,7 @@
 
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| STORE-001 创建店铺 | `POST /api/v1/stores` | 商家管理员 | `storeCode`、`storeName`、`platformCode`、`platformAccount` | `201` 店铺摘要 | `COMMON-1001`、`TENANT-1003` | `Idempotency-Key`幂等/写审计/`merchant_store` |
+| STORE-001 创建店铺 | `POST /api/v1/stores` | 商家管理员 | `storeCode`、`storeName`、`platformCode`、`platformAccount` | `201` 店铺摘要 | `COMMON-1001`、`COMMON-1006` | `Idempotency-Key`幂等/写审计/`merchant_store` |
 | STORE-002 查询店铺 | `GET /api/v1/stores` | 商家管理员、商家操作员 | `status`、`platformCode` | 店铺列表 | `COMMON-1004` | 只读/`merchant_store` |
 | STORE-003 启用/停用店铺 | `POST /api/v1/stores/{storeId}/status` | 商家管理员；JSON `version` | `status`、`version` | 新状态 | `COMMON-1005`、`COMMON-1006` | 非幂等/写审计/`merchant_store` |
 
@@ -75,7 +77,7 @@
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
 | QUOTE-001 创建报价 | `POST /api/v1/quotes` | 商家管理员、商家操作员 | `storeId`、`channelId`、申报重量尺寸、目的国 | `201` 报价和 `feeDetail` | `QUOTE-1001`、`QUOTE-1002` | `Idempotency-Key`幂等/写审计/`quote`、`price_rule` |
-| QUOTE-002 查询报价详情 | `GET /api/v1/quotes/{quoteId}` | 当前租户用户 | `quoteId` | 报价详情和费用明细 | `COMMON-1006`、`TENANT-1003` | 只读/`quote` |
+| QUOTE-002 查询报价详情 | `GET /api/v1/quotes/{quoteId}` | 当前租户用户 | `quoteId` | 报价详情和费用明细 | `COMMON-1006` | 只读/`quote`；跨租户统一404 |
 | QUOTE-003 查询可用报价 | `GET /api/v1/quotes` | 当前租户用户；分页 | `storeId`、`channelId`、`status` | 分页报价 | `COMMON-1001` | 只读/`quote` |
 | QUOTE-004 校验报价有效性 | `POST /api/v1/quotes/{quoteId}/validate` | 当前租户用户 | `quoteId` | `valid`、失效原因 | `QUOTE-1003`、`QUOTE-1004` | 只读校验/不写业务审计/`quote`、`shipment_order` |
 
@@ -84,7 +86,7 @@
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
 | ORDER-001 创建订单 | `POST /api/v1/orders` | 商家管理员、商家操作员；必须 `Idempotency-Key` | `quoteId`、地址、包裹、商品 | `201` 订单、当前状态、费用 | `ORDER-1002`、`ORDER-1003`、`QUOTE-1003` | 幂等/写审计/`shipment_order`、`shipment_quote_snapshot`、`shipment_address`、`shipment_package`、`shipment_item` |
-| ORDER-002 订单详情 | `GET /api/v1/orders/{orderId}` | 当前租户用户 | `orderId` | 订单、包裹、地址、费用、状态 | `COMMON-1006`、`TENANT-1003` | 只读/`shipment_order`及关联表 |
+| ORDER-002 订单详情 | `GET /api/v1/orders/{orderId}` | 当前租户用户 | `orderId` | 订单、包裹、地址、费用、状态 | `COMMON-1006` | 只读/`shipment_order`及关联表；跨租户统一404 |
 | ORDER-003 分页查询订单 | `GET /api/v1/orders` | 当前租户用户；分页 | `status`、`orderNo`、时间范围、店铺 | 分页订单 | `COMMON-1001` | 只读/`shipment_order` |
 | ORDER-004 提交订单 | `POST /api/v1/orders/{orderId}/submit` | 商家管理员、商家操作员；JSON `version` | `version` | `PENDING_INBOUND`订单 | `ORDER-1001`、`COMMON-1005` | 幂等/写审计/`shipment_order` |
 | ORDER-005 取消订单 | `POST /api/v1/orders/{orderId}/cancel` | 商家管理员、商家操作员；JSON `version` | `reason`、`version` | `CANCELLED`订单 | `ORDER-1001`、`COMMON-1005` | 幂等/写审计/`shipment_order`、`audit_log` |
