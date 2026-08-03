@@ -94,7 +94,7 @@ public class LoginIdentityService {
                     || isBlank(authority.roleCode())
                     || !ACTIVE.equals(authority.roleStatus())
                     || !roleScope.equals(authority.roleScope())
-                    || MOCK_SYSTEM_ROLE.equals(authority.roleCode())) {
+                    || authority.roleCode().startsWith(MOCK_SYSTEM_ROLE)) {
                 throw failure();
             }
             validRole = true;

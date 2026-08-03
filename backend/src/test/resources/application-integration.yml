@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: ${SHIPFLOW_IT_DB_URL}
+    username: ${SHIPFLOW_IT_DB_USERNAME}
+    password: ${SHIPFLOW_IT_DB_PASSWORD}
+  sql:
+    init:
+      mode: never
+  flyway:
+    enabled: false
+
+mybatis:
+  mapper-locations: classpath:/mapper/**/*.xml
