@@ -44,6 +44,9 @@ database-data/
 postgres-data/
 mysql-data/
 
+# Local backend configuration
+backend/src/main/resources/application-local.yml
+
 # OS files
 .DS_Store
 Thumbs.db

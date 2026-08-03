@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+if [ -n "${MAVEN_HOME:-}" ] && [ -x "$MAVEN_HOME/bin/mvn" ]; then
+  exec "$MAVEN_HOME/bin/mvn" "$@"
+fi
+exec mvn "$@"
