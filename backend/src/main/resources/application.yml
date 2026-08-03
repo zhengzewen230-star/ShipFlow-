@@ -10,6 +10,18 @@ spring:
   flyway:
     enabled: false
 
+shipflow:
+  security:
+    jwt:
+      enabled: ${SHIPFLOW_JWT_ENABLED:false}
+      issuer: ${SHIPFLOW_JWT_ISSUER:shipflow}
+      audience: ${SHIPFLOW_JWT_AUDIENCE:shipflow-api}
+      access-token-ttl: ${SHIPFLOW_JWT_ACCESS_TOKEN_TTL:15m}
+      clock-skew: ${SHIPFLOW_JWT_CLOCK_SKEW:60s}
+      active-kid: ${SHIPFLOW_JWT_ACTIVE_KID:local-dev}
+      private-key-location: ${SHIPFLOW_JWT_PRIVATE_KEY_LOCATION:}
+      public-key-location: ${SHIPFLOW_JWT_PUBLIC_KEY_LOCATION:}
+
 management:
   endpoints:
     web:
