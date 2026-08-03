@@ -57,14 +57,14 @@ public class RefreshTokenSessionService {
         if (current == null) {
             throw failure();
         }
+        if (ROTATED.equals(current.status())) {
+            repository.revokeFamily(current.familyId(), databaseNow);
+            throw failure();
+        }
         if (!now.isBefore(toInstant(current.expiresAt()))) {
             if (ACTIVE.equals(current.status())) {
                 repository.markExpired(current.id(), databaseNow);
             }
-            throw failure();
-        }
-        if (ROTATED.equals(current.status())) {
-            repository.revokeFamily(current.familyId(), databaseNow);
             throw failure();
         }
         if (!ACTIVE.equals(current.status())) {
@@ -84,6 +84,18 @@ public class RefreshTokenSessionService {
             return;
         }
         repository.revokeFamily(familyId, toUtc(clock.instant()));
+    }
+
+    @Transactional
+    public void revokeByToken(RefreshToken rawToken) {
+        if (rawToken == null) {
+            return;
+        }
+        String tokenHash = hmacService.digest(rawToken).value();
+        RefreshSessionDO session = repository.findByTokenHashForUpdate(tokenHash);
+        if (session != null) {
+            repository.revokeFamily(session.familyId(), toUtc(clock.instant().truncatedTo(ChronoUnit.MILLIS)));
+        }
     }
 
     public java.util.List<RefreshSessionDO> findFamily(String familyId) {

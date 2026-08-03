@@ -47,4 +47,21 @@
           AND u.username = #{username}
           AND u.deleted = 0
     </select>
+
+    <select id="findUserByIdAndTenantId" resultMap="sysUserMap">
+        SELECT
+            u.id,
+            u.tenant_id,
+            u.username,
+            u.display_name,
+            u.password_hash,
+            u.status AS user_status,
+            t.status AS tenant_status
+        FROM sys_user u
+        LEFT JOIN tenant t ON t.id = u.tenant_id
+        WHERE u.id = #{userId}
+          AND ((#{tenantId} IS NULL AND u.tenant_id IS NULL)
+               OR (#{tenantId} IS NOT NULL AND u.tenant_id = #{tenantId} AND t.id = #{tenantId}))
+          AND u.deleted = 0
+    </select>
 </mapper>

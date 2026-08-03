@@ -9,12 +9,24 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import com.shipflow.auth.service.LoginIdentityAuthenticationException;
+import com.shipflow.security.refresh.RefreshTokenAuthenticationException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(LoginIdentityAuthenticationException.class)
+    public ResponseEntity<ApiErrorResponse> handleLoginFailure(LoginIdentityAuthenticationException exception) {
+        return response(HttpStatus.UNAUTHORIZED, new ApiErrorResponse("AUTH-1001", "Authentication failed"));
+    }
+
+    @ExceptionHandler(RefreshTokenAuthenticationException.class)
+    public ResponseEntity<ApiErrorResponse> handleRefreshFailure(RefreshTokenAuthenticationException exception) {
+        return response(HttpStatus.UNAUTHORIZED, new ApiErrorResponse("AUTH-1002", "Refresh authentication failed"));
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException exception) {

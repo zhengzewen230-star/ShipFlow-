@@ -88,6 +88,23 @@ public class LoginIdentityService {
         }
     }
 
+    public LoginIdentityLookup reloadByUserId(Long userId, Long tenantId) {
+        try {
+            SysUserDO user = sysUserMapper.findUserByIdAndTenantId(userId, tenantId);
+            if (user == null || !isValidUser(user)) {
+                throw failure();
+            }
+            String roleScope = user.tenantId() == null ? PLATFORM : TENANT;
+            List<UserAuthorityView> authorities = userAuthorityMapper.findActiveAuthorities(
+                    user.id(), user.tenantId(), roleScope);
+            return new LoginIdentityLookup(toIdentity(user, roleScope, authorities), user.passwordHash());
+        } catch (LoginIdentityAuthenticationException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw failure();
+        }
+    }
+
     private SysUserDO findUser(String username, String tenantCode) {
         if (isBlank(username)) {
             return null;
