@@ -7,7 +7,7 @@
 - 已完成：V002 API 持久化迁移，新增 `api_idempotency_record` 和 `auth_refresh_session`；已在 Ubuntu MySQL 8.0 容器中实际执行并验证通过，当前数据库为30张表。
 - 已完成：V003 数据库注释修复；两张 API 支撑表共26个字段注释已在 Ubuntu MySQL 8.0 容器中实际修复并通过 `verify.sql` 全量验证。
 - 已完成：后端基础骨架本机验证；使用 JDK 21.0.11 运行，项目编译目标为 Java 17。6 个基础测试全部通过，Spring 测试上下文启动成功，test 配置下健康检查已验证 HTTP 200 和 `{"status":"UP"}`。
-- 当前阶段：后端基础骨架收尾；尚未开发登录、JWT、RBAC 或报价、订单等业务接口。Swagger UI 和 OpenAPI JSON 的独立 HTTP 访问结果待补充确认。
+- 当前阶段：后端基础骨架收尾；尚未开发登录、JWT、RBAC 或报价、订单等业务接口。Swagger UI 和 OpenAPI JSON 已完成本机运行时验证。
 
 ShipFlow 是一个面向互联网测试开发工程师求职的企业级跨境物流履约与费用结算仿真项目。项目以真实业务流程为核心，覆盖订单履约、跨境物流协同、状态流转、费用计算与结算，以及相应的接口、数据库和异步业务测试。
 

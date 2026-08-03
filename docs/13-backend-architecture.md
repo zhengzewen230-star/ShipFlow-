@@ -101,4 +101,4 @@ com.shipflow
 - Springdoc 和 Mockito 的提示仅记录为依赖/运行时警告性质，不在本轮升级或降级依赖，未影响本轮验收。
 - 本次工作区检查未发现密码、Token、`.env`、`application-local.yml`、日志或数据库备份进入 Git；`target/` 由 `.gitignore` 忽略。
 
-Swagger UI 和 OpenAPI JSON 的 HTTP 访问结果未在本次工具会话中独立取得，因此不将其写成已验证通过；待实际访问后补录具体 HTTP 状态和响应结果。
+Swagger 运行时验证已完成：`GET /swagger-ui/index.html` 返回 HTTP 200，`GET /v3/api-docs` 返回 HTTP 200，浏览器可以打开 Swagger UI，验证后应用已正常停止且 8080 端口已释放。当前没有业务 Controller，因此运行时 OpenAPI 暂无业务接口；设计阶段的 `openapi/shipflow-api.yaml` 仍包含14个计划接口，两者属于不同层次的契约。
