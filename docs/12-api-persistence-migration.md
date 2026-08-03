@@ -52,9 +52,31 @@ SOURCE database/verify.sql;
 
 本项目不生成自动删除生产数据、自动 DROP 生产表或自动清空表的回滚脚本。任何生产回滚都必须经过变更审批、备份确认和人工复核。
 
-## 6. 当前状态
+## 6. V003 注释修复
+
+历史执行 V002 时，客户端连接字符集配置错误，导致两张 API 支撑表的表注释和字段注释以乱码写入数据库。该问题不是 Navicat 显示问题；`information_schema.TABLES` 和 `information_schema.COLUMNS` 中也会读取到错误文本。
+
+`utf8mb4` 只能保证数据库和表能够存储 Unicode，不能代替客户端连接字符集设置。手工执行 SQL 前必须使用：
+
+```bash
+mysql --default-character-set=utf8mb4
+```
+
+进入 MySQL 后执行：
+
+```sql
+SET NAMES utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+```
+
+随后执行 `database/migrations/V003__repair_v002_comments.sql`。V003 仅使用 `ALTER TABLE` 和 `MODIFY COLUMN` 修复 `api_idempotency_record`、`auth_refresh_session` 的表及字段注释，不改变字段定义、索引、外键、状态约束或业务数据，也不重新执行 V002。
+
+修复后执行 `database/verify.sql`，重点检查 `support_table_comments`、`support_column_comments`、`support_comment_mojibake` 和 `key_comment_values`。
+
+## 7. 当前状态
 
 V002 已在 Ubuntu 的 `my-mysql-docker` 容器中实际执行并验证通过。数据库当前为30张表，未记录服务器 IP、数据库密码或其他敏感信息。
+
+V003 已在 Ubuntu 的 `my-mysql-docker` 容器中实际执行成功。数据库当前为30张表，`verify.sql` 全部 PASS；两张表共26个字段注释已修复。V003 未删除、重建表或修改业务数据。
 
 实际验证结果：
 

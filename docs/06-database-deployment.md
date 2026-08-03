@@ -22,6 +22,7 @@
 docker cp database/schema.sql my-mysql-docker:/tmp/shipflow-schema.sql
 docker cp database/init_data.sql my-mysql-docker:/tmp/shipflow-init_data.sql
 docker cp database/verify.sql my-mysql-docker:/tmp/shipflow-verify.sql
+docker cp database/migrations/V003__repair_v002_comments.sql my-mysql-docker:/tmp/shipflow-V003.sql
 ```
 
 确认文件已上传：
@@ -30,7 +31,8 @@ docker cp database/verify.sql my-mysql-docker:/tmp/shipflow-verify.sql
 docker exec my-mysql-docker ls -l \
   /tmp/shipflow-schema.sql \
   /tmp/shipflow-init_data.sql \
-  /tmp/shipflow-verify.sql
+  /tmp/shipflow-verify.sql \
+  /tmp/shipflow-V003.sql
 ```
 
 上述命令只复制和读取文件，不会影响其他容器。
@@ -45,7 +47,7 @@ docker exec my-mysql-docker ls -l \
 docker exec -it my-mysql-docker mysql -uroot -p
 ```
 
-在出现 `Enter password:` 后手动输入密码，然后依次执行：
+在出现 `Enter password:` 后手动输入密码。新环境依次执行：
 
 ```sql
 SOURCE /tmp/shipflow-schema.sql;
@@ -58,6 +60,23 @@ SOURCE /tmp/shipflow-verify.sql;
 1. `schema.sql`：创建 `shipflow` 数据库、表、外键和索引；
 2. `init_data.sql`：写入测试租户、用户、角色、权限、渠道和价格规则；
 3. `verify.sql`：只读检查表数量、初始化数据、权限、渠道、价格规则、字符集和排序规则。
+
+已有 V002 数据库只执行 V003，不重新执行 `schema.sql` 或 `init_data.sql`：
+
+```bash
+docker exec -it my-mysql-docker mysql --default-character-set=utf8mb4 -uroot -p
+```
+
+进入 MySQL 后先执行：
+
+```sql
+USE shipflow;
+SET NAMES utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+SOURCE /tmp/shipflow-V003.sql;
+SOURCE /tmp/shipflow-verify.sql;
+```
+
+`utf8mb4` 表字符集不能替代客户端连接字符集。手工执行 V003 前必须使用 `mysql --default-character-set=utf8mb4`，并在会话中执行上述 `SET NAMES`。
 
 也可以在 Ubuntu 主机上逐个执行，每条命令都会交互提示密码：
 
@@ -74,7 +93,7 @@ docker exec -i my-mysql-docker mysql -uroot -p shipflow < database/verify.sql
 `database/verify.sql` 会为每项检查输出实际值、期望值和 `PASS`/`FAIL`：
 
 - 数据库字符集是否为 `utf8mb4`；
-- 28 张表是否统一使用 `utf8mb4_0900_ai_ci`；
+- 30 张表是否统一使用 `utf8mb4_0900_ai_ci`；
 - 用户数量：10；
 - 角色数量：10；
 - 权限数量：10；
@@ -89,6 +108,7 @@ docker exec -i my-mysql-docker mysql -uroot -p shipflow < database/verify.sql
 - Mock 物流系统账号是否拥有 `tracking:callback`；
 - 关键唯一索引是否存在；
 - 订单状态是否属于已确认状态集合。
+- V002 两张 API 支撑表的表注释和 26 个字段注释是否正确且无乱码。
 
 ## 5. 端口说明
 
