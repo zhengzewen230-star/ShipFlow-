@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.auth.mapper.SysUserMapper">
+
+    <resultMap id="sysUserMap" type="com.shipflow.auth.model.SysUserDO">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long" />
+            <arg column="tenant_id" javaType="java.lang.Long" />
+            <arg column="username" javaType="string" />
+            <arg column="display_name" javaType="string" />
+            <arg column="password_hash" javaType="string" />
+            <arg column="user_status" javaType="string" />
+            <arg column="tenant_status" javaType="string" />
+        </constructor>
+    </resultMap>
+
+    <select id="findPlatformUser" resultMap="sysUserMap">
+        SELECT
+            u.id,
+            u.tenant_id,
+            u.username,
+            u.display_name,
+            u.password_hash,
+            u.status AS user_status,
+            NULL AS tenant_status
+        FROM sys_user u
+        WHERE u.tenant_id IS NULL
+          AND u.username = #{username}
+          AND u.deleted = 0
+    </select>
+
+    <select id="findTenantUser" resultMap="sysUserMap">
+        SELECT
+            u.id,
+            u.tenant_id,
+            u.username,
+            u.display_name,
+            u.password_hash,
+            u.status AS user_status,
+            t.status AS tenant_status
+        FROM tenant t
+        INNER JOIN sys_user u ON u.tenant_id = t.id
+        WHERE t.tenant_code = #{tenantCode}
+          AND u.tenant_id = t.id
+          AND u.username = #{username}
+          AND u.deleted = 0
+    </select>
+</mapper>
