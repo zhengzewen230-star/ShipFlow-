@@ -1,0 +1,32 @@
+base_url: "${SHIPFLOW_API_BASE_URL}"
+timeout: 5
+verify_ssl: false
+
+auth:
+  tenant_code: "TENANT_DEMO_001"
+  username: "merchant_admin_001"
+  password_env: "SHIPFLOW_TEST_PASSWORD"
+
+credential_profiles:
+  TENANT_ADMIN:
+    tenant_code: "TENANT_DEMO_001"
+    username: "merchant_admin_001"
+    password_env: "SHIPFLOW_TEST_PASSWORD"
+
+  PLATFORM_ADMIN:
+    tenant_code: null
+    username: "platform_admin"
+    password_env: "SHIPFLOW_PLATFORM_TEST_PASSWORD"
+
+qa_database:
+  host: "${SHIPFLOW_QA_DB_HOST}"
+  port: "${SHIPFLOW_QA_DB_PORT}"
+  database: "${SHIPFLOW_QA_DB_NAME}"
+  username: "${SHIPFLOW_QA_DB_USERNAME}"
+  password_env: "SHIPFLOW_QA_DB_PASSWORD"
+  charset: "utf8mb4"
+  connect_timeout: 5
+
+test_execution:
+  environment_scope: "QA"
+  module: null

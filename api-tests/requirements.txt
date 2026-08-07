@@ -1,0 +1,5 @@
+pytest>=9.1.1 #核心测试框架
+requests>=2.34.2 #HTTP接口调用
+PyYAML>=6.0.3 #YAML文件解析
+allure-pytest>=2.16.0 #Allure 测试报告插件
+PyMySQL==1.2.0 #数据库读取测试用例插件

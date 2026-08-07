@@ -233,3 +233,39 @@ WHERE tenant_id = ?
 ### auth_refresh_session
 
 该表保存 Refresh Token 会话摘要和轮换链，具有 `UNIQUE(token_hash)`、`UNIQUE(previous_session_id)`、`INDEX(user_id, status, expires_at)`、`INDEX(family_id, status)` 和 `INDEX(expires_at)`。`user_id`、`tenant_id` 和 `previous_session_id` 分别关联现有用户、租户和本表；只保存 HMAC-SHA256 或 SHA-256 摘要，不保存明文 Token。
+## 10. API 测试执行契约
+
+`database/qa/003_upgrade_api_test_case_execution_contract.sql` 将 `api_test_case` 从自然语言用例升级为通用 pytest 执行器契约。该迁移只操作独立的 `shipflow_qa` 数据库。
+
+新增字段：
+
+- `setup_steps JSON`：请求前动作数组，支持 `get_csrf`、`login`、`refresh`、`logout`、`create_token_fixture`。
+- `extractors JSON`：从响应中提取运行时变量，例如 `json.$.data.accessToken` 保存为 `ACCESS_TOKEN`，Cookie 提取保存为 `REFRESH_COOKIE`。
+- `teardown_steps JSON`：请求后的清理动作数组。
+- `tags JSON`：模块、测试类型和执行特征标签。
+- `execution_order INT`：稳定的执行排序号；状态流用例不得依赖前一条用例的内存上下文。
+- `automation_status VARCHAR(32)`：`READY` 可由通用 HTTP 执行器运行，`BLOCKED` 依赖数据库状态或业务 fixture，`DEFERRED` 依赖特殊 JWT 签发或生产 Cookie 配置。
+- `environment_scope VARCHAR(32)`：适用环境，例如 `QA`、`LOCAL`、`INTEGRATION` 或 `PRODUCTION`。
+
+### assertions 对象协议
+
+`assertions` 的每个元素必须是对象，不再允许中文字符串：
+
+```json
+{
+  "source": "status_code|json|header|cookie|body",
+  "path": "字段路径，没有则为null",
+  "operator": "eq|ne|exists|not_exists|not_empty|contains|not_contains|is_empty",
+  "expected": "预期值，没有则为null"
+}
+```
+
+`source=json` 的 `path` 使用 JSONPath；`source=header` 和 `source=cookie` 使用名称；`source=body` 用于完整响应体或特殊处理断言。数据库状态断言不能伪装成 HTTP 断言，迁移会保留其语义并将用例标记为 `BLOCKED`，由 pytest fixture 进行数据库断言。
+
+### 执行上下文与敏感数据
+
+执行器维护单次用例的内存上下文。SQL 中只允许出现 `${变量名}` 占位符；真实密码、Access Token、Refresh Cookie、HMAC 密钥和数据库密码必须由运行时环境或响应提取器注入，不得写入 `shipflow_qa` 或测试报告。Refresh Token 只从 Cookie 上下文读取，不能从 JSON 响应读取。
+
+`STATE_FLOW` 用例必须在 `setup_steps` 中独立创建自己的 Token、CSRF 或测试 fixture，并在 `teardown_steps` 中清理；不能通过 `execution_order` 或其他用例的副作用建立前置条件。
+
+迁移末尾的校验语句确认：认证用例总数为 52、`case_no` 重复数为 0、`assertions` 中不存在非对象元素、执行字段不存在空值，并输出 `READY`、`BLOCKED`、`DEFERRED` 数量。

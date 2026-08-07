@@ -10,6 +10,9 @@ target/
 venv/
 env/
 ENV/
+!api-tests/config/env/
+api-tests/config/env/*
+!api-tests/config/env/ci.yaml
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -29,6 +32,7 @@ __pycache__/
 logs/
 
 # Allure temporary results and reports
+api-tests/reports/
 allure-results/
 allure-report/
 
@@ -39,6 +43,9 @@ allure-report/
 
 # Database data directories
 data/
+!api-tests/data/
+api-tests/data/*
+!api-tests/data/auth_data.yaml
 db-data/
 database-data/
 postgres-data/
