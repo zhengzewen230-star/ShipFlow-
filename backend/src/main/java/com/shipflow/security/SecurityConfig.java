@@ -7,6 +7,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.http.MediaType;
 import java.io.IOException;
@@ -19,11 +20,14 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectProvider<JwtDecoder> decoder) throws Exception {
+        AuthenticationEntryPoint authenticationEntryPoint = jsonEntryPoint("COMMON-1002", "Authentication required");
         CookieCsrfTokenRepository csrf = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrf.setCookieName("XSRF-TOKEN");
         csrf.setHeaderName("X-XSRF-TOKEN");
         csrf.setCookiePath("/api/v1/auth");
+        CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
         http.csrf(config -> config.csrfTokenRepository(csrf)
+                        .csrfTokenRequestHandler(requestHandler)
                         .ignoringRequestMatchers(new AntPathRequestMatcher("/_test/**")))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
@@ -31,10 +35,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/users/me").authenticated()
                         .anyRequest().permitAll())
                 .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint(jsonEntryPoint("COMMON-1002", "Authentication required"))
+                        .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(jsonDeniedHandler()));
         if (decoder.getIfAvailable() != null) {
-            http.oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.decoder(decoder.getIfAvailable())));
+            http.oauth2ResourceServer(oauth -> oauth
+                    .authenticationEntryPoint(authenticationEntryPoint)
+                    .jwt(jwt -> jwt.decoder(decoder.getIfAvailable())));
         }
         return http.build();
     }
@@ -49,11 +55,14 @@ public class SecurityConfig {
     }
     private void writeError(jakarta.servlet.http.HttpServletResponse response, int status,
                             String code, String message) throws IOException {
+        String traceId = com.shipflow.common.trace.TraceId.currentOrCreate();
+        response.resetBuffer();
         response.setStatus(status);
+        response.setHeader(com.shipflow.common.trace.TraceId.HEADER_NAME, traceId);
         if (status == 401) response.setHeader("WWW-Authenticate", "Bearer");
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.getWriter().write("{\"success\":false,\"traceId\":\"" +
-                com.shipflow.common.trace.TraceId.current() + "\",\"error\":{\"code\":\"" + code +
+                traceId + "\",\"error\":{\"code\":\"" + code +
                 "\",\"message\":\"" + message + "\",\"details\":{}}}");
     }
 }

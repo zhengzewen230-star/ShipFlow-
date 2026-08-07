@@ -11,8 +11,12 @@ import com.shipflow.auth.service.PasswordAuthenticationService;
 import com.shipflow.security.jwt.AccessTokenService;
 import com.shipflow.security.jwt.AccessTokenPrincipal;
 import com.shipflow.security.jwt.JwtProperties;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 
 /** Orchestrates identity lookup, password verification and access-token issuance. */
+@Service
+@Profile("!test")
 public final class LoginApplicationService {
 
     private final LoginIdentityService loginIdentityService;

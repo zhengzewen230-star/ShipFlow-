@@ -10,6 +10,9 @@ spring:
   flyway:
     enabled: false
 
+mybatis:
+  mapper-locations: classpath*:mapper/**/*.xml
+
 shipflow:
   security:
     jwt:

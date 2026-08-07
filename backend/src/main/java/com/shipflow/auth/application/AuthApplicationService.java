@@ -11,7 +11,11 @@ import com.shipflow.security.refresh.RefreshToken;
 import com.shipflow.security.refresh.RefreshTokenSessionResult;
 import com.shipflow.security.refresh.RefreshTokenSessionService;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.stereotype.Service;
+import org.springframework.context.annotation.Profile;
 
+@Service
+@Profile("!test")
 public class AuthApplicationService {
     private final LoginApplicationService loginApplicationService;
     private final LoginIdentityService identityService;

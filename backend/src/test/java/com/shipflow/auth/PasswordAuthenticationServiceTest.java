@@ -61,16 +61,14 @@ class PasswordAuthenticationServiceTest {
     }
 
     @Test
-    void encoderFailureIsNotLeaked() {
+    void encoderFailureRemainsAnInfrastructureFailure() {
         PasswordEncoder encoder = mock(PasswordEncoder.class);
-        when(encoder.matches("password", "stored-hash"))
-                .thenThrow(new IllegalArgumentException("bad hash password=secret"));
+        IllegalArgumentException infrastructureFailure = new IllegalArgumentException("Invalid stored hash");
+        when(encoder.matches("password", "stored-hash")).thenThrow(infrastructureFailure);
         PasswordAuthenticationService service = new PasswordAuthenticationService(encoder, DUMMY_HASH);
 
         assertThatThrownBy(() -> service.authenticate("password", "stored-hash"))
-                .isInstanceOf(LoginIdentityAuthenticationException.class)
-                .hasMessage("Authentication failed")
-                .hasMessageNotContaining("secret");
+                .isSameAs(infrastructureFailure);
         assertThat(service.toString()).doesNotContain("stored-hash");
     }
 }

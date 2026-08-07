@@ -10,4 +10,4 @@ spring:
     enabled: false
 
 mybatis:
-  mapper-locations: classpath:/mapper/**/*.xml
+  mapper-locations: classpath*:mapper/**/*.xml

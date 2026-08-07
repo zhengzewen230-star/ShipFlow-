@@ -300,16 +300,25 @@ class LoginIdentityServiceTest {
     }
 
     @Test
-    void mapperExceptionBecomesSafeAuthenticationFailure() {
-        when(sysUserMapper.findPlatformUser("platform_admin"))
-                .thenThrow(new RuntimeException("SQL failed for password=" + PASSWORD));
+    void mapperExceptionRemainsAnInfrastructureFailure() {
+        RuntimeException infrastructureFailure = new RuntimeException("SQL mapping failure");
+        when(sysUserMapper.findPlatformUser("platform_admin")).thenThrow(infrastructureFailure);
 
         assertThatThrownBy(() -> service.authenticate(new LoginCredentials("platform_admin", PASSWORD, null)))
-                .isInstanceOf(LoginIdentityAuthenticationException.class)
-                .hasMessage("Authentication failed")
-                .hasMessageNotContaining(PASSWORD)
-                .satisfies(exception -> assertThat(((LoginIdentityAuthenticationException) exception).getErrorCode())
-                        .isEqualTo("AUTH-1001"));
+                .isSameAs(infrastructureFailure);
+    }
+
+    @Test
+    void authorityBindingExceptionIsNotConvertedToAuthenticationFailure() {
+        SysUserDO user = user(2L, 1L, "ACTIVE");
+        org.apache.ibatis.binding.BindingException bindingFailure =
+                new org.apache.ibatis.binding.BindingException("Invalid bound statement");
+        when(sysUserMapper.findTenantUser("TENANT_DEMO_001", "merchant_admin_001")).thenReturn(user);
+        when(userAuthorityMapper.findActiveAuthorities(2L, 1L, "TENANT")).thenThrow(bindingFailure);
+
+        assertThatThrownBy(() -> service.lookup(
+                new LoginCredentials("merchant_admin_001", PASSWORD, "TENANT_DEMO_001")))
+                .isSameAs(bindingFailure);
     }
 
     @Test

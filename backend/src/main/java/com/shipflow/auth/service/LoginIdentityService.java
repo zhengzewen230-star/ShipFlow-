@@ -2,18 +2,24 @@ package com.shipflow.auth.service;
 
 import com.shipflow.auth.mapper.SysUserMapper;
 import com.shipflow.auth.mapper.UserAuthorityMapper;
+import com.shipflow.auth.config.AuthSecurityProperties;
 import com.shipflow.auth.model.LoginCredentials;
 import com.shipflow.auth.model.LoginIdentity;
 import com.shipflow.auth.model.LoginIdentityLookup;
 import com.shipflow.auth.model.SysUserDO;
 import com.shipflow.auth.model.UserAuthorityView;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 /** Performs exact-scope account lookup, BCrypt verification and one-shot authority loading. */
+@Service
+@Profile("!test")
 public class LoginIdentityService {
 
     private static final String ACTIVE = "ACTIVE";
@@ -25,6 +31,15 @@ public class LoginIdentityService {
     private final UserAuthorityMapper userAuthorityMapper;
     private final PasswordEncoder passwordEncoder;
     private final String dummyPasswordHash;
+
+    @Autowired
+    public LoginIdentityService(
+            SysUserMapper sysUserMapper,
+            UserAuthorityMapper userAuthorityMapper,
+            PasswordEncoder passwordEncoder,
+            AuthSecurityProperties properties) {
+        this(sysUserMapper, userAuthorityMapper, passwordEncoder, properties.getDummyPasswordHash());
+    }
 
     public LoginIdentityService(
             SysUserMapper sysUserMapper,
@@ -41,68 +56,49 @@ public class LoginIdentityService {
     }
 
     public LoginIdentity authenticate(LoginCredentials credentials) {
-        try {
-            String password = credentials == null || credentials.password() == null
-                    ? "\u0000"
-                    : credentials.password();
-            String username = credentials == null ? null : credentials.username();
-            String tenantCode = credentials == null ? null : credentials.tenantCode();
+        String password = credentials == null || credentials.password() == null
+                ? "\u0000"
+                : credentials.password();
+        String username = credentials == null ? null : credentials.username();
+        String tenantCode = credentials == null ? null : credentials.tenantCode();
 
-            SysUserDO user = findUser(username, tenantCode);
-            boolean passwordMatches = passwordEncoder.matches(
-                    password, user == null ? dummyPasswordHash : user.passwordHash());
-            if (user == null || !passwordMatches || !isValidUser(user)) {
-                throw failure();
-            }
-
-            String roleScope = user.tenantId() == null ? PLATFORM : TENANT;
-            List<UserAuthorityView> authorities = userAuthorityMapper.findActiveAuthorities(
-                    user.id(), user.tenantId(), roleScope);
-            return toIdentity(user, roleScope, authorities);
-        } catch (LoginIdentityAuthenticationException exception) {
-            throw exception;
-        } catch (RuntimeException exception) {
-            // Do not expose mapper, encoder or driver messages to a public login endpoint.
+        SysUserDO user = findUser(username, tenantCode);
+        boolean passwordMatches = passwordEncoder.matches(
+                password, user == null ? dummyPasswordHash : user.passwordHash());
+        if (user == null || !passwordMatches || !isValidUser(user)) {
             throw failure();
         }
+
+        String roleScope = user.tenantId() == null ? PLATFORM : TENANT;
+        List<UserAuthorityView> authorities = userAuthorityMapper.findActiveAuthorities(
+                user.id(), user.tenantId(), roleScope);
+        return toIdentity(user, roleScope, authorities);
     }
 
     /** Loads the identity and internal password hash in one database pass. */
     public LoginIdentityLookup lookup(LoginCredentials credentials) {
-        try {
-            String username = credentials == null ? null : credentials.username();
-            String tenantCode = credentials == null ? null : credentials.tenantCode();
-            SysUserDO user = findUser(username, tenantCode);
-            if (user == null || !isValidUser(user)) {
-                throw failure();
-            }
-
-            String roleScope = user.tenantId() == null ? PLATFORM : TENANT;
-            List<UserAuthorityView> authorities = userAuthorityMapper.findActiveAuthorities(
-                    user.id(), user.tenantId(), roleScope);
-            return new LoginIdentityLookup(toIdentity(user, roleScope, authorities), user.passwordHash());
-        } catch (LoginIdentityAuthenticationException exception) {
-            throw exception;
-        } catch (RuntimeException exception) {
+        String username = credentials == null ? null : credentials.username();
+        String tenantCode = credentials == null ? null : credentials.tenantCode();
+        SysUserDO user = findUser(username, tenantCode);
+        if (user == null || !isValidUser(user)) {
             throw failure();
         }
+
+        String roleScope = user.tenantId() == null ? PLATFORM : TENANT;
+        List<UserAuthorityView> authorities = userAuthorityMapper.findActiveAuthorities(
+                user.id(), user.tenantId(), roleScope);
+        return new LoginIdentityLookup(toIdentity(user, roleScope, authorities), user.passwordHash());
     }
 
     public LoginIdentityLookup reloadByUserId(Long userId, Long tenantId) {
-        try {
-            SysUserDO user = sysUserMapper.findUserByIdAndTenantId(userId, tenantId);
-            if (user == null || !isValidUser(user)) {
-                throw failure();
-            }
-            String roleScope = user.tenantId() == null ? PLATFORM : TENANT;
-            List<UserAuthorityView> authorities = userAuthorityMapper.findActiveAuthorities(
-                    user.id(), user.tenantId(), roleScope);
-            return new LoginIdentityLookup(toIdentity(user, roleScope, authorities), user.passwordHash());
-        } catch (LoginIdentityAuthenticationException exception) {
-            throw exception;
-        } catch (RuntimeException exception) {
+        SysUserDO user = sysUserMapper.findUserByIdAndTenantId(userId, tenantId);
+        if (user == null || !isValidUser(user)) {
             throw failure();
         }
+        String roleScope = user.tenantId() == null ? PLATFORM : TENANT;
+        List<UserAuthorityView> authorities = userAuthorityMapper.findActiveAuthorities(
+                user.id(), user.tenantId(), roleScope);
+        return new LoginIdentityLookup(toIdentity(user, roleScope, authorities), user.passwordHash());
     }
 
     private SysUserDO findUser(String username, String tenantCode) {

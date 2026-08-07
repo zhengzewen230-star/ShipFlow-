@@ -21,6 +21,14 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.oauth2.jwt.BadJwtException;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.web.servlet.ResultMatcher;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
@@ -41,6 +49,13 @@ class AuthControllerWebMvcTest {
     @TestConfiguration
     static class TestConfig {
         @Bean AuthCookieProperties authCookieProperties() { AuthCookieProperties p = new AuthCookieProperties(); p.setSecure(false); return p; }
+
+        @Bean
+        JwtDecoder rejectingJwtDecoder() {
+            return token -> {
+                throw new BadJwtException("invalid test token");
+            };
+        }
     }
 
     @Test
@@ -57,6 +72,53 @@ class AuthControllerWebMvcTest {
                         .content("{\"username\":\"u\",\"password\":\"p\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("AUTH-1005"));
+    }
+
+    @Test
+    void missingXsrfCookieReturnsTraceIdOnCsrfFailure() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .header("X-XSRF-TOKEN", "token-without-cookie")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"u\",\"password\":\"p\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("AUTH-1005"))
+                .andExpect(traceIdMatchesBody());
+    }
+
+    @Test
+    void missingXsrfHeaderReturnsTraceIdOnCsrfFailure() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .cookie(new jakarta.servlet.http.Cookie("XSRF-TOKEN", "cookie-token"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"u\",\"password\":\"p\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("AUTH-1005"))
+                .andExpect(traceIdMatchesBody());
+    }
+
+    @Test
+    void mismatchedXsrfCookieAndHeaderReturnsTraceIdOnCsrfFailure() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .cookie(new jakarta.servlet.http.Cookie("XSRF-TOKEN", "cookie-token"))
+                        .header("X-XSRF-TOKEN", "different-header-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"u\",\"password\":\"p\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("AUTH-1005"))
+                .andExpect(traceIdMatchesBody());
+    }
+
+    private ResultMatcher traceIdMatchesBody() {
+        return result -> {
+            String headerTraceId = result.getResponse().getHeader("X-Trace-Id");
+            assertNotNull(headerTraceId);
+            assertNotEquals("unknown", headerTraceId);
+            String bodyTraceId = new ObjectMapper()
+                    .readTree(result.getResponse().getContentAsString())
+                    .path("traceId")
+                    .asText();
+            assertEquals(headerTraceId, bodyTraceId);
+        };
     }
 
     @Test
@@ -109,7 +171,35 @@ class AuthControllerWebMvcTest {
     void meWithoutTokenIsUnauthorized() throws Exception {
         mockMvc.perform(get("/api/v1/users/me"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(header().string("WWW-Authenticate", "Bearer"));
+                .andExpect(header().string("WWW-Authenticate", "Bearer"))
+                .andExpect(header().exists("X-Trace-Id"))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("COMMON-1002"))
+                .andExpect(traceIdMatchesBody());
+    }
+
+    @Test
+    void meWithInvalidBearerTokenReturnsBusinessError() throws Exception {
+        mockMvc.perform(get("/api/v1/users/me")
+                        .header("Authorization", "Bearer invalid-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", "Bearer"))
+                .andExpect(header().exists("X-Trace-Id"))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("COMMON-1002"))
+                .andExpect(traceIdMatchesBody());
+    }
+
+    @Test
+    void meWithTamperedSignatureReturnsBusinessError() throws Exception {
+        mockMvc.perform(get("/api/v1/users/me")
+                        .header("Authorization", "Bearer eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxIn0.invalid-signature"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", "Bearer"))
+                .andExpect(header().exists("X-Trace-Id"))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("COMMON-1002"))
+                .andExpect(traceIdMatchesBody());
     }
 
     @Test
