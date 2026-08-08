@@ -60,11 +60,65 @@ pipeline {
         stage('Prepare Python') {
             steps {
                 dir('api-tests') {
-                    bat '''@echo off
-if not exist ".venv/Scripts/python.exe" (
-    py -3.12 -m venv .venv
+                    powershell '''
+$basePython = 'D:\\python\\python.exe'
+$venvPath = [System.IO.Path]::GetFullPath((Join-Path $PWD '.venv'))
+$apiTestsPath = [System.IO.Path]::GetFullPath($PWD.Path)
+$expectedPrefix = $apiTestsPath.TrimEnd(
+    [System.IO.Path]::DirectorySeparatorChar
+) + [System.IO.Path]::DirectorySeparatorChar
+
+if (-not $venvPath.StartsWith(
+    $expectedPrefix,
+    [System.StringComparison]::OrdinalIgnoreCase
+)) {
+    throw 'Refusing to manage a virtual environment outside api-tests'
+}
+
+if (-not (Test-Path -LiteralPath $basePython -PathType Leaf)) {
+    throw 'Configured base Python executable was not found'
+}
+
+& $basePython --version
+if ($LASTEXITCODE -ne 0) {
+    throw 'Configured base Python executable could not run'
+}
+
+$venvPython = Join-Path $venvPath 'Scripts\\python.exe'
+$venvConfig = Join-Path $venvPath 'pyvenv.cfg'
+$venvIsValid = (
+    (Test-Path -LiteralPath $venvPython -PathType Leaf) -and
+    (Test-Path -LiteralPath $venvConfig -PathType Leaf)
 )
-".venv/Scripts/python.exe" -m pip install --disable-pip-version-check -r requirements.txt
+
+if ($venvIsValid) {
+    & $venvPython -c `
+        'import os, sys; raise SystemExit(0 if sys.prefix != sys.base_prefix and os.path.samefile(sys._base_executable, sys.argv[1]) else 1)' `
+        $basePython
+    $venvIsValid = $LASTEXITCODE -eq 0
+}
+
+if (-not $venvIsValid) {
+    if (Test-Path -LiteralPath $venvPath) {
+        Remove-Item -LiteralPath $venvPath -Recurse -Force
+    }
+    & $basePython -m venv .venv
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Python virtual environment creation failed'
+    }
+}
+
+& $venvPython --version
+if ($LASTEXITCODE -ne 0) {
+    throw 'Virtual environment Python could not run'
+}
+
+& $venvPython -m pip install `
+    --disable-pip-version-check `
+    -r requirements.txt
+if ($LASTEXITCODE -ne 0) {
+    throw 'Python dependency installation failed'
+}
 '''
                 }
             }
@@ -133,7 +187,7 @@ except Exception:
 print("QA database read-only connectivity check: PASS")
 '@
 
-$checkScript | & ./.venv/Scripts/python.exe -
+$checkScript | & .\\.venv\\Scripts\\python.exe -
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
@@ -152,7 +206,7 @@ if ($LASTEXITCODE -ne 0) {
                 dir('api-tests') {
                     powershell '''
 New-Item -ItemType Directory -Force -Path reports | Out-Null
-& ./.venv/Scripts/python.exe -m pytest -v `
+& .\\.venv\\Scripts\\python.exe -m pytest -v `
     --alluredir=reports/allure-results `
     --clean-alluredir `
     --junitxml=reports/junit.xml
