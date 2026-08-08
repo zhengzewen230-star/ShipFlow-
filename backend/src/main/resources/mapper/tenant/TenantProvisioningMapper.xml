@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.tenant.mapper.TenantProvisioningMapper">
+  <insert id="insertAdminUser">INSERT INTO sys_user (tenant_id,username,display_name,password_hash,status,deleted,version) VALUES (#{tenantId},#{username},#{displayName},#{passwordHash},'ACTIVE',0,0)</insert>
+  <insert id="insertAdminRole">INSERT INTO sys_role (tenant_id,role_code,role_name,role_scope,status,deleted,version) VALUES (#{tenantId},'MERCHANT_ADMIN','Merchant Admin','TENANT','ACTIVE',0,0)</insert>
+  <select id="findRoleId" resultType="long">SELECT id FROM sys_role WHERE tenant_id=#{tenantId} AND role_code=#{roleCode} AND role_scope='TENANT' AND deleted=0</select>
+  <insert id="bindAdmin">INSERT INTO sys_user_role (tenant_id,user_id,role_id) VALUES (#{tenantId},#{userId},#{roleId})</insert>
+  <select id="findUserId" resultType="long">SELECT id FROM sys_user WHERE tenant_id=#{tenantId} AND username=#{username} AND deleted=0</select>
+  <select id="findPermissionIds" resultType="long">SELECT id FROM sys_permission WHERE permission_code IN <foreach collection="permissionCodes" item="code" open="(" separator="," close=")">#{code}</foreach></select>
+  <insert id="bindRolePermissions">INSERT INTO sys_role_permission (role_id, permission_id)
+    SELECT #{roleId}, p.id FROM sys_permission p
+    WHERE p.id IN <foreach collection="permissionIds" item="permissionId" open="(" separator="," close=")">#{permissionId}</foreach>
+      AND NOT EXISTS (SELECT 1 FROM sys_role_permission rp WHERE rp.role_id=#{roleId} AND rp.permission_id=p.id)
+  </insert>
+</mapper>

@@ -6,6 +6,10 @@ import com.shipflow.auth.mapper.SysUserMapper;
 import com.shipflow.auth.mapper.UserAuthorityMapper;
 import com.shipflow.security.refresh.RefreshSessionMapper;
 import com.shipflow.security.authorization.CurrentCallerService;
+import com.shipflow.tenant.mapper.TenantMapper;
+import com.shipflow.tenant.mapper.TenantProvisioningMapper;
+import com.shipflow.tenant.mapper.TenantIdempotencyMapper;
+import com.shipflow.tenant.mapper.TenantAuditMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -42,6 +46,10 @@ class AuthBeanRegistrationTest {
         @Bean SysUserMapper sysUserMapper() { return mock(SysUserMapper.class); }
         @Bean UserAuthorityMapper userAuthorityMapper() { return mock(UserAuthorityMapper.class); }
         @Bean RefreshSessionMapper refreshSessionMapper() { return mock(RefreshSessionMapper.class); }
+        @Bean TenantMapper tenantMapper() { return mock(TenantMapper.class); }
+        @Bean TenantProvisioningMapper tenantProvisioningMapper() { return mock(TenantProvisioningMapper.class); }
+        @Bean TenantIdempotencyMapper tenantIdempotencyMapper() { return mock(TenantIdempotencyMapper.class); }
+        @Bean TenantAuditMapper tenantAuditMapper() { return mock(TenantAuditMapper.class); }
         @Bean org.springframework.security.oauth2.jwt.JwtEncoder jwtEncoder() {
             try {
                 var generator = java.security.KeyPairGenerator.getInstance("RSA");

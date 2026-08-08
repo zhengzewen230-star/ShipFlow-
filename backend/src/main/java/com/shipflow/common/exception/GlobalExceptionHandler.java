@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.shipflow.auth.service.LoginIdentityAuthenticationException;
 import com.shipflow.security.refresh.RefreshTokenAuthenticationException;
+import com.shipflow.tenant.application.TenantException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -26,6 +27,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RefreshTokenAuthenticationException.class)
     public ResponseEntity<ApiErrorResponse> handleRefreshFailure(RefreshTokenAuthenticationException exception) {
         return response(HttpStatus.UNAUTHORIZED, new ApiErrorResponse("AUTH-1002", "Refresh authentication failed"));
+    }
+
+    @ExceptionHandler(TenantException.class)
+    public ResponseEntity<ApiErrorResponse> handleTenantFailure(TenantException exception) {
+        return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Tenant operation failed"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
