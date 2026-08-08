@@ -11,6 +11,14 @@ servers:
 tags:
   - name: Auth
     description: 认证与当前用户
+  - name: Tenant
+    description: 平台租户管理
+  - name: Store
+    description: 当前租户店铺管理
+  - name: User
+    description: 当前租户用户管理
+  - name: RBAC
+    description: 角色与权限管理
   - name: Quotes
     description: 运费报价
   - name: Orders
@@ -168,6 +176,326 @@ paths:
                 $ref: '#/components/schemas/ApiSuccessCurrentUser'
         '401':
           $ref: '#/components/responses/AuthError'
+
+  /platform/tenants:
+    post:
+      tags: [Tenant]
+      summary: 创建租户和初始管理员
+      operationId: createTenant
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+      responses:
+        '201':
+          description: 租户与初始管理员已在同一事务创建。
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessTenant'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    get:
+      tags: [Tenant]
+      summary: 分页查询租户
+      operationId: listTenants
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/TenantStatus' }
+        - name: tenantCode
+          in: query
+          schema: { type: string, maxLength: 64 }
+      responses:
+        '200':
+          description: 平台可见租户分页。
+          headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessTenantPage' } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /platform/tenants/{tenantId}:
+    get:
+      tags: [Tenant]
+      summary: 查询租户详情
+      operationId: getTenant
+      parameters: [ { $ref: '#/components/parameters/TenantId' } ]
+      responses:
+        '200': { description: 租户详情, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessTenant' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Tenant]
+      summary: 修改租户基础信息
+      operationId: updateTenant
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateTenantRequest' } } }
+      responses:
+        '200': { description: 更新后租户, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessTenant' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /platform/tenants/{tenantId}/status:
+    post:
+      tags: [Tenant]
+      summary: 启用或停用租户
+      operationId: changeTenantStatus
+      parameters: [ { $ref: '#/components/parameters/TenantId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/StatusChangeRequest' } } }
+      responses:
+        '200': { description: 新租户状态, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessTenant' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /stores:
+    post:
+      tags: [Store]
+      summary: 创建当前租户店铺
+      operationId: createStore
+      parameters: [ { $ref: '#/components/parameters/IdempotencyKey' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateStoreRequest' } } }
+      responses:
+        '201': { description: 店铺已创建, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessStore' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    get:
+      tags: [Store]
+      summary: 查询当前租户店铺
+      operationId: listStores
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ActiveStatus' }
+        - name: platformCode
+          in: query
+          schema: { type: string, maxLength: 64 }
+      responses:
+        '200': { description: 当前租户店铺列表, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessStoreList' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /stores/{storeId}:
+    get:
+      tags: [Store]
+      summary: 查询当前租户店铺详情
+      operationId: getStore
+      parameters: [ { $ref: '#/components/parameters/StoreId' } ]
+      responses:
+        '200': { description: 店铺详情, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessStore' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Store]
+      summary: 修改当前租户店铺
+      operationId: updateStore
+      parameters:
+        - $ref: '#/components/parameters/StoreId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateStoreRequest' } } }
+      responses:
+        '200': { description: 更新后店铺, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessStore' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /stores/{storeId}/status:
+    post:
+      tags: [Store]
+      summary: 启用或停用当前租户店铺
+      operationId: changeStoreStatus
+      parameters: [ { $ref: '#/components/parameters/StoreId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/StatusChangeRequest' } } }
+      responses:
+        '200': { description: 新店铺状态, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessStore' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users:
+    post:
+      tags: [User]
+      summary: 创建当前租户用户
+      operationId: createUser
+      parameters: [ { $ref: '#/components/parameters/IdempotencyKey' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateTenantUserRequest' } } }
+      responses:
+        '201': { description: 用户已创建, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessUser' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    get:
+      tags: [User]
+      summary: 分页查询当前租户用户
+      operationId: listUsers
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ActiveStatus' }
+        - name: username
+          in: query
+          schema: { type: string, maxLength: 128 }
+      responses:
+        '200': { description: 当前租户用户分页, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessUserPage' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /users/{userId}:
+    get:
+      tags: [User]
+      summary: 查询当前租户用户详情
+      operationId: getUser
+      parameters: [ { $ref: '#/components/parameters/UserId' } ]
+      responses:
+        '200': { description: 用户详情, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessUser' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [User]
+      summary: 修改当前租户用户
+      operationId: updateUser
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateUserRequest' } } }
+      responses:
+        '200': { description: 更新后用户, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessUser' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{userId}/status:
+    post:
+      tags: [User]
+      summary: 启用或停用当前租户用户
+      operationId: changeUserStatus
+      parameters: [ { $ref: '#/components/parameters/UserId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/StatusChangeRequest' } } }
+      responses:
+        '200': { description: 新用户状态, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessUser' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{userId}/roles:
+    put:
+      tags: [User]
+      summary: 替换当前租户用户角色
+      operationId: replaceUserRoles
+      parameters: [ { $ref: '#/components/parameters/UserId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UserRoleBindingRequest' } } }
+      responses:
+        '200': { description: 更新后用户与角色, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessUser' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /roles:
+    get:
+      tags: [RBAC]
+      summary: 查询当前租户角色
+      operationId: listRoles
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ActiveStatus' }
+      responses:
+        '200': { description: 当前租户角色列表, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessRoleList' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /roles/{roleId}:
+    get:
+      tags: [RBAC]
+      summary: 查询当前租户角色详情
+      operationId: getRole
+      parameters: [ { $ref: '#/components/parameters/RoleId' } ]
+      responses:
+        '200': { description: 角色详情, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessRole' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /roles/{roleId}/permissions:
+    put:
+      tags: [RBAC]
+      summary: 替换当前租户角色权限
+      operationId: replaceRolePermissions
+      parameters: [ { $ref: '#/components/parameters/RoleId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RolePermissionBindingRequest' } } }
+      responses:
+        '200': { description: 更新后角色与权限, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessRole' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /permissions:
+    get:
+      tags: [RBAC]
+      summary: 查询平台公共权限字典
+      operationId: listPermissions
+      responses:
+        '200': { description: 可分配权限列表, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessPermissionList' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /quotes:
     post:
@@ -667,7 +995,7 @@ components:
     refreshCookie:
       type: apiKey
       in: cookie
-      name: SHIPFLOW_REFRESH_TOKEN
+      name: REFRESH_TOKEN
       description: HttpOnly Refresh Token Cookie；客户端不可读取。
     providerHmac:
       type: apiKey
@@ -726,6 +1054,30 @@ components:
         $ref: '#/components/schemas/Id'
     ReconciliationId:
       name: reconciliationId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    TenantId:
+      name: tenantId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    StoreId:
+      name: storeId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    RoleId:
+      name: roleId
       in: path
       required: true
       schema:
@@ -1007,10 +1359,6 @@ components:
           enum: [PLATFORM, TENANT]
         tenantId:
           $ref: '#/components/schemas/Id'
-        roles:
-          type: array
-          items:
-            type: string
         permissions:
           type: array
           items:
@@ -1521,6 +1869,183 @@ components:
           type: integer
           format: int64
           minimum: 0
+    ActiveStatus:
+      type: string
+      enum: [ACTIVE, DISABLED]
+    TenantStatus:
+      type: string
+      enum: [PENDING, ACTIVE, DISABLED]
+    Tenant:
+      type: object
+      required: [id, tenantCode, tenantName, status, version, createdAt, updatedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        tenantCode: { type: string, maxLength: 64 }
+        tenantName: { type: string, maxLength: 128 }
+        status: { $ref: '#/components/schemas/TenantStatus' }
+        version: { type: integer, format: int64, minimum: 0 }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
+    ApiSuccessTenant:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/Tenant' } }
+    TenantPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/Tenant' } }
+    ApiSuccessTenantPage:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/TenantPage' } }
+    UpdateTenantRequest:
+      allOf:
+        - $ref: '#/components/schemas/VersionRequest'
+        - type: object
+          required: [tenantName]
+          properties: { tenantName: { type: string, minLength: 1, maxLength: 128 } }
+    Store:
+      type: object
+      required: [id, tenantId, storeCode, storeName, platformCode, platformAccount, status, version, createdAt, updatedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        tenantId: { $ref: '#/components/schemas/Id' }
+        storeCode: { type: string, maxLength: 64 }
+        storeName: { type: string, maxLength: 128 }
+        platformCode: { type: string, maxLength: 64 }
+        platformAccount: { type: string, maxLength: 128 }
+        status: { $ref: '#/components/schemas/ActiveStatus' }
+        version: { type: integer, format: int64, minimum: 0 }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
+    ApiSuccessStore:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/Store' } }
+    ApiSuccessStoreList:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties: { data: { type: array, items: { $ref: '#/components/schemas/Store' } } }
+    CreateStoreRequest:
+      type: object
+      required: [storeCode, storeName, platformCode, platformAccount]
+      properties:
+        storeCode: { type: string, minLength: 1, maxLength: 64 }
+        storeName: { type: string, minLength: 1, maxLength: 128 }
+        platformCode: { type: string, minLength: 1, maxLength: 64 }
+        platformAccount: { type: string, minLength: 1, maxLength: 128 }
+    UpdateStoreRequest:
+      allOf:
+        - $ref: '#/components/schemas/VersionRequest'
+        - type: object
+          required: [storeName, platformCode, platformAccount]
+          properties:
+            storeName: { type: string, minLength: 1, maxLength: 128 }
+            platformCode: { type: string, minLength: 1, maxLength: 64 }
+            platformAccount: { type: string, minLength: 1, maxLength: 128 }
+    StatusChangeRequest:
+      allOf:
+        - $ref: '#/components/schemas/VersionRequest'
+        - type: object
+          required: [status]
+          properties: { status: { $ref: '#/components/schemas/ActiveStatus' } }
+    User:
+      type: object
+      required: [id, tenantId, username, displayName, status, version, createdAt, updatedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        tenantId: { $ref: '#/components/schemas/Id' }
+        username: { type: string, maxLength: 128 }
+        displayName: { type: string, maxLength: 128 }
+        status: { $ref: '#/components/schemas/ActiveStatus' }
+        roleIds: { type: array, items: { $ref: '#/components/schemas/Id' } }
+        version: { type: integer, format: int64, minimum: 0 }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
+    ApiSuccessUser:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/User' } }
+    UserPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          properties: { items: { type: array, items: { $ref: '#/components/schemas/User' } } }
+    ApiSuccessUserPage:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/UserPage' } }
+    CreateTenantUserRequest:
+      type: object
+      required: [username, displayName, temporaryPassword, roleIds]
+      properties:
+        username: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 128 }
+        temporaryPassword: { $ref: '#/components/schemas/TemporaryPassword' }
+        roleIds: { type: array, minItems: 1, items: { $ref: '#/components/schemas/Id' } }
+    UpdateUserRequest:
+      allOf:
+        - $ref: '#/components/schemas/VersionRequest'
+        - type: object
+          required: [displayName]
+          properties: { displayName: { type: string, minLength: 1, maxLength: 128 } }
+    UserRoleBindingRequest:
+      allOf:
+        - $ref: '#/components/schemas/VersionRequest'
+        - type: object
+          required: [roleIds]
+          properties: { roleIds: { type: array, items: { $ref: '#/components/schemas/Id' } } }
+    Permission:
+      type: object
+      required: [id, permissionCode, permissionName]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        permissionCode: { type: string, maxLength: 128 }
+        permissionName: { type: string, maxLength: 128 }
+        description: { type: string, maxLength: 255 }
+    Role:
+      type: object
+      required: [id, roleCode, roleName, roleScope, status, version, permissionIds, createdAt, updatedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        tenantId: { $ref: '#/components/schemas/Id', nullable: true }
+        roleCode: { type: string, maxLength: 128 }
+        roleName: { type: string, maxLength: 128 }
+        roleScope: { type: string, enum: [PLATFORM, TENANT] }
+        status: { $ref: '#/components/schemas/ActiveStatus' }
+        permissionIds: { type: array, items: { $ref: '#/components/schemas/Id' } }
+        version: { type: integer, format: int64, minimum: 0 }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
+    ApiSuccessRole:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/Role' } }
+    ApiSuccessRoleList:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties: { data: { type: array, items: { $ref: '#/components/schemas/Role' } } }
+    RolePermissionBindingRequest:
+      allOf:
+        - $ref: '#/components/schemas/VersionRequest'
+        - type: object
+          required: [permissionIds]
+          properties: { permissionIds: { type: array, items: { $ref: '#/components/schemas/Id' } } }
+    ApiSuccessPermissionList:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties: { data: { type: array, items: { $ref: '#/components/schemas/Permission' } } }
     InitialAdminRequest:
       type: object
       required: [username, displayName, temporaryPassword]

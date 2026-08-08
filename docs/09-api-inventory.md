@@ -12,8 +12,9 @@
 |---|---:|
 | 认证与当前用户 | 5 |
 | 平台租户管理 | 5 |
-| 租户用户与角色 | 5 |
-| 店铺管理 | 3 |
+| 租户用户管理 | 6 |
+| 店铺管理 | 5 |
+| RBAC 查询与绑定 | 4 |
 | 物流渠道查询 | 4 |
 | 运费报价 | 4 |
 | 物流订单 | 6 |
@@ -23,7 +24,7 @@
 | 费用对账 | 4 |
 | 异常件与索赔 | 4 |
 | 审计日志 | 1 |
-| **合计** | **54** |
+| **合计** | **57** |
 
 ## 3. 认证与当前用户
 
@@ -35,33 +36,53 @@
 | AUTH-004 退出登录 | `POST /api/v1/auth/logout` | Refresh Cookie、`XSRF-TOKEN` Cookie、`X-XSRF-TOKEN`；Access Token可选仅用于审计 | 清除 Refresh/XSRF Cookie；幂等成功；`Cache-Control: no-store` | `AUTH-1005`、`COMMON-1008` | 不要求 `auth:logout`；只能由 Refresh Cookie 定位 family | 撤销当前family/记录审计/不使用通用缓存 |
 | AUTH-005 当前用户 | `GET /api/v1/users/me` | `Authorization: Bearer` | 用户、角色、权限、租户摘要 | `COMMON-1002`、`COMMON-1003` | 需要 Access Token | 只读/不写审计或仅记录安全访问/`sys_user`、`sys_role`、`sys_permission` | 平台用户、租户用户、权限边界 |
 
-## 4. 平台租户管理
+## 4. 第二阶段统一安全约定
+
+- 以下所有接口均要求 Bearer Access Token；所有写接口还要求认证模块既有的 CSRF 双提交校验。
+- 请求中的 `tenantId` 只能出现在平台管理资源路径中；租户资源一律从实时重载的当前身份取得 `tenant_id`，不得由 body、query 或 Header 覆盖。
+- 对租户资源，资源不存在、已删除或不属于当前租户统一返回 `COMMON-1006`（404）；调用者已通过资源归属判断但没有动作权限时返回 `COMMON-1004`（403）。
+- 每次请求都重载用户、租户、角色和权限有效性；已停用的用户、租户或角色立即拒绝。前端菜单隐藏不是授权控制。
+- `PLATFORM_ADMIN` 只拥有平台作用域；`MERCHANT_ADMIN`、`MERCHANT_OPERATOR`、`WAREHOUSE_OPERATOR`、`FINANCE_OPERATOR` 只拥有本租户作用域；`MOCK_LOGISTICS_SYSTEM` 不可调用本模块管理接口。
+
+## 5. 平台租户管理
 
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| TENANT-001 创建租户 | `POST /api/v1/platform/tenants` | 平台管理员 | `tenantCode`、`tenantName`、`initialAdmin`（含 `temporaryPassword`） | `201` 租户和初始管理员 ID | `TENANT-1001`、`COMMON-1001` | `Idempotency-Key`幂等/写审计/`tenant`、`sys_user`、`sys_role`、`sys_user_role` |
-| TENANT-002 查询租户 | `GET /api/v1/platform/tenants` | 平台管理员；分页筛选 | `status`、`tenantCode` | 分页租户列表 | `COMMON-1002`、`COMMON-1004` | 只读/审计可选/`tenant` |
-| TENANT-003 查询租户详情 | `GET /api/v1/platform/tenants/{tenantId}` | 平台管理员；路径 `tenantId` | `tenantId` | 租户详情 | `COMMON-1006`、`COMMON-1004` | 只读/审计可选/`tenant` |
-| TENANT-004 启用/停用租户 | `POST /api/v1/platform/tenants/{tenantId}/status` | 平台管理员；JSON `version` | `status`、`version` | 新状态和版本 | `TENANT-1002`、`COMMON-1005` | 非幂等/写审计/`tenant` |
-| TENANT-005 创建初始管理员 | `POST /api/v1/platform/tenants/{tenantId}/initial-admin` | 平台管理员；JSON | `username`、`displayName`、`temporaryPassword` | 用户和角色摘要 | `USER-1001`、`TENANT-1002` | `Idempotency-Key`幂等/写审计/`sys_user`、`sys_role`、`sys_user_role` |
+| TENANT-001 创建租户 | `POST /api/v1/platform/tenants` | `PLATFORM_ADMIN`；`tenant:create`；平台作用域 | `tenantCode`、`tenantName`、`initialAdmin`（含 `temporaryPassword`） | `201` 租户和初始管理员摘要 | `TENANT-1001`、`USER-1001`、`COMMON-1001` | `Idempotency-Key`幂等/单事务/写审计/`tenant`、`sys_user`、`sys_role`、`sys_user_role` |
+| TENANT-002 查询租户 | `GET /api/v1/platform/tenants` | `PLATFORM_ADMIN`；`tenant:read`；平台作用域 | 分页、`status`、`tenantCode` | 分页租户列表 | `COMMON-1002`、`COMMON-1004` | 只读/`tenant` |
+| TENANT-003 查询租户详情 | `GET /api/v1/platform/tenants/{tenantId}` | `PLATFORM_ADMIN`；`tenant:read`；平台作用域 | `tenantId` | 租户详情 | `COMMON-1006`、`COMMON-1004` | 只读/`tenant` |
+| TENANT-004 修改租户 | `PUT /api/v1/platform/tenants/{tenantId}` | `PLATFORM_ADMIN`；`tenant:manage`；平台作用域 | `tenantName`、`version` | 更新后租户 | `TENANT-1002`、`COMMON-1005` | `Idempotency-Key`幂等/乐观锁/写审计/`tenant` |
+| TENANT-005 启用/停用租户 | `POST /api/v1/platform/tenants/{tenantId}/status` | `PLATFORM_ADMIN`；`tenant:manage`；平台作用域 | `status`、`version` | 新状态和版本 | `TENANT-1002`、`COMMON-1005` | 非幂等/乐观锁/写审计/`tenant` |
 
-## 5. 租户用户与角色
-
-| 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
-|---|---|---|---|---|---|---|---|
-| USER-001 创建用户 | `POST /api/v1/users` | 商家管理员 | `username`、`displayName`、`temporaryPassword`、`roleIds` | `201` 用户摘要 | `USER-1001`、`COMMON-1001` | `Idempotency-Key`幂等/写审计/`sys_user`、`sys_user_role` |
-| USER-002 查询用户 | `GET /api/v1/users` | 商家管理员；分页 | `status`、`username` | 分页用户列表 | `COMMON-1004` | 只读/审计可选/`sys_user` |
-| USER-003 启用/停用用户 | `POST /api/v1/users/{userId}/status` | 商家管理员；JSON `version` | `status`、`version` | 新状态和版本 | `USER-1002`、`COMMON-1005`、`USER-1003` | 非幂等/写审计/`sys_user` |
-| USER-004 分配角色 | `PUT /api/v1/users/{userId}/roles` | 商家管理员；JSON `version` | `roleIds`、`version` | 用户角色列表 | `USER-1003`、`COMMON-1005` | 非幂等/写审计/`sys_user_role`、`audit_log` |
-| USER-005 查询角色和权限 | `GET /api/v1/roles` | 商家管理员 | `scope` | 角色和权限列表 | `COMMON-1004` | 只读/不写业务审计/`sys_role`、`sys_permission`、`sys_role_permission` |
-
-## 6. 店铺管理
+## 6. 租户用户管理
 
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| STORE-001 创建店铺 | `POST /api/v1/stores` | 商家管理员 | `storeCode`、`storeName`、`platformCode`、`platformAccount` | `201` 店铺摘要 | `COMMON-1001`、`COMMON-1006` | `Idempotency-Key`幂等/写审计/`merchant_store` |
-| STORE-002 查询店铺 | `GET /api/v1/stores` | 商家管理员、商家操作员 | `status`、`platformCode` | 店铺列表 | `COMMON-1004` | 只读/`merchant_store` |
-| STORE-003 启用/停用店铺 | `POST /api/v1/stores/{storeId}/status` | 商家管理员；JSON `version` | `status`、`version` | 新状态 | `COMMON-1005`、`COMMON-1006` | 非幂等/写审计/`merchant_store` |
+| USER-001 创建用户 | `POST /api/v1/users` | `MERCHANT_ADMIN`；`user:manage`；当前租户 | `username`、`displayName`、`temporaryPassword`、`roleIds` | `201` 用户摘要 | `USER-1001`、`USER-1003`、`COMMON-1001` | `Idempotency-Key`幂等/单事务/写审计/`sys_user`、`sys_user_role` |
+| USER-002 查询用户 | `GET /api/v1/users` | `MERCHANT_ADMIN`；`user:manage`；当前租户 | 分页、`status`、`username` | 分页用户列表 | `COMMON-1004` | 只读/`sys_user` |
+| USER-003 查询用户详情 | `GET /api/v1/users/{userId}` | `MERCHANT_ADMIN`；`user:manage`；当前租户 | `userId` | 用户与角色摘要 | `COMMON-1006`、`COMMON-1004` | 只读/`sys_user`、`sys_user_role` |
+| USER-004 修改用户 | `PUT /api/v1/users/{userId}` | `MERCHANT_ADMIN`；`user:manage`；当前租户 | `displayName`、`version` | 更新后用户 | `USER-1003`、`COMMON-1005` | `Idempotency-Key`幂等/乐观锁/写审计/`sys_user` |
+| USER-005 启用/停用用户 | `POST /api/v1/users/{userId}/status` | `MERCHANT_ADMIN`；`user:manage`；当前租户 | `status`、`version` | 新状态和版本 | `USER-1002`、`COMMON-1005`、`COMMON-1006` | 非幂等/乐观锁/写审计/`sys_user` |
+| USER-006 分配角色 | `PUT /api/v1/users/{userId}/roles` | `MERCHANT_ADMIN`；`user:manage`；当前租户 | `roleIds`、`version` | 用户角色列表 | `USER-1003`、`ROLE-1002`、`COMMON-1005`、`COMMON-1006` | 单事务/乐观锁/写审计/`sys_user`、`sys_user_role` |
+
+## 7. 店铺管理
+
+| 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
+|---|---|---|---|---|---|---|---|
+| STORE-001 创建店铺 | `POST /api/v1/stores` | `MERCHANT_ADMIN`；`store:manage`；当前租户 | `storeCode`、`storeName`、`platformCode`、`platformAccount` | `201` 店铺摘要 | `STORE-1001`、`COMMON-1001` | `Idempotency-Key`幂等/写审计/`merchant_store` |
+| STORE-002 查询店铺 | `GET /api/v1/stores` | `MERCHANT_ADMIN`或`MERCHANT_OPERATOR`；`store:read`；当前租户 | `status`、`platformCode` | 店铺列表 | `COMMON-1004` | 只读/`merchant_store` |
+| STORE-003 查询店铺详情 | `GET /api/v1/stores/{storeId}` | `MERCHANT_ADMIN`或`MERCHANT_OPERATOR`；`store:read`；当前租户 | `storeId` | 店铺详情 | `COMMON-1006`、`COMMON-1004` | 只读/`merchant_store`；跨租户404 |
+| STORE-004 修改店铺 | `PUT /api/v1/stores/{storeId}` | `MERCHANT_ADMIN`；`store:manage`；当前租户 | `storeName`、`platformCode`、`platformAccount`、`version` | 更新后店铺 | `STORE-1001`、`COMMON-1005`、`COMMON-1006` | `Idempotency-Key`幂等/乐观锁/写审计/`merchant_store` |
+| STORE-005 启用/停用店铺 | `POST /api/v1/stores/{storeId}/status` | `MERCHANT_ADMIN`；`store:manage`；当前租户 | `status`、`version` | 新状态和版本 | `STORE-1002`、`COMMON-1005`、`COMMON-1006` | 非幂等/乐观锁/写审计/`merchant_store` |
+
+## 8. RBAC 查询与绑定
+
+| 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 |
+|---|---|---|---|---|---|---|
+| RBAC-001 查询角色 | `GET /api/v1/roles` | `MERCHANT_ADMIN`；`role:read`；当前租户 | 分页、`status` | 仅当前租户 TENANT 角色及权限 | `COMMON-1004` | 只读/`sys_role`、`sys_role_permission`、`sys_permission` |
+| RBAC-002 查询角色详情 | `GET /api/v1/roles/{roleId}` | `MERCHANT_ADMIN`；`role:read`；当前租户 | `roleId` | 当前租户角色和权限 | `COMMON-1006`、`COMMON-1004` | 只读；跨租户404 |
+| RBAC-003 查询权限 | `GET /api/v1/permissions` | `MERCHANT_ADMIN`；`permission:read`；当前租户 | 无 | 平台公共权限字典 | `COMMON-1004` | 只读/`sys_permission` |
+| RBAC-004 绑定角色权限 | `PUT /api/v1/roles/{roleId}/permissions` | `MERCHANT_ADMIN`；`role:manage`；当前租户 | `permissionIds`、`version` | 更新后角色和权限 | `ROLE-1002`、`COMMON-1005`、`COMMON-1006` | 单事务/乐观锁/写审计/`sys_role`、`sys_role_permission` |
 
 ## 7. 物流渠道查询
 
