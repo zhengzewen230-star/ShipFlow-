@@ -1,0 +1,24 @@
+login_failure_cases:
+  - case_id: "LOGIN_WRONG_PASSWORD"
+    title: "密码错误"
+    tenant_code: "TENANT_DEMO_001"
+    username: "merchant_admin_001"
+    password: "definitely-wrong-password"
+    expected_status: 401
+    expected_error_code: "AUTH-1001"
+
+  - case_id: "LOGIN_UNKNOWN_USER"
+    title: "用户不存在"
+    tenant_code: "TENANT_DEMO_001"
+    username: "unknown_user"
+    password: "any-test-password"
+    expected_status: 401
+    expected_error_code: "AUTH-1001"
+
+  - case_id: "LOGIN_UNKNOWN_TENANT"
+    title: "租户不存在"
+    tenant_code: "UNKNOWN_TENANT"
+    username: "merchant_admin_001"
+    password: "any-test-password"
+    expected_status: 401
+    expected_error_code: "AUTH-1001"

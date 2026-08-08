@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.security.refresh.RefreshSessionMapper">
+
+    <resultMap id="refreshSessionMap" type="com.shipflow.security.refresh.RefreshSessionDO">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="user_id" javaType="java.lang.Long"/>
+            <arg column="tenant_id" javaType="java.lang.Long"/>
+            <arg column="token_hash" javaType="string"/>
+            <arg column="family_id" javaType="string"/>
+            <arg column="previous_session_id" javaType="java.lang.Long"/>
+            <arg column="status" javaType="string"/>
+            <arg column="expires_at" javaType="java.time.LocalDateTime"/>
+            <arg column="revoked_at" javaType="java.time.LocalDateTime"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+            <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="refreshColumns">
+        id, user_id, tenant_id, token_hash, family_id, previous_session_id,
+        status, expires_at, revoked_at, created_at, updated_at
+    </sql>
+
+    <insert id="insert" parameterType="com.shipflow.security.refresh.RefreshSessionDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO auth_refresh_session (
+            user_id, tenant_id, token_hash, family_id, previous_session_id,
+            status, expires_at, revoked_at
+        ) VALUES (
+            #{userId}, #{tenantId}, #{tokenHash}, #{familyId}, #{previousSessionId},
+            #{status}, #{expiresAt}, #{revokedAt}
+        )
+    </insert>
+
+    <select id="findByTokenHashForUpdate" resultMap="refreshSessionMap">
+        SELECT <include refid="refreshColumns"/>
+        FROM auth_refresh_session
+        WHERE token_hash = #{tokenHash}
+        LIMIT 1
+        FOR UPDATE
+    </select>
+
+    <update id="markActiveAsRotated">
+        UPDATE auth_refresh_session
+        SET status = 'ROTATED', updated_at = #{updatedAt}
+        WHERE id = #{id}
+          AND status = 'ACTIVE'
+    </update>
+
+    <update id="markExpired">
+        UPDATE auth_refresh_session
+        SET status = 'EXPIRED', updated_at = #{updatedAt}
+        WHERE id = #{id}
+          AND status = 'ACTIVE'
+    </update>
+
+    <update id="revokeFamily">
+        UPDATE auth_refresh_session
+        SET status = 'REVOKED', revoked_at = #{revokedAt}, updated_at = #{revokedAt}
+        WHERE family_id = #{familyId}
+          AND status IN ('ACTIVE', 'ROTATED')
+    </update>
+
+    <select id="findFamily" resultMap="refreshSessionMap">
+        SELECT <include refid="refreshColumns"/>
+        FROM auth_refresh_session
+        WHERE family_id = #{familyId}
+        ORDER BY id
+    </select>
+</mapper>

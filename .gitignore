@@ -1,0 +1,59 @@
+# Java build outputs
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Python virtual environments and caches
+.venv/
+venv/
+env/
+ENV/
+!api-tests/config/env/
+api-tests/config/env/*
+!api-tests/config/env/ci.yaml
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# IDE configuration
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# Logs
+*.log
+logs/
+
+# Allure temporary results and reports
+api-tests/reports/
+allure-results/
+allure-report/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Database data directories
+data/
+!api-tests/data/
+api-tests/data/*
+!api-tests/data/auth_data.yaml
+db-data/
+database-data/
+postgres-data/
+mysql-data/
+
+# Local backend configuration
+backend/src/main/resources/application-local.yml
+
+# OS files
+.DS_Store
+Thumbs.db

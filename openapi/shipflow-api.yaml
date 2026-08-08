@@ -1,0 +1,1553 @@
+openapi: 3.0.3
+info:
+  title: ShipFlow API
+  version: 1.0.0
+  description: |
+    ShipFlow 跨境物流履约与费用结算系统第一版 API 契约。
+    所有租户业务接口从 JWT 身份上下文获取 tenant_id，不接受调用方任意传入。
+servers:
+  - url: /api/v1
+    description: ShipFlow API v1
+tags:
+  - name: Auth
+    description: 认证与当前用户
+  - name: Quotes
+    description: 运费报价
+  - name: Orders
+    description: 物流订单
+  - name: Warehouse
+    description: 仓库履约操作
+  - name: Tracking
+    description: 物流轨迹
+  - name: Billing
+    description: 账单导入
+  - name: Reconciliation
+    description: 费用对账
+security:
+  - bearerAuth: []
+paths:
+  /auth/csrf:
+    get:
+      tags: [Auth]
+      summary: 获取 CSRF Token
+      operationId: getCsrfToken
+      security: []
+      description: |
+        匿名获取 CSRF Token。服务端使用 Spring Security CookieCsrfTokenRepository
+        设置可由前端读取的 XSRF-TOKEN Cookie，不返回 Refresh Token。
+      responses:
+        '204':
+          description: CSRF Cookie 已设置
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/XsrfCookie'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 登录
+      operationId: login
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfCookie'
+        - $ref: '#/components/parameters/XsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/AuthCookies'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessLogin'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/CsrfError'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: 刷新 Token
+      operationId: refreshToken
+      description: |
+        从 HttpOnly Refresh Cookie 读取令牌，校验 CSRF 双提交请求头并执行 Refresh Token 轮换。
+        客户端必须串行刷新；ROTATED Token 重复使用会撤销整个 family。
+      security:
+        - refreshCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfCookie'
+        - $ref: '#/components/parameters/XsrfHeader'
+      responses:
+        '200':
+          description: 刷新成功
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/AuthCookies'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessLogin'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/CsrfError'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 退出登录
+      operationId: logout
+      description: |
+        撤销当前 Refresh Token family 并清除 Refresh/XSRF Cookie。
+        仅通过 Refresh Cookie 定位 family；Access Token 只是可选审计身份，不能单独定位或撤销 family。
+        Refresh Cookie 已撤销、过期或不存在时保持幂等成功，不泄露具体原因。
+        不要求 auth:logout 权限。logout-all 留待后续版本。
+      security:
+        - bearerAuth: []
+        - refreshCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfCookie'
+        - $ref: '#/components/parameters/XsrfHeader'
+      responses:
+        '200':
+          description: 退出成功
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/ClearedAuthCookies'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccess'
+        '403':
+          $ref: '#/components/responses/CsrfError'
+
+  /users/me:
+    get:
+      tags: [Auth]
+      summary: 获取当前用户
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 当前用户
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessCurrentUser'
+        '401':
+          $ref: '#/components/responses/AuthError'
+
+  /quotes:
+    post:
+      tags: [Quotes]
+      summary: 创建报价
+      operationId: createQuote
+      description: |
+        使用商家申报重量、尺寸、目的国家、物流渠道和已发布价格规则计算报价。
+        报价创建后金额、计费输入和规则版本不可修改，只允许按生命周期规则失效。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQuoteRequest'
+      responses:
+        '201':
+          description: 报价创建成功
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessQuote'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/QuoteRuleError'
+
+  /orders:
+    post:
+      tags: [Orders]
+      summary: 使用报价创建物流订单
+      operationId: createOrder
+      description: |
+        必须传入有效 quote_id 和 Idempotency-Key。
+        包裹申报重量、长宽高必须与报价输入完全一致；服务端生成 package_no、地址快照类型和订单号。
+        同一租户、同一幂等键和同一请求内容重复提交时返回原订单结果。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: 订单创建成功，初始状态为 DRAFT
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessOrder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/OrderRuleError'
+
+  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: 查询订单详情
+      operationId: getOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: 订单详情
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessOrder'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orders/{orderId}/submit:
+    post:
+      tags: [Orders]
+      summary: 提交订单
+      operationId: submitOrder
+      description: |
+        仅允许 DRAFT 进入 PENDING_INBOUND。
+        提交请求必须携带 version，并使用订单乐观锁。
+        DRAFT 不允许直接执行入库操作。
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VersionRequest'
+      responses:
+        '200':
+          description: 提交成功，状态为 PENDING_INBOUND
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessOrder'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/OrderRuleError'
+
+  /orders/{orderId}/inbound:
+    post:
+      tags: [Warehouse]
+      summary: 确认入库
+      operationId: confirmInbound
+      description: |
+        主要由仓库人员触发，只允许 PENDING_INBOUND 进入 INBOUND。
+        DRAFT 必须先调用提交订单接口。
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VersionRequest'
+      responses:
+        '200':
+          description: 入库成功，状态为 INBOUND
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessOrder'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/WarehouseError'
+
+  /orders/{orderId}/measurements:
+    post:
+      tags: [Warehouse]
+      summary: 提交仓库复称
+      operationId: submitMeasurement
+      description: |
+        请求中的重量统一转换为 kg，尺寸统一转换为 cm 后入库。
+        version 必填并用于订单乐观锁。仓库实际计费重量取仓库实际重量和仓库实际体积重量的最大值。
+        费用上涨是正常业务结果，订单进入 PENDING_PRICE_CONFIRMATION，不返回业务错误。
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeasurementRequest'
+      responses:
+        '200':
+          description: 复称处理成功
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessMeasurementResult'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/WarehouseError'
+
+  /orders/{orderId}/price-confirmation:
+    post:
+      tags: [Orders]
+      summary: 确认复称后的新费用
+      operationId: confirmPrice
+      description: |
+        商家管理员或商家操作员确认费用上涨后，订单进入 READY_FOR_OUTBOUND。
+        客户端不能决定最终费用，服务端必须校验 feeAdjustmentId 属于当前订单和租户、类型为 INCREASE、尚未确认，
+        expectedFee 等于 adjustment.after_amount，且订单当前状态为 PENDING_PRICE_CONFIRMATION。
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PriceConfirmationRequest'
+      responses:
+        '200':
+          description: 新费用确认成功
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessOrder'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/OrderRuleError'
+
+  /orders/{orderId}/outbound:
+    post:
+      tags: [Warehouse]
+      summary: 确认仓库出库
+      operationId: confirmOutbound
+      description: |
+        主要由仓库人员触发。物流商由订单 channelId 推导，不接受 providerId 入参。
+        仅允许 READY_FOR_OUTBOUND 进入 OUTBOUND，并使用订单 version 乐观锁。
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutboundRequest'
+      responses:
+        '200':
+          description: 出库成功
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessOutbound'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/WarehouseError'
+
+  /integrations/logistics/{providerCode}/tracking-events:
+    post:
+      tags: [Tracking]
+      summary: 接收物流商轨迹回调
+      operationId: receiveTrackingEvents
+      security:
+        - providerHmac: []
+      description: |
+        签名为 Base64(HMAC-SHA256(secret, timestamp + "." + rawRequestBody))。
+        X-Provider-Timestamp 为 Unix 秒级时间戳，允许与服务端时间偏差不超过 300 秒。
+        服务端使用恒定时间比较签名。密钥和完整签名禁止写入日志。
+        重复事件返回 202 并将单事件结果标记为 DUPLICATE，不重复产生业务影响、状态推进或审计记录。
+      parameters:
+        - $ref: '#/components/parameters/ProviderCode'
+        - $ref: '#/components/parameters/ProviderTimestamp'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackingCallbackRequest'
+      responses:
+        '202':
+          description: 回调已接收，重复事件也返回成功
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessTrackingResult'
+        '401':
+          $ref: '#/components/responses/TrackingSignatureError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/TrackingError'
+
+  /orders/{orderId}/tracking-events:
+    get:
+      tags: [Tracking]
+      summary: 查询订单物流轨迹
+      operationId: listTrackingEvents
+      description: |
+        仅返回 TrackingEventView，不返回 rawPayload、物流商签名或内部处理堆栈。
+        按 eventTime 升序展示，迟到事件不得使订单状态回退。
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: 轨迹分页
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessTrackingPage'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /billing/import-batches:
+    post:
+      tags: [Billing]
+      summary: 上传 CSV 账单
+      operationId: importBillingCsv
+      description: |
+        第一版只接受统一 CSV 模板。模板必须包含 provider_bill_detail_no。
+        系统使用文件摘要和明细业务唯一键防止重复导入。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, providerId]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                providerId:
+                  $ref: '#/components/schemas/Id'
+      responses:
+        '202':
+          description: 账单导入批次已接收
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessBillBatch'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/BillConflict'
+        '422':
+          $ref: '#/components/responses/BillError'
+
+  /reconciliations:
+    post:
+      tags: [Reconciliation]
+      summary: 执行费用对账
+      operationId: executeReconciliation
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shipmentOrderId, billDetailId]
+              properties:
+                shipmentOrderId:
+                  $ref: '#/components/schemas/Id'
+                billDetailId:
+                  $ref: '#/components/schemas/Id'
+      responses:
+        '202':
+          description: 对账任务已接收
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessReconciliation'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ReconciliationError'
+
+  /reconciliations/{reconciliationId}/confirm:
+    post:
+      tags: [Reconciliation]
+      summary: 财务确认对账差异
+      operationId: confirmReconciliationDifference
+      description: |
+        非零差异必须由财务人员确认后关闭，第一版不支持小额差异自动关闭。
+      parameters:
+        - $ref: '#/components/parameters/ReconciliationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconciliationConfirmRequest'
+      responses:
+        '200':
+          description: 对账差异确认成功
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessReconciliation'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ReconciliationError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: SHIPFLOW_REFRESH_TOKEN
+      description: HttpOnly Refresh Token Cookie；客户端不可读取。
+    providerHmac:
+      type: apiKey
+      in: header
+      name: X-Provider-Signature
+      description: Base64 编码的 HMAC-SHA256 签名，签名原文为 timestamp + "." + rawRequestBody。
+  headers:
+    TraceId:
+      description: 与响应体 traceId 一致的链路追踪 ID。
+      schema:
+        type: string
+    NoStore:
+      description: 禁止缓存认证凭证相关响应。
+      schema:
+        type: string
+        enum: [no-store]
+        default: no-store
+    WWWAuthenticate:
+      description: RFC 6750 Bearer 认证挑战；具体错误详情不在 Header 中泄露敏感信息。
+      schema:
+        type: string
+        example: Bearer
+    AuthCookies:
+      description: Set-Cookie 下发 Refresh Token 和 XSRF-TOKEN。Refresh Cookie 使用 HttpOnly、Secure（生产）、SameSite=Strict、明确 Path 和 Max-Age=2592000。
+      schema:
+        type: string
+    XsrfCookie:
+      description: Set-Cookie 下发可读取的 XSRF-TOKEN。使用 Secure（生产）、SameSite=Strict、明确 Path 和 Max-Age=2592000，不设置 HttpOnly 和 Domain。
+      schema:
+        type: string
+    ClearedAuthCookies:
+      description: Set-Cookie 将 Refresh Token 和 XSRF-TOKEN 设置为过期，以清除 Cookie。
+      schema:
+        type: string
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 128
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    ReconciliationId:
+      name: reconciliationId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    ProviderCode:
+      name: providerCode
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 64
+    ProviderTimestamp:
+      name: X-Provider-Timestamp
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9]{10}$'
+        example: '1785643200'
+    XsrfCookie:
+      name: XSRF-TOKEN
+      in: cookie
+      required: true
+      description: 可由前端读取的 CSRF Cookie；不得设置 HttpOnly。
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 128
+    XsrfHeader:
+      name: X-XSRF-TOKEN
+      in: header
+      required: true
+      description: 必须与 XSRF-TOKEN Cookie 一致，由 CookieCsrfTokenRepository 校验。
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 128
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+  responses:
+    BadRequest:
+      description: 请求参数或格式错误。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    AuthError:
+      description: 未登录、Token 无效或已过期。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWWAuthenticate'
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    CsrfError:
+      description: CSRF Cookie 与 X-XSRF-TOKEN 请求头缺失或不匹配。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: 权限不足或跨租户访问。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: 资源不存在。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: 幂等、乐观锁或订单状态冲突。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    QuoteRuleError:
+      description: 报价业务规则校验失败。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    OrderRuleError:
+      description: 订单业务规则校验失败。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    WarehouseError:
+      description: 仓库业务规则校验失败。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    TrackingSignatureError:
+      description: 轨迹回调签名或时间戳校验失败。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    TrackingError:
+      description: 轨迹业务处理失败。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    BillConflict:
+      description: 账单文件或账单明细重复。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    BillError:
+      description: CSV 格式或账单业务校验失败。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    ReconciliationError:
+      description: 对账业务校验失败。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+  schemas:
+    Id:
+      type: string
+      pattern: '^[0-9]+$'
+      example: '10001'
+    Money:
+      type: string
+      pattern: '^[0-9]+\.[0-9]{2}$'
+      example: '58.00'
+      description: 非负金额，JSON 中使用字符串。
+    SignedMoney:
+      type: string
+      pattern: '^-?[0-9]+\.[0-9]{2}$'
+      example: '-2.50'
+      description: 可为负数的金额，JSON 中使用字符串。
+    CountryCode:
+      type: string
+      pattern: '^[A-Z]{2}$'
+      example: JP
+      description: 大写 ISO 3166-1 alpha-2 国家编码。
+    CurrencyCode:
+      type: string
+      pattern: '^[A-Z]{3}$'
+      example: USD
+      description: 大写 ISO 4217 三位币种编码。
+    Weight:
+      type: string
+      pattern: '^[0-9]+\.[0-9]{3}$'
+      example: '1.500'
+      description: 重量，统一使用 kg，JSON 中使用字符串。
+    Dimension:
+      type: string
+      pattern: '^[0-9]+\.[0-9]{3}$'
+      example: '20.000'
+      description: 尺寸，统一使用 cm，JSON 中使用字符串。
+    UtcDateTime:
+      type: string
+      format: date-time
+      example: '2026-08-02T10:30:00.000Z'
+      description: UTC ISO-8601 时间。
+    TemporaryPassword:
+      type: string
+      format: password
+      writeOnly: true
+      minLength: 12
+      maxLength: 128
+      pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).+$'
+      description: 仅用于首次设置密码，服务端使用 BCrypt 保存，不保存或返回明文。
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          maxLength: 128
+        password:
+          type: string
+          format: password
+          writeOnly: true
+        tenantCode:
+          type: string
+          maxLength: 64
+          nullable: true
+          description: 为空时只匹配平台用户，非空时只匹配指定租户用户。
+    TokenResponse:
+      type: object
+      required: [accessToken, expiresIn]
+      properties:
+        accessToken:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+        userId:
+          $ref: '#/components/schemas/Id'
+        tenantId:
+          $ref: '#/components/schemas/Id'
+    CurrentUserView:
+      type: object
+      required: [userId, username, scope]
+      properties:
+        userId:
+          $ref: '#/components/schemas/Id'
+        username:
+          type: string
+        displayName:
+          type: string
+        scope:
+          type: string
+          enum: [PLATFORM, TENANT]
+        tenantId:
+          $ref: '#/components/schemas/Id'
+        roles:
+          type: array
+          items:
+            type: string
+        permissions:
+          type: array
+          items:
+            type: string
+    ApiSuccessCurrentUser:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/CurrentUserView'
+    ApiSuccess:
+      type: object
+      required: [success, traceId, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        traceId:
+          type: string
+        message:
+          type: string
+          example: OK
+        data: {}
+    ApiSuccessLogin:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/TokenResponse'
+    ApiError:
+      type: object
+      required: [success, traceId, error]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        traceId:
+          type: string
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: ORDER-1001
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+    PageMeta:
+      type: object
+      required: [page, pageSize, total, totalPages]
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+    Quote:
+      type: object
+      required: [id, quoteNo, channelId, destinationCountry, declaredWeight, declaredChargeableWeight, amount, currency, feeDetail, validTo]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        quoteNo:
+          type: string
+        channelId:
+          $ref: '#/components/schemas/Id'
+        destinationCountry:
+          $ref: '#/components/schemas/CountryCode'
+        ruleVersionNo:
+          type: integer
+          minimum: 1
+        declaredWeight:
+          $ref: '#/components/schemas/Weight'
+        declaredChargeableWeight:
+          $ref: '#/components/schemas/Weight'
+        amount:
+          $ref: '#/components/schemas/Money'
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        feeDetail:
+          type: object
+          additionalProperties: true
+        validFrom:
+          $ref: '#/components/schemas/UtcDateTime'
+        validTo:
+          $ref: '#/components/schemas/UtcDateTime'
+        status:
+          type: string
+          enum: [VALID, EXPIRED, CANCELLED]
+        version:
+          type: integer
+          format: int64
+    CreateQuoteRequest:
+      type: object
+      required: [storeId, channelId, declaredWeight, declaredLength, declaredWidth, declaredHeight, destinationCountry]
+      properties:
+        storeId:
+          $ref: '#/components/schemas/Id'
+        channelId:
+          $ref: '#/components/schemas/Id'
+        declaredWeight:
+          $ref: '#/components/schemas/Weight'
+        declaredLength:
+          $ref: '#/components/schemas/Dimension'
+        declaredWidth:
+          $ref: '#/components/schemas/Dimension'
+        declaredHeight:
+          $ref: '#/components/schemas/Dimension'
+        destinationCountry:
+          $ref: '#/components/schemas/CountryCode'
+    ApiSuccessQuote:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Quote'
+    Address:
+      type: object
+      required: [contactName, phone, countryCode, city, addressLine1, postalCode]
+      properties:
+        contactName:
+          type: string
+        companyName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+        countryCode:
+          $ref: '#/components/schemas/CountryCode'
+        stateProvince:
+          type: string
+        city:
+          type: string
+        district:
+          type: string
+        addressLine1:
+          type: string
+        addressLine2:
+          type: string
+        postalCode:
+          type: string
+    Item:
+      type: object
+      required: [itemNo, productName, productNameEn, quantity, unitPrice, currency, declaredValue]
+      properties:
+        itemNo:
+          type: integer
+          minimum: 1
+        productName:
+          type: string
+        productNameEn:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+        unitPrice:
+          $ref: '#/components/schemas/Money'
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        declaredValue:
+          $ref: '#/components/schemas/Money'
+        sku:
+          type: string
+        material:
+          type: string
+        originCountry:
+          $ref: '#/components/schemas/CountryCode'
+    Package:
+      type: object
+      required: [declaredWeight, declaredLength, declaredWidth, declaredHeight, items]
+      properties:
+        declaredWeight:
+          $ref: '#/components/schemas/Weight'
+        declaredLength:
+          $ref: '#/components/schemas/Dimension'
+        declaredWidth:
+          $ref: '#/components/schemas/Dimension'
+        declaredHeight:
+          $ref: '#/components/schemas/Dimension'
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Item'
+    CreateOrderRequest:
+      type: object
+      required: [quoteId, originCountry, destinationCountry, sender, receiver, package]
+      description: 服务端根据字段位置生成 SENDER/RECEIVER 地址类型、package_no 和订单号，并校验包裹申报数据与报价完全一致。
+      properties:
+        quoteId:
+          $ref: '#/components/schemas/Id'
+        originCountry:
+          $ref: '#/components/schemas/CountryCode'
+        destinationCountry:
+          $ref: '#/components/schemas/CountryCode'
+        sender:
+          $ref: '#/components/schemas/Address'
+        receiver:
+          $ref: '#/components/schemas/Address'
+        package:
+          $ref: '#/components/schemas/Package'
+    Order:
+      type: object
+      required: [id, orderNo, quoteId, currentStatus, estimatedFee, currentFee, currency, version]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        orderNo:
+          type: string
+        quoteId:
+          $ref: '#/components/schemas/Id'
+        currentStatus:
+          $ref: '#/components/schemas/OrderStatus'
+        estimatedFee:
+          $ref: '#/components/schemas/Money'
+        currentFee:
+          $ref: '#/components/schemas/Money'
+        confirmedFee:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          nullable: true
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        version:
+          type: integer
+          format: int64
+    OrderStatus:
+      type: string
+      enum: [DRAFT, PENDING_INBOUND, INBOUND, PENDING_PRICE_CONFIRMATION, READY_FOR_OUTBOUND, OUTBOUND, IN_TRANSIT, DELIVERED, CANCELLED, RETURNED, LOST]
+    ApiSuccessOrder:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Order'
+    VersionRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+    MeasurementRequest:
+      type: object
+      required: [actualWeight, actualLength, actualWidth, actualHeight, measuredAt, version]
+      properties:
+        actualWeight:
+          $ref: '#/components/schemas/Weight'
+        actualLength:
+          $ref: '#/components/schemas/Dimension'
+        actualWidth:
+          $ref: '#/components/schemas/Dimension'
+        actualHeight:
+          $ref: '#/components/schemas/Dimension'
+        measuredAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+    MeasurementResult:
+      type: object
+      required: [measurementId, actualChargeableWeight, feeChangeType, nextStatus]
+      properties:
+        measurementId:
+          $ref: '#/components/schemas/Id'
+        actualChargeableWeight:
+          $ref: '#/components/schemas/Weight'
+        previousFee:
+          $ref: '#/components/schemas/Money'
+        currentFee:
+          $ref: '#/components/schemas/Money'
+        feeChangeType:
+          type: string
+          enum: [UNCHANGED, DECREASE, INCREASE]
+        nextStatus:
+          $ref: '#/components/schemas/OrderStatus'
+    ApiSuccessMeasurementResult:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MeasurementResult'
+    PriceConfirmationRequest:
+      type: object
+      required: [feeAdjustmentId, expectedFee, version]
+      properties:
+        feeAdjustmentId:
+          $ref: '#/components/schemas/Id'
+        expectedFee:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: 用于服务端校验的期望值，最终费用取 adjustment.after_amount。
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+    OutboundRequest:
+      type: object
+      required: [trackingNo, outboundAt, version]
+      properties:
+        trackingNo:
+          type: string
+        outboundAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        handoverRemark:
+          type: string
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+    OutboundResult:
+      type: object
+      properties:
+        outboundRecordId:
+          $ref: '#/components/schemas/Id'
+        orderId:
+          $ref: '#/components/schemas/Id'
+        trackingNo:
+          type: string
+        currentStatus:
+          type: string
+          enum: [OUTBOUND]
+    ApiSuccessOutbound:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/OutboundResult'
+    TrackingEventInput:
+      type: object
+      required: [trackingNo, eventId, eventCode, eventTime, rawPayload]
+      properties:
+        trackingNo:
+          type: string
+        eventId:
+          type: string
+        eventCode:
+          type: string
+        eventDescription:
+          type: string
+        eventTime:
+          $ref: '#/components/schemas/UtcDateTime'
+        rawPayload:
+          type: object
+          additionalProperties: true
+    TrackingCallbackRequest:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TrackingEventInput'
+    TrackingEventResult:
+      type: object
+      required: [eventId, status]
+      properties:
+        eventId:
+          type: string
+        status:
+          type: string
+          enum: [ACCEPTED, DUPLICATE, REJECTED, RETRY]
+        errorCode:
+          type: string
+          nullable: true
+        message:
+          type: string
+          nullable: true
+    TrackingResult:
+      type: object
+      required: [accepted, duplicated, rejected, events]
+      properties:
+        accepted:
+          type: integer
+        duplicated:
+          type: integer
+        rejected:
+          type: integer
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrackingEventResult'
+    ApiSuccessTrackingResult:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/TrackingResult'
+    TrackingEventView:
+      type: object
+      required: [id, trackingNo, eventId, eventCode, eventTime, receivedTime, processStatus]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        trackingNo:
+          type: string
+        eventId:
+          type: string
+        eventCode:
+          type: string
+        eventDescription:
+          type: string
+        eventTime:
+          $ref: '#/components/schemas/UtcDateTime'
+        receivedTime:
+          $ref: '#/components/schemas/UtcDateTime'
+        processStatus:
+          type: string
+          enum: [PENDING, PROCESSED, RETRY, REJECTED]
+    TrackingPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/TrackingEventView'
+    ApiSuccessTrackingPage:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/TrackingPage'
+    BillBatch:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        batchNo:
+          type: string
+        fileHash:
+          type: string
+        status:
+          type: string
+          enum: [PROCESSING, PARTIAL_SUCCESS, SUCCESS, FAILED]
+        totalCount:
+          type: integer
+        successCount:
+          type: integer
+        failureCount:
+          type: integer
+    ApiSuccessBillBatch:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/BillBatch'
+    Reconciliation:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        shipmentOrderId:
+          $ref: '#/components/schemas/Id'
+        billDetailId:
+          $ref: '#/components/schemas/Id'
+        systemAmount:
+          $ref: '#/components/schemas/Money'
+        billedAmount:
+          $ref: '#/components/schemas/Money'
+        differenceAmount:
+          $ref: '#/components/schemas/SignedMoney'
+        reconciliationStatus:
+          type: string
+          enum: [AUTO_CLOSED, PENDING_CONFIRMATION, CONFIRMED, REJECTED]
+        version:
+          type: integer
+          format: int64
+    ApiSuccessReconciliation:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Reconciliation'
+    ReconciliationConfirmRequest:
+      type: object
+      required: [resolutionType, remark, version]
+      properties:
+        resolutionType:
+          type: string
+        remark:
+          type: string
+          minLength: 1
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+    InitialAdminRequest:
+      type: object
+      required: [username, displayName, temporaryPassword]
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+        temporaryPassword:
+          $ref: '#/components/schemas/TemporaryPassword'
+    CreateTenantRequest:
+      type: object
+      required: [tenantCode, tenantName, initialAdmin]
+      properties:
+        tenantCode:
+          type: string
+        tenantName:
+          type: string
+        initialAdmin:
+          $ref: '#/components/schemas/InitialAdminRequest'
+    CreateUserRequest:
+      type: object
+      required: [username, displayName, temporaryPassword]
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+        temporaryPassword:
+          $ref: '#/components/schemas/TemporaryPassword'

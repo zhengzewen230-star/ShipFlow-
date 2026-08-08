@@ -1,0 +1,59 @@
+package com.shipflow.auth;
+
+import com.shipflow.auth.api.AuthController;
+import com.shipflow.auth.application.AuthApplicationService;
+import com.shipflow.auth.mapper.SysUserMapper;
+import com.shipflow.auth.mapper.UserAuthorityMapper;
+import com.shipflow.security.refresh.RefreshSessionMapper;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+
+@SpringBootTest(properties = {
+        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration",
+        "shipflow.security.jwt.enabled=false",
+        "shipflow.security.refresh-token.enabled=true",
+        "shipflow.security.refresh-token.hmac-key=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+})
+@Import(AuthBeanRegistrationTest.TestDependencies.class)
+class AuthBeanRegistrationTest {
+
+    private final org.springframework.context.ApplicationContext context;
+
+    AuthBeanRegistrationTest(org.springframework.context.ApplicationContext context) {
+        this.context = context;
+    }
+
+    @Test
+    void componentScanRegistersApplicationServiceAndControllerCanBeConstructed() {
+        assertThat(context.getBean(AuthApplicationService.class)).isNotNull();
+        assertThat(context.getBean(AuthController.class)).isNotNull();
+    }
+
+    @TestConfiguration
+    static class TestDependencies {
+        @Bean SysUserMapper sysUserMapper() { return mock(SysUserMapper.class); }
+        @Bean UserAuthorityMapper userAuthorityMapper() { return mock(UserAuthorityMapper.class); }
+        @Bean RefreshSessionMapper refreshSessionMapper() { return mock(RefreshSessionMapper.class); }
+        @Bean org.springframework.security.oauth2.jwt.JwtEncoder jwtEncoder() {
+            try {
+                var generator = java.security.KeyPairGenerator.getInstance("RSA");
+                generator.initialize(2048);
+                var pair = generator.generateKeyPair();
+                var key = new com.nimbusds.jose.jwk.RSAKey.Builder((java.security.interfaces.RSAPublicKey) pair.getPublic())
+                        .privateKey((java.security.interfaces.RSAPrivateKey) pair.getPrivate())
+                        .keyID("test-kid")
+                        .build();
+                return new org.springframework.security.oauth2.jwt.NimbusJwtEncoder(
+                        new com.nimbusds.jose.jwk.source.ImmutableJWKSet<>(new com.nimbusds.jose.jwk.JWKSet(key)));
+            } catch (java.security.GeneralSecurityException exception) {
+                throw new IllegalStateException("Test RSA key creation failed", exception);
+            }
+        }
+    }
+}
