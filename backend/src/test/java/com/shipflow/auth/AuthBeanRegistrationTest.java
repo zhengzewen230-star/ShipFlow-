@@ -5,6 +5,7 @@ import com.shipflow.auth.application.AuthApplicationService;
 import com.shipflow.auth.mapper.SysUserMapper;
 import com.shipflow.auth.mapper.UserAuthorityMapper;
 import com.shipflow.security.refresh.RefreshSessionMapper;
+import com.shipflow.security.authorization.CurrentCallerService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -33,6 +34,7 @@ class AuthBeanRegistrationTest {
     void componentScanRegistersApplicationServiceAndControllerCanBeConstructed() {
         assertThat(context.getBean(AuthApplicationService.class)).isNotNull();
         assertThat(context.getBean(AuthController.class)).isNotNull();
+        assertThat(context.getBean(CurrentCallerService.class)).isNotNull();
     }
 
     @TestConfiguration

@@ -214,4 +214,29 @@ class AuthControllerWebMvcTest {
                 .andExpect(jsonPath("$.data.userId").value("1"))
                 .andExpect(jsonPath("$.data.tenantId").value("2"));
     }
+
+    @Test
+    void unknownApiPathRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/not-implemented"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("COMMON-1002"))
+                .andExpect(traceIdMatchesBody());
+    }
+
+    @Test
+    void managementPathWithoutTokenRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/platform/tenants"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("COMMON-1002"))
+                .andExpect(traceIdMatchesBody());
+    }
+
+    @Test
+    void managementPathWithAuthenticatedCallerWithoutPermissionIsForbidden() throws Exception {
+        mockMvc.perform(get("/api/v1/platform/tenants")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("COMMON-1004"))
+                .andExpect(traceIdMatchesBody());
+    }
 }

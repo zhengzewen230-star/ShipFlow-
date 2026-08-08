@@ -186,6 +186,15 @@ class LoginIdentityServiceTest {
     }
 
     @Test
+    void disabledRoleUsesUnifiedFailureImmediately() {
+        when(sysUserMapper.findPlatformUser("platform_admin")).thenReturn(user(1L, null, null));
+        when(userAuthorityMapper.findActiveAuthorities(1L, null, "PLATFORM"))
+                .thenReturn(List.of(authority(1L, null, "PLATFORM_ADMIN", "PLATFORM", "tenant:create", "DISABLED")));
+
+        assertFailure(new LoginCredentials("platform_admin", PASSWORD, null));
+    }
+
+    @Test
     void roleScopeMismatchUsesUnifiedFailure() {
         when(sysUserMapper.findPlatformUser("platform_admin")).thenReturn(user(1L, null, null));
         when(userAuthorityMapper.findActiveAuthorities(1L, null, "PLATFORM"))
@@ -351,7 +360,12 @@ class LoginIdentityServiceTest {
     }
 
     private UserAuthorityView authority(Long userId, Long tenantId, String roleCode, String roleScope,
-                                       String permissionCode) {
-        return new UserAuthorityView(userId, tenantId, roleCode, roleScope, "ACTIVE", permissionCode);
+                                        String permissionCode) {
+        return authority(userId, tenantId, roleCode, roleScope, permissionCode, "ACTIVE");
+    }
+
+    private UserAuthorityView authority(Long userId, Long tenantId, String roleCode, String roleScope,
+                                        String permissionCode, String roleStatus) {
+        return new UserAuthorityView(userId, tenantId, roleCode, roleScope, roleStatus, permissionCode);
     }
 }
