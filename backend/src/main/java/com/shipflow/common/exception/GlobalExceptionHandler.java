@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.shipflow.auth.service.LoginIdentityAuthenticationException;
 import com.shipflow.security.refresh.RefreshTokenAuthenticationException;
 import com.shipflow.tenant.application.TenantException;
+import com.shipflow.store.application.StoreException;
 import com.shipflow.common.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +37,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(TenantException.class)
     public ResponseEntity<ApiErrorResponse> handleTenantFailure(TenantException exception) {
         return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Tenant operation failed"));
+    }
+
+    @ExceptionHandler(StoreException.class)
+    public ResponseEntity<ApiErrorResponse> handleStoreFailure(StoreException exception) {
+        return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Store operation failed"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

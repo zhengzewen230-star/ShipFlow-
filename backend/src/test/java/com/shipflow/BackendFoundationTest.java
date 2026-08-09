@@ -7,6 +7,10 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import com.shipflow.store.mapper.StoreMapper;
+import com.shipflow.store.mapper.StoreIdempotencyMapper;
+import com.shipflow.store.mapper.StoreAuditMapper;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,6 +24,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class BackendFoundationTest {
+
+    @MockBean StoreMapper storeMapper;
+    @MockBean StoreIdempotencyMapper storeIdempotencyMapper;
+    @MockBean StoreAuditMapper storeAuditMapper;
 
     @Autowired
     private MockMvc mockMvc;

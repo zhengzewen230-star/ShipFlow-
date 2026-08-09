@@ -13,6 +13,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import com.shipflow.store.mapper.StoreMapper;
+import com.shipflow.store.mapper.StoreIdempotencyMapper;
+import com.shipflow.store.mapper.StoreAuditMapper;
+import static org.mockito.Mockito.mock;
 
 import java.io.Reader;
 import java.io.InputStream;
@@ -73,6 +77,10 @@ class AuthMapperXmlTest {
 
     @TestConfiguration
     static class MapperXmlConfiguration {
+
+        @Bean StoreMapper storeMapper() { return mock(StoreMapper.class); }
+        @Bean StoreIdempotencyMapper storeIdempotencyMapper() { return mock(StoreIdempotencyMapper.class); }
+        @Bean StoreAuditMapper storeAuditMapper() { return mock(StoreAuditMapper.class); }
 
         @Bean
         SqlSessionFactory sqlSessionFactory() throws Exception {

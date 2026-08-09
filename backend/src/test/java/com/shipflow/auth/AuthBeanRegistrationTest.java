@@ -10,6 +10,9 @@ import com.shipflow.tenant.mapper.TenantMapper;
 import com.shipflow.tenant.mapper.TenantProvisioningMapper;
 import com.shipflow.tenant.mapper.TenantIdempotencyMapper;
 import com.shipflow.tenant.mapper.TenantAuditMapper;
+import com.shipflow.store.mapper.StoreMapper;
+import com.shipflow.store.mapper.StoreIdempotencyMapper;
+import com.shipflow.store.mapper.StoreAuditMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -50,6 +53,9 @@ class AuthBeanRegistrationTest {
         @Bean TenantProvisioningMapper tenantProvisioningMapper() { return mock(TenantProvisioningMapper.class); }
         @Bean TenantIdempotencyMapper tenantIdempotencyMapper() { return mock(TenantIdempotencyMapper.class); }
         @Bean TenantAuditMapper tenantAuditMapper() { return mock(TenantAuditMapper.class); }
+        @Bean StoreMapper storeMapper() { return mock(StoreMapper.class); }
+        @Bean StoreIdempotencyMapper storeIdempotencyMapper() { return mock(StoreIdempotencyMapper.class); }
+        @Bean StoreAuditMapper storeAuditMapper() { return mock(StoreAuditMapper.class); }
         @Bean org.springframework.security.oauth2.jwt.JwtEncoder jwtEncoder() {
             try {
                 var generator = java.security.KeyPairGenerator.getInstance("RSA");
