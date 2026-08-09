@@ -1,6 +1,12 @@
 package com.shipflow.auth;
 
 import com.shipflow.auth.mapper.UserAuthorityMapper;
+import com.shipflow.user.mapper.UserMapper;
+import com.shipflow.user.mapper.UserIdempotencyMapper;
+import com.shipflow.user.mapper.UserAuditMapper;
+import com.shipflow.rbac.mapper.RoleMapper;
+import com.shipflow.rbac.mapper.PermissionMapper;
+import com.shipflow.rbac.mapper.RbacAuditMapper;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +50,13 @@ class UserAuthorityMapperSpringContextTest {
 
     @TestConfiguration(proxyBeanMethods = false)
     static class MapperDataSourceConfiguration {
+
+        @Bean UserMapper userMapper() { return mock(UserMapper.class); }
+        @Bean UserIdempotencyMapper userIdempotencyMapper() { return mock(UserIdempotencyMapper.class); }
+        @Bean UserAuditMapper userAuditMapper() { return mock(UserAuditMapper.class); }
+        @Bean RoleMapper roleMapper() { return mock(RoleMapper.class); }
+        @Bean PermissionMapper permissionMapper() { return mock(PermissionMapper.class); }
+        @Bean RbacAuditMapper rbacAuditMapper() { return mock(RbacAuditMapper.class); }
 
         @Bean
         @Primary

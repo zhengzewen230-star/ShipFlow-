@@ -13,6 +13,8 @@ import com.shipflow.auth.service.LoginIdentityAuthenticationException;
 import com.shipflow.security.refresh.RefreshTokenAuthenticationException;
 import com.shipflow.tenant.application.TenantException;
 import com.shipflow.store.application.StoreException;
+import com.shipflow.user.application.UserException;
+import com.shipflow.rbac.application.RbacException;
 import com.shipflow.common.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +44,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(StoreException.class)
     public ResponseEntity<ApiErrorResponse> handleStoreFailure(StoreException exception) {
         return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Store operation failed"));
+    }
+
+    @ExceptionHandler(UserException.class)
+    public ResponseEntity<ApiErrorResponse> handleUserFailure(UserException exception) {
+        return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "User operation failed"));
+    }
+
+    @ExceptionHandler(RbacException.class)
+    public ResponseEntity<ApiErrorResponse> handleRbacFailure(RbacException exception) {
+        return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "RBAC operation failed"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

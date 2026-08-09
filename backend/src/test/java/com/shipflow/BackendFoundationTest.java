@@ -11,6 +11,12 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import com.shipflow.store.mapper.StoreMapper;
 import com.shipflow.store.mapper.StoreIdempotencyMapper;
 import com.shipflow.store.mapper.StoreAuditMapper;
+import com.shipflow.user.mapper.UserMapper;
+import com.shipflow.user.mapper.UserIdempotencyMapper;
+import com.shipflow.user.mapper.UserAuditMapper;
+import com.shipflow.rbac.mapper.RoleMapper;
+import com.shipflow.rbac.mapper.PermissionMapper;
+import com.shipflow.rbac.mapper.RbacAuditMapper;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,6 +34,12 @@ class BackendFoundationTest {
     @MockBean StoreMapper storeMapper;
     @MockBean StoreIdempotencyMapper storeIdempotencyMapper;
     @MockBean StoreAuditMapper storeAuditMapper;
+    @MockBean UserMapper userMapper;
+    @MockBean UserIdempotencyMapper userIdempotencyMapper;
+    @MockBean UserAuditMapper userAuditMapper;
+    @MockBean RoleMapper roleMapper;
+    @MockBean PermissionMapper permissionMapper;
+    @MockBean RbacAuditMapper rbacAuditMapper;
 
     @Autowired
     private MockMvc mockMvc;

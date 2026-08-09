@@ -13,6 +13,12 @@ import com.shipflow.tenant.mapper.TenantAuditMapper;
 import com.shipflow.store.mapper.StoreMapper;
 import com.shipflow.store.mapper.StoreIdempotencyMapper;
 import com.shipflow.store.mapper.StoreAuditMapper;
+import com.shipflow.user.mapper.UserMapper;
+import com.shipflow.user.mapper.UserIdempotencyMapper;
+import com.shipflow.user.mapper.UserAuditMapper;
+import com.shipflow.rbac.mapper.RoleMapper;
+import com.shipflow.rbac.mapper.PermissionMapper;
+import com.shipflow.rbac.mapper.RbacAuditMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -56,6 +62,12 @@ class AuthBeanRegistrationTest {
         @Bean StoreMapper storeMapper() { return mock(StoreMapper.class); }
         @Bean StoreIdempotencyMapper storeIdempotencyMapper() { return mock(StoreIdempotencyMapper.class); }
         @Bean StoreAuditMapper storeAuditMapper() { return mock(StoreAuditMapper.class); }
+        @Bean UserMapper userMapper() { return mock(UserMapper.class); }
+        @Bean UserIdempotencyMapper userIdempotencyMapper() { return mock(UserIdempotencyMapper.class); }
+        @Bean UserAuditMapper userAuditMapper() { return mock(UserAuditMapper.class); }
+        @Bean RoleMapper roleMapper() { return mock(RoleMapper.class); }
+        @Bean PermissionMapper permissionMapper() { return mock(PermissionMapper.class); }
+        @Bean RbacAuditMapper rbacAuditMapper() { return mock(RbacAuditMapper.class); }
         @Bean org.springframework.security.oauth2.jwt.JwtEncoder jwtEncoder() {
             try {
                 var generator = java.security.KeyPairGenerator.getInstance("RSA");

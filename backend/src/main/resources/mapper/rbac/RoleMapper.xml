@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.rbac.mapper.RoleMapper">
+ <resultMap id="roleMap" type="com.shipflow.rbac.domain.model.Role"><constructor><idArg column="id" javaType="java.lang.Long"/><arg column="tenant_id" javaType="java.lang.Long"/><arg column="role_code" javaType="string"/><arg column="role_name" javaType="string"/><arg column="role_scope" javaType="string"/><arg column="status" javaType="string"/><arg column="version" javaType="_long"/><arg column="created_at" javaType="java.time.LocalDateTime"/><arg column="updated_at" javaType="java.time.LocalDateTime"/></constructor></resultMap>
+ <sql id="columns">id, tenant_id, role_code, role_name, role_scope, status, version, created_at, updated_at</sql>
+ <select id="list" resultMap="roleMap">SELECT <include refid="columns"/> FROM sys_role WHERE tenant_id=#{tenantId} AND role_scope='TENANT' AND deleted=0 AND (#{status} IS NULL OR status=#{status}) ORDER BY id</select>
+ <select id="find" resultMap="roleMap">SELECT <include refid="columns"/> FROM sys_role WHERE tenant_id=#{tenantId} AND id=#{roleId} AND role_scope='TENANT' AND deleted=0</select>
+ <select id="permissionIds" resultType="long">SELECT rp.permission_id FROM sys_role_permission rp INNER JOIN sys_permission p ON p.id=rp.permission_id WHERE rp.role_id=#{roleId}</select>
+ <select id="permissionCount" resultType="int">SELECT COUNT(id) FROM sys_permission WHERE id IN <foreach collection="permissionIds" item="id" open="(" separator="," close=")">#{id}</foreach></select>
+ <update id="updatePermissions">UPDATE sys_role SET version=version+1 WHERE tenant_id=#{tenantId} AND id=#{roleId} AND role_scope='TENANT' AND deleted=0 AND status='ACTIVE' AND version=#{version}</update>
+ <delete id="deletePermissions">DELETE FROM sys_role_permission WHERE role_id=#{roleId}</delete>
+ <insert id="bindPermission">INSERT INTO sys_role_permission (role_id,permission_id) VALUES (#{roleId},#{permissionId})</insert>
+</mapper>
