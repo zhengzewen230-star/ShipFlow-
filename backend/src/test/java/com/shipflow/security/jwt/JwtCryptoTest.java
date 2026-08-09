@@ -74,6 +74,16 @@ class JwtCryptoTest {
     }
 
     @Test
+    void jwtEncoderAndDecoderAreCreatedFromValidatedRsaMaterial() {
+        assertThat(encoder).isNotNull();
+        assertThat(decoder).isNotNull();
+
+        String token = new AccessTokenService(encoder, properties, clock)
+                .issue(new AccessTokenPrincipal("1", AccessTokenPrincipal.Scope.PLATFORM, null));
+        assertThat(decoder.decode(token).getSubject()).isEqualTo("1");
+    }
+
+    @Test
     void tenantTokenWithoutTenantIdIsRejected() {
         assertThatThrownBy(() -> new AccessTokenPrincipal("1001", AccessTokenPrincipal.Scope.TENANT, null))
                 .isInstanceOf(IllegalArgumentException.class);

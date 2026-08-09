@@ -1,9 +1,7 @@
-USE shipflow;
-
 SET NAMES utf8mb4;
 
 -- 所有密码均为测试环境固定 BCrypt 示例值，不得用于生产环境。
-SET @test_bcrypt = '$2a$10$7EqJtq98hPqEX7fNZaFWoO5KZ6Qh9f3JmQm8r3lV6n6bJxq6o2m3K';
+SET @test_bcrypt = '$2a$10$SAdx34roAZNYsuH0jyCjeu0D3iF/nBikNAQfFNDpt.hErC8HJG/l.';
 
 INSERT INTO tenant (id, tenant_code, tenant_name, status)
 VALUES

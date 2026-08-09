@@ -54,6 +54,9 @@ mysql-data/
 # Local backend configuration
 backend/src/main/resources/application-local.yml
 
+# Local JWT key material (never commit)
+local-secrets/
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -12,12 +12,16 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.shipflow.auth.service.LoginIdentityAuthenticationException;
 import com.shipflow.security.refresh.RefreshTokenAuthenticationException;
 import com.shipflow.tenant.application.TenantException;
+import com.shipflow.common.trace.TraceId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(LoginIdentityAuthenticationException.class)
     public ResponseEntity<ApiErrorResponse> handleLoginFailure(LoginIdentityAuthenticationException exception) {
@@ -58,6 +62,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(Exception exception) {
+        String traceId = TraceId.currentOrCreate();
+        log.error("Unexpected error, traceId={}, exceptionType={}, message={}",
+                traceId, exception.getClass().getName(), exception.getMessage(), exception);
         return response(HttpStatus.INTERNAL_SERVER_ERROR,
                 new ApiErrorResponse("COMMON-1007", "内部系统错误"));
     }
