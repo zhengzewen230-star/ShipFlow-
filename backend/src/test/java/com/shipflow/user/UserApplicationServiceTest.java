@@ -2,7 +2,9 @@ package com.shipflow.user;
 
 import com.shipflow.user.api.model.*;
 import com.shipflow.user.application.UserApplicationService;
+import com.shipflow.user.domain.model.User;
 import com.shipflow.user.mapper.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import java.time.Clock;
@@ -14,6 +16,16 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class UserApplicationServiceTest {
+    @Test void userCanBeSerializedAsHttpResponseData() throws Exception {
+        User user = new User(4L, 2L, "user", "User", "ACTIVE", 0L,
+                List.of(9L), java.time.LocalDateTime.now(), java.time.LocalDateTime.now());
+
+        String json = new ObjectMapper().findAndRegisterModules().writeValueAsString(user);
+
+        org.assertj.core.api.Assertions.assertThat(json)
+                .contains("\"id\":4", "\"tenantId\":2", "\"roleIds\":[9]");
+    }
+
     @Test void missingIdempotencyKeyIsRejectedBeforePersistence(){
         UserMapper m=mock(UserMapper.class); UserApplicationService s=new UserApplicationService(m,mock(UserIdempotencyMapper.class),mock(UserAuditMapper.class),new BCryptPasswordEncoder(),Clock.systemUTC());
         assertThatThrownBy(()->s.create(1L,new CreateUserRequest("u","U","Tmp!Password123",List.of(2L)),null,9L,"r")).hasMessage("COMMON-1001"); verifyNoInteractions(m);

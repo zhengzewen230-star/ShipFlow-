@@ -15,4 +15,6 @@ public final class User {
     }
     public Long id(){return id;} public Long tenantId(){return tenantId;} public String username(){return username;} public String displayName(){return displayName;}
     public String status(){return status;} public long version(){return version;} public List<Long> roleIds(){return roleIds;} public LocalDateTime createdAt(){return createdAt;} public LocalDateTime updatedAt(){return updatedAt;}
+    public Long getId(){return id;} public Long getTenantId(){return tenantId;} public String getUsername(){return username;} public String getDisplayName(){return displayName;}
+    public String getStatus(){return status;} public long getVersion(){return version;} public List<Long> getRoleIds(){return roleIds;} public LocalDateTime getCreatedAt(){return createdAt;} public LocalDateTime getUpdatedAt(){return updatedAt;}
 }
