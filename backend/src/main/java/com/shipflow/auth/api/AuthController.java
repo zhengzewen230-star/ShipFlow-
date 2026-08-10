@@ -37,8 +37,7 @@ public class AuthController {
     @GetMapping("/csrf")
     public ResponseEntity<Void> csrf(CsrfToken token) {
         token.getToken();
-        return ResponseEntity.noContent().cacheControl(CacheControl.noStore())
-                .header(HttpHeaders.SET_COOKIE, cookies.xsrfCookie(token.getToken()).toString()).build();
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 
     @PostMapping("/login")

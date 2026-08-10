@@ -33,16 +33,19 @@ public class TenantApplicationService {
     private final TenantMapper tenantMapper;
     private final TenantProvisioningMapper provisioningMapper;
     private final TenantIdempotencyMapper idempotencyMapper;
+    private final TenantIdempotencyLookupService idempotencyLookupService;
     private final TenantAuditMapper auditMapper;
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
 
     public TenantApplicationService(TenantMapper tenantMapper, TenantProvisioningMapper provisioningMapper,
-                                    TenantIdempotencyMapper idempotencyMapper, TenantAuditMapper auditMapper,
+                                    TenantIdempotencyMapper idempotencyMapper, TenantIdempotencyLookupService idempotencyLookupService,
+                                    TenantAuditMapper auditMapper,
                                     PasswordEncoder passwordEncoder, Clock clock) {
         this.tenantMapper = tenantMapper;
         this.provisioningMapper = provisioningMapper;
         this.idempotencyMapper = idempotencyMapper;
+        this.idempotencyLookupService = idempotencyLookupService;
         this.auditMapper = auditMapper;
         this.passwordEncoder = passwordEncoder;
         this.clock = clock;
@@ -73,6 +76,7 @@ public class TenantApplicationService {
             Long userId = provisioningMapper.findUserId(createdTenant.id(), request.initialAdmin().username());
             if (userId == null) throw new IllegalStateException("Initial admin user was not created");
             provisioningMapper.insertAdminRole(createdTenant.id());
+            provisioningMapper.insertNoPermissionRole(createdTenant.id());
             Long roleId = provisioningMapper.findRoleId(createdTenant.id(), "MERCHANT_ADMIN");
             if (roleId == null) throw new IllegalStateException("Tenant admin role was not created");
             List<Long> permissionIds = provisioningMapper.findPermissionIds(INITIAL_ADMIN_PERMISSIONS);
@@ -87,6 +91,10 @@ public class TenantApplicationService {
                     "SUCCESS", null, LocalDateTime.now(clock));
             return created;
         } catch (DuplicateKeyException exception) {
+            TenantIdempotencyLookupService.CompletedTenant concurrent = awaitCompletedIdempotency(idempotencyKey);
+            if (concurrent != null && requestHash.equals(concurrent.record().requestHash())) {
+                return concurrent.tenant();
+            }
             throw new TenantException("TENANT-1001", 409);
         }
     }
@@ -102,6 +110,8 @@ public class TenantApplicationService {
 
     @Transactional
     public Tenant update(Long tenantId, UpdateTenantRequest request, Long operatorUserId, String requestId) {
+        Tenant existing = requireTenant(tenantId);
+        if (!"ACTIVE".equals(existing.status())) throw new TenantException("TENANT-1002", 422);
         if (tenantMapper.updateName(tenantId, request.tenantName(), request.version()) != 1) throw conflictOrNotFound(tenantId);
         Tenant tenant = requireTenant(tenantId);
         auditMapper.insert(tenant.id(), operatorUserId, "UPDATE", "tenant", tenant.id(), requestId, "SUCCESS", null, LocalDateTime.now(clock));
@@ -121,4 +131,12 @@ public class TenantApplicationService {
     private TenantException conflictOrNotFound(Long id) { return tenantMapper.findById(id) == null ? new TenantException("COMMON-1006", 404) : new TenantException("COMMON-1005", 409); }
     private void validatePage(int page, int pageSize) { if (page < 1 || pageSize < 1 || pageSize > 100) throw new TenantException("COMMON-1001", 400); }
     private String hash(String value) { try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); } catch (Exception e) { throw new IllegalStateException("Request hashing failed", e); } }
+    private TenantIdempotencyLookupService.CompletedTenant awaitCompletedIdempotency(String key) {
+        for (int attempt = 0; attempt < 100; attempt++) {
+            TenantIdempotencyLookupService.CompletedTenant completed = idempotencyLookupService.findCompleted(OPERATION, key);
+            if (completed != null) return completed;
+            java.util.concurrent.locks.LockSupport.parkNanos(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(10));
+        }
+        return idempotencyLookupService.findCompleted(OPERATION, key);
+    }
 }

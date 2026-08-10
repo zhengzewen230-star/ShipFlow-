@@ -86,6 +86,34 @@ class ApiTestCaseRepository:
 
         return [self._row_to_case(row) for row in rows]
 
+    def find_module2_frozen_cases(self) -> list[ApiTestCase]:
+        """按冻结 case_no 清单读取第二模块，拒绝序号范围造成的静默漏选。"""
+        from common.module2_case_catalog import MODULE2_FROZEN_CASE_NOS
+
+        placeholders = ", ".join(["%s"] * len(MODULE2_FROZEN_CASE_NOS))
+        sql = f"""
+            SELECT id, case_no, module, title, test_type, priority, precondition,
+                   http_method, request_path, headers_template, cookie_template,
+                   request_body_template, expected_status, expected_error_code,
+                   assertions, data_dependency, enabled, created_at, updated_at,
+                   setup_steps, extractors, teardown_steps, tags, execution_order,
+                   automation_status, environment_scope
+            FROM api_test_case
+            WHERE case_no IN ({placeholders})
+            ORDER BY execution_order, case_no
+        """
+        with pymysql.connect(**self.connection_config) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(sql, MODULE2_FROZEN_CASE_NOS)
+                rows = cursor.fetchall()
+        found = {row["case_no"] for row in rows}
+        missing = sorted(set(MODULE2_FROZEN_CASE_NOS) - found)
+        if missing:
+            raise RuntimeError("第二模块冻结用例缺失：" + ", ".join(missing))
+        if len(rows) != len(MODULE2_FROZEN_CASE_NOS):
+            raise RuntimeError("第二模块冻结用例数量不是 66")
+        return [self._row_to_case(row) for row in rows]
+
     @staticmethod
     def _row_to_case(row: dict[str, Any]) -> ApiTestCase:
         case_data = dict(row)

@@ -33,7 +33,7 @@ shipflow:
       refresh-name: ${SHIPFLOW_REFRESH_COOKIE_NAME:REFRESH_TOKEN}
       xsrf-name: ${SHIPFLOW_XSRF_COOKIE_NAME:XSRF-TOKEN}
       refresh-path: ${SHIPFLOW_REFRESH_COOKIE_PATH:/api/v1/auth}
-      xsrf-path: ${SHIPFLOW_XSRF_COOKIE_PATH:/api/v1/auth}
+      xsrf-path: ${SHIPFLOW_XSRF_COOKIE_PATH:/}
       secure: ${SHIPFLOW_AUTH_COOKIE_SECURE:true}
       same-site: ${SHIPFLOW_AUTH_COOKIE_SAME_SITE:Strict}
       refresh-max-age: ${SHIPFLOW_REFRESH_COOKIE_MAX_AGE:30d}

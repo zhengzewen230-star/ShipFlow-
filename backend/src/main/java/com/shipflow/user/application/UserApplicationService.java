@@ -12,6 +12,7 @@ import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.IntSupplier;
 
 @Service
 public class UserApplicationService {
@@ -29,7 +30,7 @@ public class UserApplicationService {
         try {
             idem.insert(tenantId,CREATE,key,hash,LocalDateTime.now(clock).plusMinutes(30));
             if (mapper.findByUsername(tenantId,r.username())!=null) throw error("USER-1001",409);
-            if (!r.roleIds().isEmpty() && mapper.roleCount(tenantId,r.roleIds()) != r.roleIds().stream().distinct().count()) throw error("ROLE-1002",404);
+            if (!r.roleIds().isEmpty() && mapper.roleCount(tenantId,r.roleIds()) != r.roleIds().stream().distinct().count()) throw error("ROLE-1002",422);
             mapper.insert(tenantId,r.username(),r.displayName(),encoder.encode(r.temporaryPassword()));
             User u=requiredByName(tenantId,r.username()); replaceRolesInternal(tenantId,u.id(),r.roleIds());
             idem.complete(tenantId,CREATE,key,u.id()); audit.insert(tenantId,operator,"CREATE",u.id(),requestId,LocalDateTime.now(clock));
@@ -46,14 +47,14 @@ public class UserApplicationService {
         if(mapper.updateStatus(t,id,r.status(),r.version())!=1)throw conflict(t,id); User u=required(t,id);audit.insert(t,op,"STATUS_CHANGE",id,req,LocalDateTime.now(clock));return withRoles(t,u);
     }
     @Transactional public User roles(Long t,Long id,UserRoleBindingRequest r,Long op,String req){
-        User u=required(t,id); if(!r.roleIds().isEmpty() && mapper.roleCount(t,r.roleIds())!=r.roleIds().stream().distinct().count())throw error("ROLE-1002",404);
+        User u=required(t,id); if(!r.roleIds().isEmpty() && mapper.roleCount(t,r.roleIds())!=r.roleIds().stream().distinct().count())throw error("ROLE-1002",422);
         if(mapper.updateName(t,id,u.displayName(),r.version())!=1)throw conflict(t,id); replaceRolesInternal(t,id,r.roleIds());
         User result=required(t,id); audit.insert(t,op,"ROLE_BIND",id,req,LocalDateTime.now(clock)); return withRoles(t,result);
     }
-    private User idempotentUpdate(Long t,Long id,String name,long version,String key,Long op,String req,Runnable update){
+    private User idempotentUpdate(Long t,Long id,String name,long version,String key,Long op,String req,IntSupplier update){
         if(key==null||key.isBlank())throw error("COMMON-1001",400); String h=digest(id+"\n"+name+"\n"+version);UserIdempotencyMapper.Record p=idem.find(t,"updateUser",key);
         if(p!=null){if(!h.equals(p.requestHash()))throw error("COMMON-1009",409);return withRoles(t, required(t,p.resourceId()));}
-        idem.insert(t,"updateUser",key,h,LocalDateTime.now(clock).plusMinutes(30)); required(t,id); update.run(); if(mapper.findById(t,id)==null)throw conflict(t,id);idem.complete(t,"updateUser",key,id);audit.insert(t,op,"UPDATE",id,req,LocalDateTime.now(clock));return withRoles(t,required(t,id));
+        idem.insert(t,"updateUser",key,h,LocalDateTime.now(clock).plusMinutes(30)); required(t,id); if(update.getAsInt()!=1)throw conflict(t,id);idem.complete(t,"updateUser",key,id);audit.insert(t,op,"UPDATE",id,req,LocalDateTime.now(clock));return withRoles(t,required(t,id));
     }
     private void replaceRolesInternal(Long t,Long id,List<Long> ids){mapper.deleteRoles(t,id);ids.stream().distinct().forEach(role->mapper.bindRole(t,id,role));}
     private User required(Long t,Long id){User u=mapper.findById(t,id);if(u==null)throw error("COMMON-1006",404);return u;}

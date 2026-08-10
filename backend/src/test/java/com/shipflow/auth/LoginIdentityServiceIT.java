@@ -6,6 +6,7 @@ import com.shipflow.auth.model.LoginCredentials;
 import com.shipflow.auth.model.LoginIdentity;
 import com.shipflow.auth.service.LoginIdentityAuthenticationException;
 import com.shipflow.auth.service.LoginIdentityService;
+import com.shipflow.IntegrationJwtTestConfiguration;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,6 +24,7 @@ import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 @ActiveProfiles("integration")
+@Import(IntegrationJwtTestConfiguration.class)
 @Transactional
 class LoginIdentityServiceIT {
 

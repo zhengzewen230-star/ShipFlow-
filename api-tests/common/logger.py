@@ -24,14 +24,19 @@ def get_logger(name="shipflow-api-tests"):
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
 
-    file_handler = logging.FileHandler(
-        LOG_FILE,
-        encoding="utf-8"
-    )
-    file_handler.setFormatter(formatter)
-
     logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
+    try:
+        file_handler = logging.FileHandler(
+            LOG_FILE,
+            encoding="utf-8"
+        )
+    except OSError:
+        # A real HTTP run must not be blocked solely because its optional
+        # diagnostic log file is unavailable in a restricted runner.
+        pass
+    else:
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
     logger.propagate = False
 
     return logger

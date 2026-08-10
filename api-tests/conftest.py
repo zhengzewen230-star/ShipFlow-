@@ -17,6 +17,10 @@ from executors.assertion_executor import AssertionExecutor
 from executors.extractor_executor import ExtractorExecutor
 from executors.request_executor import RequestExecutor
 from executors.scenario_executor import ScenarioExecutor
+from common.environment import (
+    missing_environment_variables,
+    skip_if_missing_environment,
+)
 
 @pytest.fixture
 def http_client():
@@ -45,10 +49,11 @@ def token_context():
 @pytest.fixture
 def authenticated_context(auth_client,token_context):
     password_env = settings["auth"]["password_env"]
+    skip_if_missing_environment(
+        [password_env],
+        reason="authentication environment is not configured",
+    )
     password = os.getenv(password_env)
-
-    if not password:
-        pytest.fail("Password not set")
     csrf_response=auth_client.get_csrf_token()
     if csrf_response.status_code != 204:
         pytest.fail("CSRF not valid"
@@ -76,6 +81,12 @@ def authenticated_context(auth_client,token_context):
 
 @pytest.fixture(scope="session")
 def api_test_case_repository():
+    if os.getenv("SHIPFLOW_RUN_QA_READONLY") != "1":
+        pytest.skip("Set SHIPFLOW_RUN_QA_READONLY=1 to run QA repository checks")
+    skip_if_missing_environment(
+        [settings["qa_database"]["password_env"]],
+        reason="QA database environment is not configured",
+    )
     database_config=settings["qa_database"]
     return ApiTestCaseRepository(database_config=database_config)
 
@@ -173,6 +184,14 @@ def database_scenario_context():
     tenant_profile = profiles["TENANT_ADMIN"]
     platform_profile = profiles["PLATFORM_ADMIN"]
 
+    skip_if_missing_environment(
+        [
+            tenant_profile["password_env"],
+            platform_profile["password_env"],
+        ],
+        reason="authentication environment is not configured",
+    )
+
     tenant_password = (
         required_environment_variable(
             tenant_profile["password_env"]
@@ -234,12 +253,42 @@ def pytest_generate_tests(metafunc):
     if parameter_name not in metafunc.fixturenames:
         return
 
+    if os.getenv("SHIPFLOW_RUN_QA_READONLY") != "1":
+        metafunc.parametrize(
+            parameter_name,
+            [pytest.param(
+                None,
+                marks=pytest.mark.skip(
+                    reason="QA repository execution is disabled by default",
+                ),
+            )],
+        )
+        return
+
+    qa_config = settings["qa_database"]
+    required_names = [qa_config["password_env"]]
+    missing = missing_environment_variables(required_names)
+    if missing:
+        metafunc.parametrize(
+            parameter_name,
+            [pytest.param(
+                None,
+                marks=pytest.mark.skip(
+                    reason=(
+                        "QA database environment is not configured: "
+                        + ", ".join(missing)
+                    )
+                ),
+            )],
+        )
+        return
+
     execution_config = settings[
         "test_execution"
     ]
 
     repository = ApiTestCaseRepository(
-        database_config=settings["qa_database"]
+        database_config=qa_config
     )
 
     test_cases = repository.find_ready_cases(

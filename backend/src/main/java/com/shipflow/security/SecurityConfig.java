@@ -29,7 +29,7 @@ public class SecurityConfig {
         CookieCsrfTokenRepository csrf = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrf.setCookieName("XSRF-TOKEN");
         csrf.setHeaderName("X-XSRF-TOKEN");
-        csrf.setCookiePath("/api/v1/auth");
+        csrf.setCookiePath("/");
         CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
         http.csrf(config -> config.csrfTokenRepository(csrf)
                         .csrfTokenRequestHandler(requestHandler)

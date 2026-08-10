@@ -3,6 +3,7 @@
 <mapper namespace="com.shipflow.tenant.mapper.TenantProvisioningMapper">
   <insert id="insertAdminUser">INSERT INTO sys_user (tenant_id,username,display_name,password_hash,status,deleted,version) VALUES (#{tenantId},#{username},#{displayName},#{passwordHash},'ACTIVE',0,0)</insert>
   <insert id="insertAdminRole">INSERT INTO sys_role (tenant_id,role_code,role_name,role_scope,status,deleted,version) VALUES (#{tenantId},'MERCHANT_ADMIN','Merchant Admin','TENANT','ACTIVE',0,0)</insert>
+  <insert id="insertNoPermissionRole">INSERT INTO sys_role (tenant_id,role_code,role_name,role_scope,status,deleted,version) VALUES (#{tenantId},'TEST_NO_PERMISSION','测试无权限角色','TENANT','ACTIVE',0,0)</insert>
   <select id="findRoleId" resultType="long">SELECT id FROM sys_role WHERE tenant_id=#{tenantId} AND role_code=#{roleCode} AND role_scope='TENANT' AND deleted=0</select>
   <insert id="bindAdmin">INSERT INTO sys_user_role (tenant_id,user_id,role_id) VALUES (#{tenantId},#{userId},#{roleId})</insert>
   <select id="findUserId" resultType="long">SELECT id FROM sys_user WHERE tenant_id=#{tenantId} AND username=#{username} AND deleted=0</select>

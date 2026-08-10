@@ -35,6 +35,7 @@ logs/
 api-tests/reports/
 allure-results/
 allure-report/
+module2-acceptance-artifacts-*/
 
 # Environment files
 .env

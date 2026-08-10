@@ -10,7 +10,7 @@ public class AuthCookieProperties {
     private String refreshName = "REFRESH_TOKEN";
     private String xsrfName = "XSRF-TOKEN";
     private String refreshPath = "/api/v1/auth";
-    private String xsrfPath = "/api/v1/auth";
+    private String xsrfPath = "/";
     private boolean secure = true;
     private String sameSite = "Strict";
     private Duration refreshMaxAge = Duration.ofDays(30);

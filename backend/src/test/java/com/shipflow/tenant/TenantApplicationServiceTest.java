@@ -4,6 +4,7 @@ import com.shipflow.tenant.api.model.CreateTenantRequest;
 import com.shipflow.tenant.api.model.UpdateTenantRequest;
 import com.shipflow.tenant.application.TenantApplicationService;
 import com.shipflow.tenant.application.TenantException;
+import com.shipflow.tenant.application.TenantIdempotencyLookupService;
 import com.shipflow.tenant.domain.model.Tenant;
 import com.shipflow.tenant.mapper.TenantAuditMapper;
 import com.shipflow.tenant.mapper.TenantIdempotencyMapper;
@@ -26,6 +27,7 @@ class TenantApplicationServiceTest {
     private TenantMapper tenantMapper;
     private TenantProvisioningMapper provisioning;
     private TenantIdempotencyMapper idempotency;
+    private TenantIdempotencyLookupService idempotencyLookup;
     private TenantAuditMapper audit;
     private TenantApplicationService service;
 
@@ -34,8 +36,9 @@ class TenantApplicationServiceTest {
         tenantMapper = mock(TenantMapper.class);
         provisioning = mock(TenantProvisioningMapper.class);
         idempotency = mock(TenantIdempotencyMapper.class);
+        idempotencyLookup = mock(TenantIdempotencyLookupService.class);
         audit = mock(TenantAuditMapper.class);
-        service = new TenantApplicationService(tenantMapper, provisioning, idempotency, audit,
+        service = new TenantApplicationService(tenantMapper, provisioning, idempotency, idempotencyLookup, audit,
                 new BCryptPasswordEncoder(10), Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
     }
 
