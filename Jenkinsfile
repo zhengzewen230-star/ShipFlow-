@@ -252,6 +252,7 @@ exit $LASTEXITCODE
                 SHIPFLOW_HTTP_TEST_DB_URL = credentials('shipflow-module2-http-test-db-url')
                 SHIPFLOW_HTTP_TEST_DB_USERNAME = "${params.MODULE2_HTTP_TEST_DB_USERNAME}"
                 SHIPFLOW_HTTP_TEST_DB_PASSWORD = credentials('shipflow-module2-http-test-db-password')
+                SHIPFLOW_TEST_PASSWORD = credentials('shipflow-test-password')
                 SHIPFLOW_PLATFORM_TEST_PASSWORD = credentials('shipflow-platform-test-password')
             }
             steps {
@@ -337,6 +338,7 @@ exit $LASTEXITCODE
                 SHIPFLOW_HTTP_TEST_DB_URL = credentials('shipflow-module2-http-test-db-url')
                 SHIPFLOW_HTTP_TEST_DB_USERNAME = "${params.MODULE2_HTTP_TEST_DB_USERNAME}"
                 SHIPFLOW_HTTP_TEST_DB_PASSWORD = credentials('shipflow-module2-http-test-db-password')
+                SHIPFLOW_TEST_PASSWORD = credentials('shipflow-test-password')
                 SHIPFLOW_PLATFORM_TEST_PASSWORD = credentials('shipflow-platform-test-password')
             }
             steps {
