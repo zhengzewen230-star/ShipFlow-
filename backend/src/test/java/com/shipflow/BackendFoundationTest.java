@@ -17,6 +17,17 @@ import com.shipflow.user.mapper.UserAuditMapper;
 import com.shipflow.rbac.mapper.RoleMapper;
 import com.shipflow.rbac.mapper.PermissionMapper;
 import com.shipflow.rbac.mapper.RbacAuditMapper;
+import com.shipflow.tenant.mapper.TenantMapper;
+import com.shipflow.tenant.mapper.TenantProvisioningMapper;
+import com.shipflow.tenant.mapper.TenantIdempotencyMapper;
+import com.shipflow.tenant.mapper.TenantAuditMapper;
+import com.shipflow.logistics.mapper.LogisticsMasterMapper;
+import com.shipflow.logistics.mapper.LogisticsIdempotencyMapper;
+import com.shipflow.logistics.mapper.LogisticsAuditMapper;
+import com.shipflow.quote.mapper.QuoteMapper;
+import com.shipflow.quote.mapper.QuoteIdempotencyMapper;
+import com.shipflow.quote.mapper.QuotePricingMapper;
+import com.shipflow.quote.mapper.QuoteAuditMapper;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,6 +51,17 @@ class BackendFoundationTest {
     @MockBean RoleMapper roleMapper;
     @MockBean PermissionMapper permissionMapper;
     @MockBean RbacAuditMapper rbacAuditMapper;
+    @MockBean TenantMapper tenantMapper;
+    @MockBean TenantProvisioningMapper tenantProvisioningMapper;
+    @MockBean TenantIdempotencyMapper tenantIdempotencyMapper;
+    @MockBean TenantAuditMapper tenantAuditMapper;
+    @MockBean LogisticsMasterMapper logisticsMasterMapper;
+    @MockBean LogisticsIdempotencyMapper logisticsIdempotencyMapper;
+    @MockBean LogisticsAuditMapper logisticsAuditMapper;
+    @MockBean QuoteMapper quoteMapper;
+    @MockBean QuoteIdempotencyMapper quoteIdempotencyMapper;
+    @MockBean QuotePricingMapper quotePricingMapper;
+    @MockBean QuoteAuditMapper quoteAuditMapper;
 
     @Autowired
     private MockMvc mockMvc;

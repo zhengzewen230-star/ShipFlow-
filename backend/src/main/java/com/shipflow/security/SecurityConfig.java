@@ -10,6 +10,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpMethod;
@@ -24,14 +25,11 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectProvider<JwtDecoder> decoder,
-                                                   ObjectProvider<CurrentCallerService> callerService) throws Exception {
+                                                   ObjectProvider<CurrentCallerService> callerService,
+                                                   CsrfTokenRepository csrfTokenRepository) throws Exception {
         AuthenticationEntryPoint authenticationEntryPoint = jsonEntryPoint("COMMON-1002", "Authentication required");
-        CookieCsrfTokenRepository csrf = CookieCsrfTokenRepository.withHttpOnlyFalse();
-        csrf.setCookieName("XSRF-TOKEN");
-        csrf.setHeaderName("X-XSRF-TOKEN");
-        csrf.setCookiePath("/");
         CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
-        http.csrf(config -> config.csrfTokenRepository(csrf)
+        http.csrf(config -> config.csrfTokenRepository(csrfTokenRepository)
                         .csrfTokenRequestHandler(requestHandler)
                         .ignoringRequestMatchers(new AntPathRequestMatcher("/_test/**")))
                 .authorizeHttpRequests(authorize -> authorize
@@ -50,6 +48,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/roles", "/api/v1/roles/**").access(AuthorizationManagers.allOf(hasAuthority("scope:TENANT"), hasAuthority("role:read")))
                         .requestMatchers(HttpMethod.PUT, "/api/v1/roles/*/permissions").access(AuthorizationManagers.allOf(hasAuthority("scope:TENANT"), hasAuthority("role:manage")))
                         .requestMatchers("/api/v1/permissions").access(AuthorizationManagers.allOf(hasAuthority("scope:TENANT"), hasAuthority("permission:read")))
+                        .requestMatchers(HttpMethod.GET, "/api/v1/platform/logistics-providers", "/api/v1/platform/logistics-providers/**",
+                                "/api/v1/platform/logistics-channels", "/api/v1/platform/logistics-channels/**")
+                        .access(AuthorizationManagers.allOf(hasAuthority("scope:PLATFORM"), hasAuthority("logistics:read")))
+                        .requestMatchers(HttpMethod.POST, "/api/v1/platform/logistics-channels/*/price-rules")
+                        .access(AuthorizationManagers.allOf(hasAuthority("scope:PLATFORM"), hasAuthority("price-rule:manage")))
+                        .requestMatchers("/api/v1/platform/logistics-providers/**", "/api/v1/platform/logistics-channels/**")
+                        .access(AuthorizationManagers.allOf(hasAuthority("scope:PLATFORM"), hasAuthority("logistics:manage")))
+                        .requestMatchers("/api/v1/quotes", "/api/v1/quotes/**").hasAuthority("scope:TENANT")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll())
                 .exceptionHandling(exceptions -> exceptions
@@ -62,6 +68,15 @@ public class SecurityConfig {
                             .jwtAuthenticationConverter(jwtAuthenticationConverter(callerService))));
         }
         return http.build();
+    }
+
+    @Bean
+    public CsrfTokenRepository csrfTokenRepository() {
+        CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        repository.setCookieName("XSRF-TOKEN");
+        repository.setHeaderName("X-XSRF-TOKEN");
+        repository.setCookiePath("/");
+        return repository;
     }
 
     private JwtAuthenticationConverter jwtAuthenticationConverter(ObjectProvider<CurrentCallerService> callerService) {

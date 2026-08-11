@@ -15,6 +15,8 @@ import com.shipflow.tenant.application.TenantException;
 import com.shipflow.store.application.StoreException;
 import com.shipflow.user.application.UserException;
 import com.shipflow.rbac.application.RbacException;
+import com.shipflow.logistics.application.LogisticsException;
+import com.shipflow.quote.application.QuoteException;
 import com.shipflow.common.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +56,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RbacException.class)
     public ResponseEntity<ApiErrorResponse> handleRbacFailure(RbacException exception) {
         return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "RBAC operation failed"));
+    }
+
+    @ExceptionHandler(LogisticsException.class)
+    public ResponseEntity<ApiErrorResponse> handleLogisticsFailure(LogisticsException exception) {
+        return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Logistics master-data operation failed"));
+    }
+
+    @ExceptionHandler(QuoteException.class)
+    public ResponseEntity<ApiErrorResponse> handleQuoteFailure(QuoteException exception) {
+        return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Quote query failed"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

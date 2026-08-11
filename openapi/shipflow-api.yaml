@@ -19,6 +19,8 @@ tags:
     description: 当前租户用户管理
   - name: RBAC
     description: 角色与权限管理
+  - name: LogisticsMaster
+    description: 平台物流商、渠道和价格规则主数据
   - name: Quotes
     description: 运费报价
   - name: Orders
@@ -497,7 +499,151 @@ paths:
         '401': { $ref: '#/components/responses/AuthError' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /platform/logistics-providers:
+    get:
+      tags: [LogisticsMaster]
+      summary: 分页查询物流商
+      operationId: listLogisticsProviders
+      responses:
+        '200': { description: 物流商分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessLogisticsProviderPage' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [LogisticsMaster]
+      summary: 创建物流商
+      operationId: createLogisticsProvider
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateLogisticsProviderRequest' } } } }
+      responses:
+        '201': { description: 创建成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessLogisticsProvider' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /platform/logistics-providers/{providerId}:
+    get:
+      tags: [LogisticsMaster]
+      summary: 查询物流商详情
+      operationId: getLogisticsProvider
+      parameters: [{ $ref: '#/components/parameters/ProviderId' }]
+      responses:
+        '200': { description: 物流商详情, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessLogisticsProvider' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [LogisticsMaster]
+      summary: 修改物流商
+      operationId: updateLogisticsProvider
+      parameters: [{ $ref: '#/components/parameters/ProviderId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateLogisticsProviderRequest' } } } }
+      responses:
+        '200': { description: 修改成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessLogisticsProvider' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /platform/logistics-channels:
+    get:
+      tags: [LogisticsMaster]
+      summary: 分页查询物流渠道
+      operationId: listLogisticsChannels
+      responses:
+        '200': { description: 渠道分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessLogisticsChannelPage' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [LogisticsMaster]
+      summary: 创建物流渠道
+      operationId: createLogisticsChannel
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateLogisticsChannelRequest' } } } }
+      responses:
+        '201': { description: 创建成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessLogisticsChannel' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /platform/logistics-channels/{channelId}:
+    get:
+      tags: [LogisticsMaster]
+      summary: 查询物流渠道详情
+      operationId: getLogisticsChannel
+      parameters: [{ $ref: '#/components/parameters/ChannelId' }]
+      responses:
+        '200': { description: 渠道详情, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessLogisticsChannel' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [LogisticsMaster]
+      summary: 修改物流渠道
+      operationId: updateLogisticsChannel
+      parameters: [{ $ref: '#/components/parameters/ChannelId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateLogisticsChannelRequest' } } } }
+      responses:
+        '200': { description: 修改成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessLogisticsChannel' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /platform/logistics-channels/{channelId}/service-countries:
+    put:
+      tags: [LogisticsMaster]
+      summary: 替换渠道服务国家
+      operationId: replaceLogisticsChannelServiceCountries
+      parameters: [{ $ref: '#/components/parameters/ChannelId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ServiceCountriesRequest' } } } }
+      responses:
+        '200': { description: 替换成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessLogisticsChannel' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /platform/logistics-channels/{channelId}/price-rules:
+    post:
+      tags: [LogisticsMaster]
+      summary: 创建并发布价格规则版本
+      operationId: publishPriceRuleVersion
+      parameters: [{ $ref: '#/components/parameters/ChannelId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PublishPriceRuleRequest' } } } }
+      responses:
+        '201': { description: 已发布新价格版本, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessPriceRule' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/QuoteRuleError' }
+
   /quotes:
+    get:
+      tags: [Quotes]
+      summary: 分页查询当前租户报价历史
+      operationId: listQuotes
+      parameters:
+        - name: storeId
+          in: query
+          schema: { $ref: '#/components/schemas/Id' }
+        - name: channelId
+          in: query
+          schema: { $ref: '#/components/schemas/Id' }
+        - name: status
+          in: query
+          schema: { type: string, enum: [VALID, EXPIRED, CANCELLED] }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200': { description: 报价列表 }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
     post:
       tags: [Quotes]
       summary: 创建报价
@@ -534,6 +680,27 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/QuoteRuleError'
+
+  /quotes/{quoteId}:
+    get:
+      tags: [Quotes]
+      summary: 查询当前租户报价详情
+      operationId: getQuote
+      responses:
+        '200': { description: 报价详情 }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /quotes/{quoteId}/validate:
+    post:
+      tags: [Quotes]
+      summary: 校验报价当前是否有效
+      operationId: validateQuote
+      responses:
+        '200': { description: 有效性结果 }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /orders:
     post:
@@ -1031,6 +1198,16 @@ components:
       schema:
         type: string
   parameters:
+    ProviderId:
+      name: providerId
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/Id' }
+    ChannelId:
+      name: channelId
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/Id' }
     RequestId:
       name: X-Request-Id
       in: header
@@ -1485,6 +1662,38 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/Quote'
+    QuotePage:
+      type: object
+      required: [page, pageSize, total, totalPages, items]
+      properties:
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer, format: int64 }
+        totalPages: { type: integer }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Quote' }
+    QuoteValidation:
+      type: object
+      required: [quoteId, exists, expired, canCreateOrder, reason]
+      properties:
+        quoteId: { $ref: '#/components/schemas/Id' }
+        exists: { type: boolean }
+        expired: { type: boolean }
+        canCreateOrder: { type: boolean }
+        reason: { type: string, enum: [AVAILABLE, EXPIRED, CANCELLED, ALREADY_USED] }
+    ApiSuccessQuotePage:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/QuotePage' }
+    ApiSuccessQuoteValidation:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/QuoteValidation' }
     Address:
       type: object
       required: [contactName, phone, countryCode, city, addressLine1, postalCode]
@@ -2076,3 +2285,123 @@ components:
           type: string
         temporaryPassword:
           $ref: '#/components/schemas/TemporaryPassword'
+    LogisticsProvider:
+      type: object
+      required: [id, providerCode, providerName, status, version, createdAt, updatedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        providerCode: { type: string, maxLength: 64 }
+        providerName: { type: string, maxLength: 128 }
+        status: { $ref: '#/components/schemas/ActiveStatus' }
+        version: { type: integer, format: int64, minimum: 0 }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
+    LogisticsChannel:
+      type: object
+      required: [id, providerId, channelCode, channelName, transportMode, serviceArea, status, version, serviceCountries, createdAt, updatedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        providerId: { $ref: '#/components/schemas/Id' }
+        channelCode: { type: string, maxLength: 64 }
+        channelName: { type: string, maxLength: 128 }
+        transportMode: { type: string, enum: [OCEAN, AIR, ROAD, RAIL, COURIER] }
+        serviceArea: { type: string, maxLength: 255 }
+        status: { $ref: '#/components/schemas/ActiveStatus' }
+        serviceCountries: { type: array, items: { type: string, pattern: '^[A-Z]{2}$' } }
+        version: { type: integer, format: int64, minimum: 0 }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
+    PriceRule:
+      type: object
+      required: [id, channelId, versionNo, ruleName, currency, volumeDivisor, roundingMode, roundingIncrement, status, tiers]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        channelId: { $ref: '#/components/schemas/Id' }
+        versionNo: { type: integer, minimum: 1 }
+        ruleName: { type: string, maxLength: 128 }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        volumeDivisor: { type: number, format: decimal }
+        roundingMode: { type: string, enum: [CEILING, ROUND, NONE] }
+        roundingIncrement: { type: number, format: decimal }
+        status: { type: string, enum: [PUBLISHED] }
+        effectiveFrom: { $ref: '#/components/schemas/UtcDateTime' }
+        tiers: { type: array, minItems: 1, items: { $ref: '#/components/schemas/PriceRuleTier' } }
+    PriceRuleTier:
+      type: object
+      required: [tierNo, minWeight, billingMode]
+      properties:
+        tierNo: { type: integer, minimum: 1 }
+        minWeight: { type: number, format: decimal }
+        maxWeight: { type: number, format: decimal, nullable: true }
+        billingMode: { type: string, enum: [FIXED, FIRST_CONTINUE] }
+        firstWeight: { type: number, format: decimal, nullable: true }
+        firstFee: { type: number, format: decimal, nullable: true }
+        additionalWeight: { type: number, format: decimal, nullable: true }
+        additionalFee: { type: number, format: decimal, nullable: true }
+        tierFee: { type: number, format: decimal, nullable: true }
+    CreateLogisticsProviderRequest:
+      type: object
+      required: [providerCode, providerName]
+      properties:
+        providerCode: { type: string, minLength: 1, maxLength: 64 }
+        providerName: { type: string, minLength: 1, maxLength: 128 }
+    UpdateLogisticsProviderRequest:
+      allOf:
+        - $ref: '#/components/schemas/VersionRequest'
+        - type: object
+          required: [providerName, status]
+          properties:
+            providerName: { type: string, minLength: 1, maxLength: 128 }
+            status: { $ref: '#/components/schemas/ActiveStatus' }
+    CreateLogisticsChannelRequest:
+      type: object
+      required: [providerId, channelCode, channelName, transportMode, serviceArea]
+      properties:
+        providerId: { $ref: '#/components/schemas/Id' }
+        channelCode: { type: string, minLength: 1, maxLength: 64 }
+        channelName: { type: string, minLength: 1, maxLength: 128 }
+        transportMode: { type: string, enum: [OCEAN, AIR, ROAD, RAIL, COURIER] }
+        serviceArea: { type: string, minLength: 1, maxLength: 255 }
+    UpdateLogisticsChannelRequest:
+      allOf:
+        - $ref: '#/components/schemas/VersionRequest'
+        - type: object
+          required: [channelName, transportMode, serviceArea, status]
+          properties:
+            channelName: { type: string, minLength: 1, maxLength: 128 }
+            transportMode: { type: string, enum: [OCEAN, AIR, ROAD, RAIL, COURIER] }
+            serviceArea: { type: string, minLength: 1, maxLength: 255 }
+            status: { $ref: '#/components/schemas/ActiveStatus' }
+    ServiceCountriesRequest:
+      allOf:
+        - $ref: '#/components/schemas/VersionRequest'
+        - type: object
+          required: [countryCodes]
+          properties:
+            countryCodes: { type: array, minItems: 1, uniqueItems: true, items: { type: string, pattern: '^[A-Z]{2}$' } }
+    PublishPriceRuleRequest:
+      type: object
+      required: [versionNo, ruleName, currency, volumeDivisor, roundingMode, roundingIncrement, effectiveFrom, tiers]
+      properties:
+        versionNo: { type: integer, minimum: 1 }
+        ruleName: { type: string, minLength: 1, maxLength: 128 }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        volumeDivisor: { type: number, format: decimal, exclusiveMinimum: true }
+        roundingMode: { type: string, enum: [CEILING, ROUND, NONE] }
+        roundingIncrement: { type: number, format: decimal, exclusiveMinimum: true }
+        effectiveFrom: { $ref: '#/components/schemas/UtcDateTime' }
+        tiers: { type: array, minItems: 1, items: { $ref: '#/components/schemas/PriceRuleTier' } }
+    ApiSuccessLogisticsProvider:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/LogisticsProvider' } } }]
+    ApiSuccessLogisticsProviderPage:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/LogisticsProviderPage' } } }]
+    LogisticsProviderPage:
+      allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/LogisticsProvider' } } } }]
+    ApiSuccessLogisticsChannel:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/LogisticsChannel' } } }]
+    ApiSuccessLogisticsChannelPage:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/LogisticsChannelPage' } } }]
+    LogisticsChannelPage:
+      allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/LogisticsChannel' } } } }]
+    ApiSuccessPriceRule:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/PriceRule' } } }]

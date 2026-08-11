@@ -1,0 +1,3 @@
+package com.shipflow.logistics.api.model;
+import com.shipflow.logistics.domain.model.PublishedPriceRule.RoundingMode; import jakarta.validation.Valid; import jakarta.validation.constraints.*; import java.math.BigDecimal; import java.time.LocalDateTime; import java.util.List;
+public record PublishPriceRuleRequest(@Min(1) int versionNo, @NotBlank @Size(max=128) String ruleName, @Pattern(regexp="[A-Z]{3}") String currency, @NotNull @DecimalMin("0.001") BigDecimal volumeDivisor, @NotNull RoundingMode roundingMode, @NotNull @DecimalMin("0.001") BigDecimal roundingIncrement, @NotNull LocalDateTime effectiveFrom, @NotEmpty List<@Valid PriceRuleTierRequest> tiers) { }

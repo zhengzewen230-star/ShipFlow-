@@ -15,16 +15,19 @@
 | 租户用户管理 | 6 |
 | 店铺管理 | 5 |
 | RBAC 查询与绑定 | 4 |
-| 物流渠道查询 | 4 |
-| 运费报价 | 4 |
-| 物流订单 | 6 |
-| 仓库操作 | 5 |
-| 物流轨迹 | 4 |
-| 账单导入 | 4 |
-| 费用对账 | 4 |
-| 异常件与索赔 | 4 |
-| 审计日志 | 1 |
-| **合计** | **57** |
+| 物流商、渠道与价格规则 | 10 |
+| 运费询价与报价 | 8 |
+| 物流订单与运输资料 | 12 |
+| 仓库履约 | 8 |
+| 物流轨迹 | 6 |
+| 物流商账单 | 6 |
+| 费用对账 | 5 |
+| 异常件与索赔 | 5 |
+| 审计查询 | 3 |
+| 运营看板 | 2 |
+| **目标总计** | **90** |
+
+> 已实现 operation 为 25 个；原 OpenAPI 已登记 38 个，其中 13 个为早期物流契约。ADR-021 将总目标冻结为 90 个 operation；本表的后续模块数量是实施目标，不代表已实现。
 
 ## 3. 认证与当前用户
 
@@ -91,13 +94,15 @@
 | CHANNEL-001 查询可用渠道 | `GET /api/v1/logistics/channels` | 租户用户；查询国家 | `countryCode`、`status=ACTIVE` | 渠道公开列表 | `COMMON-1001` | 只读/`logistics_channel`、`logistics_channel_service_country` |
 | CHANNEL-002 查询服务国家 | `GET /api/v1/logistics/channels/{channelId}/service-countries` | 租户用户 | `channelId` | 国家编码列表 | `COMMON-1006` | 只读/`logistics_channel_service_country` |
 | CHANNEL-003 查询渠道公开信息 | `GET /api/v1/logistics/channels/{channelId}` | 租户用户 | `channelId` | 渠道、物流商和价格规则摘要 | `COMMON-1006` | 只读/`logistics_provider`、`logistics_channel`、`price_rule` |
-| CHANNEL-004 维护价格规则 | `POST /api/v1/platform/channels/{channelId}/price-rules` | 平台管理员；JSON `version` | `versionNo`、计费参数、tiers | `201` 价格规则 | `QUOTE-1002`、`COMMON-1005` | `Idempotency-Key`幂等/写审计/`price_rule`、`price_rule_tier` |
+| CHANNEL-004 维护价格规则 | `POST /api/v1/platform/logistics-channels/{channelId}/price-rules` | 平台管理员；JSON `version` | `versionNo`、计费参数、tiers | `201` 价格规则 | `QUOTE-1002`、`COMMON-1005` | `Idempotency-Key`幂等/写审计/`price_rule`、`price_rule_tier` |
 
 ## 8. 运费报价
 
+报价列表、详情和有效性校验均以当前调用者的 `tenant_id` 作为强制查询条件；报价金额与规则版本为不可变快照。
+
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| QUOTE-001 创建报价 | `POST /api/v1/quotes` | 商家管理员、商家操作员 | `storeId`、`channelId`、申报重量尺寸、目的国 | `201` 报价和 `feeDetail` | `QUOTE-1001`、`QUOTE-1002` | `Idempotency-Key`幂等/写审计/`quote`、`price_rule` |
+| QUOTE-001 创建报价 | `POST /api/v1/quotes` | 当前租户用户；`Idempotency-Key` | `storeId`、`channelId`、申报重量尺寸、目的国 | `201` 不可变报价、计费重量、金额和 `feeDetail`；UTC 有效期 30 分钟 | `QUOTE-1001`、`QUOTE-1002`、`QUOTE-1006`、`COMMON-1009` | 同 key 同请求返回首次报价；写审计/`quote`、`price_rule`、`api_idempotency_record` |
 | QUOTE-002 查询报价详情 | `GET /api/v1/quotes/{quoteId}` | 当前租户用户 | `quoteId` | 报价详情和费用明细 | `COMMON-1006` | 只读/`quote`；跨租户统一404 |
 | QUOTE-003 查询可用报价 | `GET /api/v1/quotes` | 当前租户用户；分页 | `storeId`、`channelId`、`status` | 分页报价 | `COMMON-1001` | 只读/`quote` |
 | QUOTE-004 校验报价有效性 | `POST /api/v1/quotes/{quoteId}/validate` | 当前租户用户 | `quoteId` | `valid`、失效原因 | `QUOTE-1003`、`QUOTE-1004` | 只读校验/不写业务审计/`quote`、`shipment_order` |

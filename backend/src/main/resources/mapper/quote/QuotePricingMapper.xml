@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.quote.mapper.QuotePricingMapper">
+  <resultMap id="ruleMap" type="com.shipflow.quote.mapper.QuotePricingRuleRow">
+    <constructor>
+      <idArg column="id" javaType="java.lang.Long"/><arg column="channel_id" javaType="java.lang.Long"/>
+      <arg column="version_no" javaType="_int"/><arg column="rule_name" javaType="string"/>
+      <arg column="currency" javaType="string"/><arg column="volume_divisor" javaType="java.math.BigDecimal"/>
+      <arg column="rounding_mode" javaType="com.shipflow.logistics.domain.model.PublishedPriceRule$RoundingMode"/>
+      <arg column="rounding_increment" javaType="java.math.BigDecimal"/><arg column="effective_from" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="tierMap" type="com.shipflow.logistics.domain.model.PriceRuleTier">
+    <constructor>
+      <arg column="tier_no" javaType="_int"/><arg column="min_weight" javaType="java.math.BigDecimal"/>
+      <arg column="max_weight" javaType="java.math.BigDecimal"/><arg column="billing_mode" javaType="com.shipflow.logistics.domain.model.PriceRuleTier$BillingMode"/>
+      <arg column="first_weight" javaType="java.math.BigDecimal"/><arg column="first_fee" javaType="java.math.BigDecimal"/>
+      <arg column="additional_weight" javaType="java.math.BigDecimal"/><arg column="additional_fee" javaType="java.math.BigDecimal"/>
+      <arg column="tier_fee" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+  <select id="isActiveChannel" resultType="boolean">SELECT EXISTS(SELECT 1 FROM logistics_channel WHERE id=#{channelId} AND status='ACTIVE' AND deleted=0)</select>
+  <select id="servesCountry" resultType="boolean">SELECT EXISTS(SELECT 1 FROM logistics_channel_service_country WHERE channel_id=#{channelId} AND country_code=#{countryCode})</select>
+  <select id="findCurrentRule" resultMap="ruleMap">
+    SELECT id,channel_id,version_no,rule_name,currency,volume_divisor,rounding_mode,rounding_increment,effective_from
+    FROM price_rule WHERE channel_id=#{channelId} AND status='PUBLISHED' AND effective_from &lt;= #{now}
+      AND (effective_to IS NULL OR effective_to &gt; #{now})
+    ORDER BY version_no DESC LIMIT 1
+  </select>
+  <select id="findTiers" resultMap="tierMap">SELECT tier_no,min_weight,max_weight,billing_mode,first_weight,first_fee,additional_weight,additional_fee,tier_fee FROM price_rule_tier WHERE price_rule_id=#{priceRuleId} ORDER BY tier_no</select>
+</mapper>

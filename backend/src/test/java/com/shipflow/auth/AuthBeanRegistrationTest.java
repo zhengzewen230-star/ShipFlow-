@@ -19,6 +19,13 @@ import com.shipflow.user.mapper.UserAuditMapper;
 import com.shipflow.rbac.mapper.RoleMapper;
 import com.shipflow.rbac.mapper.PermissionMapper;
 import com.shipflow.rbac.mapper.RbacAuditMapper;
+import com.shipflow.logistics.mapper.LogisticsMasterMapper;
+import com.shipflow.logistics.mapper.LogisticsIdempotencyMapper;
+import com.shipflow.logistics.mapper.LogisticsAuditMapper;
+import com.shipflow.quote.mapper.QuoteMapper;
+import com.shipflow.quote.mapper.QuoteIdempotencyMapper;
+import com.shipflow.quote.mapper.QuotePricingMapper;
+import com.shipflow.quote.mapper.QuoteAuditMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -68,6 +75,13 @@ class AuthBeanRegistrationTest {
         @Bean RoleMapper roleMapper() { return mock(RoleMapper.class); }
         @Bean PermissionMapper permissionMapper() { return mock(PermissionMapper.class); }
         @Bean RbacAuditMapper rbacAuditMapper() { return mock(RbacAuditMapper.class); }
+        @Bean LogisticsMasterMapper logisticsMasterMapper() { return mock(LogisticsMasterMapper.class); }
+        @Bean LogisticsIdempotencyMapper logisticsIdempotencyMapper() { return mock(LogisticsIdempotencyMapper.class); }
+        @Bean LogisticsAuditMapper logisticsAuditMapper() { return mock(LogisticsAuditMapper.class); }
+        @Bean QuoteMapper quoteMapper() { return mock(QuoteMapper.class); }
+        @Bean QuoteIdempotencyMapper quoteIdempotencyMapper() { return mock(QuoteIdempotencyMapper.class); }
+        @Bean QuotePricingMapper quotePricingMapper() { return mock(QuotePricingMapper.class); }
+        @Bean QuoteAuditMapper quoteAuditMapper() { return mock(QuoteAuditMapper.class); }
         @Bean org.springframework.security.oauth2.jwt.JwtEncoder jwtEncoder() {
             try {
                 var generator = java.security.KeyPairGenerator.getInstance("RSA");
