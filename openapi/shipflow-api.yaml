@@ -702,6 +702,29 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /quotes/{quoteId}/shipment-orders:
+    post:
+      tags: [Orders]
+      summary: 基于不可变报价创建物流订单
+      operationId: createShipmentOrderFromQuote
+      description: 仅当前租户有效且未使用的报价可消费。事务内创建订单、地址、包裹、商品及不可变报价快照；同幂等键返回原订单。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateShipmentOrderFromQuoteRequest' }
+      responses:
+        '201': { description: 订单已创建, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessShipmentOrder' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/QuoteRuleError' }
+
   /orders:
     post:
       tags: [Orders]
@@ -1781,6 +1804,34 @@ components:
           $ref: '#/components/schemas/Address'
         package:
           $ref: '#/components/schemas/Package'
+    CreateShipmentOrderFromQuoteRequest:
+      type: object
+      required: [senderAddress, receiverAddress, items]
+      properties:
+        senderAddress: { $ref: '#/components/schemas/Address' }
+        receiverAddress: { $ref: '#/components/schemas/Address' }
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/Item' }
+    ShipmentOrder:
+      type: object
+      required: [id, orderNo, quoteId, status, estimatedFee, currency, chargeableWeight, createdAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        orderNo: { type: string }
+        quoteId: { $ref: '#/components/schemas/Id' }
+        status: { type: string, enum: [DRAFT] }
+        estimatedFee: { $ref: '#/components/schemas/Money' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        chargeableWeight: { $ref: '#/components/schemas/Weight' }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+    ApiSuccessShipmentOrder:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ShipmentOrder' }
     Order:
       type: object
       required: [id, orderNo, quoteId, currentStatus, estimatedFee, currentFee, currency, version]

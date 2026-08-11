@@ -17,6 +17,7 @@ import com.shipflow.user.application.UserException;
 import com.shipflow.rbac.application.RbacException;
 import com.shipflow.logistics.application.LogisticsException;
 import com.shipflow.quote.application.QuoteException;
+import com.shipflow.order.application.ShipmentOrderException;
 import com.shipflow.common.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +67,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(QuoteException.class)
     public ResponseEntity<ApiErrorResponse> handleQuoteFailure(QuoteException exception) {
         return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Quote query failed"));
+    }
+
+    @ExceptionHandler(ShipmentOrderException.class)
+    public ResponseEntity<ApiErrorResponse> handleShipmentOrderFailure(ShipmentOrderException exception) {
+        return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Shipment order operation failed"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

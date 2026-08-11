@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.order.mapper.ShipmentOrderIdempotencyMapper">
+ <resultMap id="recordMap" type="com.shipflow.order.mapper.ShipmentOrderIdempotencyMapper$Record"><constructor><arg column="request_hash" javaType="string"/><arg column="resource_id" javaType="java.lang.Long"/></constructor></resultMap>
+ <select id="find" resultMap="recordMap">SELECT request_hash,resource_id FROM api_idempotency_record WHERE scope_tenant_id=#{tenantId} AND operation_id=#{operationId} AND idempotency_key=#{idempotencyKey}</select>
+ <insert id="insert">INSERT INTO api_idempotency_record (scope_tenant_id,operation_id,idempotency_key,http_method,request_path,request_hash,processing_status,expires_at) VALUES (#{tenantId},#{operationId},#{idempotencyKey},'POST','/api/v1/quotes/{quoteId}/shipment-orders',#{requestHash},'PROCESSING',#{expiresAt})</insert>
+ <update id="complete">UPDATE api_idempotency_record SET resource_type='SHIPMENT_ORDER',resource_id=#{resourceId},processing_status='SUCCEEDED',response_status=201 WHERE scope_tenant_id=#{tenantId} AND operation_id=#{operationId} AND idempotency_key=#{idempotencyKey}</update>
+</mapper>

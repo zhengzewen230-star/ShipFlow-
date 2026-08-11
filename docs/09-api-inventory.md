@@ -111,7 +111,7 @@
 
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| ORDER-001 创建订单 | `POST /api/v1/orders` | 商家管理员、商家操作员；必须 `Idempotency-Key` | `quoteId`、地址、包裹、商品 | `201` 订单、当前状态、费用 | `ORDER-1002`、`ORDER-1003`、`QUOTE-1003` | 幂等/写审计/`shipment_order`、`shipment_quote_snapshot`、`shipment_address`、`shipment_package`、`shipment_item` |
+| ORDER-001 基于报价创建订单 | `POST /api/v1/quotes/{quoteId}/shipment-orders` | 当前租户用户；必须 `Idempotency-Key` | `quoteId`、寄/收件地址、商品；包裹尺寸重量从报价冻结 | `201` DRAFT订单、费用与计费重量 | `ORDER-1003`、`QUOTE-1003`、`QUOTE-1004`、`COMMON-1009` | 同 key 返回原订单；不同 key 重复使用报价冲突；事务写审计、订单及不可变快照 |
 | ORDER-002 订单详情 | `GET /api/v1/orders/{orderId}` | 当前租户用户 | `orderId` | 订单、包裹、地址、费用、状态 | `COMMON-1006` | 只读/`shipment_order`及关联表；跨租户统一404 |
 | ORDER-003 分页查询订单 | `GET /api/v1/orders` | 当前租户用户；分页 | `status`、`orderNo`、时间范围、店铺 | 分页订单 | `COMMON-1001` | 只读/`shipment_order` |
 | ORDER-004 提交订单 | `POST /api/v1/orders/{orderId}/submit` | 商家管理员、商家操作员；JSON `version` | `version` | `PENDING_INBOUND`订单 | `ORDER-1001`、`COMMON-1005` | 幂等/写审计/`shipment_order` |

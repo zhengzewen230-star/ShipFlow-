@@ -26,6 +26,8 @@ import com.shipflow.quote.mapper.QuoteMapper;
 import com.shipflow.quote.mapper.QuoteIdempotencyMapper;
 import com.shipflow.quote.mapper.QuotePricingMapper;
 import com.shipflow.quote.mapper.QuoteAuditMapper;
+import com.shipflow.order.mapper.ShipmentOrderMapper;
+import com.shipflow.order.mapper.ShipmentOrderIdempotencyMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -82,6 +84,8 @@ class AuthBeanRegistrationTest {
         @Bean QuoteIdempotencyMapper quoteIdempotencyMapper() { return mock(QuoteIdempotencyMapper.class); }
         @Bean QuotePricingMapper quotePricingMapper() { return mock(QuotePricingMapper.class); }
         @Bean QuoteAuditMapper quoteAuditMapper() { return mock(QuoteAuditMapper.class); }
+        @Bean ShipmentOrderMapper shipmentOrderMapper() { return mock(ShipmentOrderMapper.class); }
+        @Bean ShipmentOrderIdempotencyMapper shipmentOrderIdempotencyMapper() { return mock(ShipmentOrderIdempotencyMapper.class); }
         @Bean org.springframework.security.oauth2.jwt.JwtEncoder jwtEncoder() {
             try {
                 var generator = java.security.KeyPairGenerator.getInstance("RSA");

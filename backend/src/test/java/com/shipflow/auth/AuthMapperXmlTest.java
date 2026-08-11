@@ -33,6 +33,8 @@ import com.shipflow.quote.mapper.QuoteMapper;
 import com.shipflow.quote.mapper.QuoteIdempotencyMapper;
 import com.shipflow.quote.mapper.QuotePricingMapper;
 import com.shipflow.quote.mapper.QuoteAuditMapper;
+import com.shipflow.order.mapper.ShipmentOrderMapper;
+import com.shipflow.order.mapper.ShipmentOrderIdempotencyMapper;
 import static org.mockito.Mockito.mock;
 
 import java.io.Reader;
@@ -115,6 +117,8 @@ class AuthMapperXmlTest {
         @Bean QuoteIdempotencyMapper quoteIdempotencyMapper() { return mock(QuoteIdempotencyMapper.class); }
         @Bean QuotePricingMapper quotePricingMapper() { return mock(QuotePricingMapper.class); }
         @Bean QuoteAuditMapper quoteAuditMapper() { return mock(QuoteAuditMapper.class); }
+        @Bean ShipmentOrderMapper shipmentOrderMapper() { return mock(ShipmentOrderMapper.class); }
+        @Bean ShipmentOrderIdempotencyMapper shipmentOrderIdempotencyMapper() { return mock(ShipmentOrderIdempotencyMapper.class); }
 
         @Bean
         SqlSessionFactory sqlSessionFactory() throws Exception {
