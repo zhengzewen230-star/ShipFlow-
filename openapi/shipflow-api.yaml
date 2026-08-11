@@ -1128,44 +1128,52 @@ paths:
         '422':
           $ref: '#/components/responses/BillError'
 
+    get:
+      tags: [Billing]
+      summary: 查询当前租户账单导入批次
+      operationId: listBillImportBatches
+      parameters: [{ name: providerId, in: query, schema: { $ref: '#/components/schemas/Id' } }, { name: status, in: query, schema: { type: string, enum: [PROCESSING, PARTIAL_SUCCESS, SUCCESS, FAILED] } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: 账单批次分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessBillBatchPage' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' } }
+
+  /billing/import-batches/{batchId}:
+    get:
+      tags: [Billing]
+      summary: 查询当前租户账单导入批次详情
+      operationId: getBillImportBatch
+      parameters: [{ name: batchId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }]
+      responses: { '200': { description: 账单批次详情, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessBillBatch' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+
+  /billing/import-batches/{batchId}/errors:
+    get:
+      tags: [Billing]
+      summary: 查询当前租户账单批次行级错误
+      operationId: listBillImportErrors
+      parameters: [{ name: batchId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: 错误账单明细分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessBillDetailPage' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+
+  /billing/details:
+    get:
+      tags: [Billing]
+      summary: 查询当前租户账单明细
+      operationId: listBillDetails
+      parameters: [{ name: batchId, in: query, schema: { $ref: '#/components/schemas/Id' } }, { name: status, in: query, schema: { type: string, enum: [IMPORTED, MATCHED, ERROR] } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: 账单明细分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessBillDetailPage' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' } }
+
   /reconciliations:
-    post:
+    get:
       tags: [Reconciliation]
-      summary: 执行费用对账
-      operationId: executeReconciliation
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-        - $ref: '#/components/parameters/RequestId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [shipmentOrderId, billDetailId]
-              properties:
-                shipmentOrderId:
-                  $ref: '#/components/schemas/Id'
-                billDetailId:
-                  $ref: '#/components/schemas/Id'
-      responses:
-        '202':
-          description: 对账任务已接收
-          headers:
-            X-Trace-Id:
-              $ref: '#/components/headers/TraceId'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiSuccessReconciliation'
-        '401':
-          $ref: '#/components/responses/AuthError'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/ReconciliationError'
+      summary: 查询当前租户自动生成的对账记录
+      operationId: listReconciliations
+      parameters: [{ name: orderId, in: query, schema: { $ref: '#/components/schemas/Id' } }, { name: status, in: query, schema: { type: string, enum: [AUTO_CLOSED, PENDING_CONFIRMATION, CONFIRMED, REJECTED] } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: 对账记录分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessReconciliationPage' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' } }
+
+  /reconciliations/{reconciliationId}:
+    get:
+      tags: [Reconciliation]
+      summary: 查询当前租户对账记录详情
+      operationId: getReconciliation
+      parameters: [{ $ref: '#/components/parameters/ReconciliationId' }]
+      responses: { '200': { description: 对账记录详情, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessReconciliation' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
 
   /reconciliations/{reconciliationId}/confirm:
     post:
@@ -2207,6 +2215,29 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/BillBatch'
+    BillBatchPage:
+      allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/BillBatch' } } } }]
+    ApiSuccessBillBatchPage:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/BillBatchPage' } } }]
+    BillDetail:
+      type: object
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        batchId: { $ref: '#/components/schemas/Id' }
+        providerId: { $ref: '#/components/schemas/Id' }
+        providerBillDetailNo: { type: string }
+        lineNo: { type: integer }
+        shipmentOrderId: { $ref: '#/components/schemas/Id', nullable: true }
+        trackingNo: { type: string, nullable: true }
+        billedAmount: { $ref: '#/components/schemas/Money' }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        feeType: { type: string }
+        detailStatus: { type: string, enum: [IMPORTED, MATCHED, ERROR] }
+        errorMessage: { type: string, nullable: true }
+    BillDetailPage:
+      allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/BillDetail' } } } }]
+    ApiSuccessBillDetailPage:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/BillDetailPage' } } }]
     Reconciliation:
       type: object
       properties:
@@ -2235,6 +2266,10 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/Reconciliation'
+    ReconciliationPage:
+      allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Reconciliation' } } } }]
+    ApiSuccessReconciliationPage:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/ReconciliationPage' } } }]
     ReconciliationConfirmRequest:
       type: object
       required: [resolutionType, remark, version]

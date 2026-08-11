@@ -20,14 +20,14 @@
 | 物流订单与运输资料 | 12 |
 | 仓库履约 | 8 |
 | 物流轨迹 | 6 |
-| 物流商账单 | 6 |
-| 费用对账 | 5 |
+| 物流商账单 | 5 |
+| 费用对账 | 3 |
 | 异常件与索赔 | 10 |
 | 审计查询 | 3 |
 | 运营看板 | 2 |
-| **目标总计** | **95** |
+| **目标总计** | **92** |
 
-> ADR-021 原将总目标冻结为 90 个 operation；本轮异常/索赔需求把原 5 个合并操作扩展为 10 个实际 operation，因此当前目标为 95。表中后续模块数量是实施目标，不代表均已实现。
+> ADR-021 原将总目标冻结为 90 个 operation；异常/索赔扩展为 10 个实际 operation，账单/对账按本轮已实现的 8 个 operation 归并后，当前目标为 92。表中后续模块数量是实施目标，不代表均已实现。
 
 ## 3. 认证与当前用户
 
@@ -143,19 +143,16 @@
 
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| BILL-001 上传 CSV | `POST /api/v1/billing/import-batches` | 财务人员；multipart `file` | `file`、`providerId` | `202` 批次和文件摘要 | `BILL-1001`、`BILL-1002` | 文件 Hash 幂等/写审计/`bill_import_batch`、`bill_detail` |
-| BILL-002 查询导入批次 | `GET /api/v1/billing/import-batches` | 财务人员 | `providerId`、`status`、分页 | 批次列表 | `COMMON-1001` | 只读/`bill_import_batch` |
-| BILL-003 查询行级错误 | `GET /api/v1/billing/import-batches/{batchId}/errors` | 财务人员 | `batchId`、分页 | 行号和错误原因 | `COMMON-1006` | 只读/`bill_detail` |
-| BILL-004 查询账单明细 | `GET /api/v1/billing/details` | 财务人员 | `providerBillDetailNo`、订单号、分页 | 账单明细列表 | `BILL-1003`、`COMMON-1001` | 只读/`bill_detail` |
+| BILL-001 导入模拟 CSV | `POST /api/v1/billing/import-batches` | `scope:TENANT` + `finance:bill-import`；multipart 内存文件 | `providerId`；文件表头为 `provider_bill_detail_no,tracking_no,billed_amount,currency,fee_type` | `202` 已完成批次与统计 | `BILL-1001`、`BILL-1003`、`BILL-1004`、`BILL-1005` | `tenant_id + provider_id + file_hash` 返回原批次；逐行不落真实文件；写审计 |
+| BILL-002 查询批次及结果 | `GET /api/v1/billing/import-batches`、`GET /api/v1/billing/import-batches/{batchId}`、`GET /api/v1/billing/import-batches/{batchId}/errors` | 财务人员 | 物流商、批次、状态、分页 | 批次、成功/失败统计与可保存的错误行 | `COMMON-1001`、`COMMON-1006` | 只读；全部 SQL 带 `tenant_id`；`bill_import_batch`、`bill_detail` |
+| BILL-003 查询账单明细 | `GET /api/v1/billing/details` | 财务人员 | `batchId`、`status`、分页 | 账单明细分页 | `COMMON-1001`、`COMMON-1006` | 只读；不修改原始账单明细 |
 
 ## 13. 费用对账
 
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| RECON-001 执行对账 | `POST /api/v1/reconciliations` | 财务人员 | `batchId` | 对账批次处理结果 | `RECON-1001` | 幂等/写审计/`reconciliation_record`、`shipment_order`、`bill_detail` |
-| RECON-002 查询对账记录 | `GET /api/v1/reconciliations` | 财务人员 | `status`、订单号、分页 | 对账记录列表 | `COMMON-1001` | 只读/`reconciliation_record` |
-| RECON-003 财务确认差异 | `POST /api/v1/reconciliations/{reconciliationId}/confirm` | 财务人员；JSON `version` | `resolutionType`、`remark`、`version` | 确认后的对账记录 | `RECON-1002`、`RECON-1004`、`COMMON-1005` | 幂等/写审计/`reconciliation_record`、`audit_log` |
-| RECON-004 查询订单费用调整 | `GET /api/v1/orders/{orderId}/fee-adjustments` | 财务人员、商家用户 | `orderId`、分页 | 费用调整历史 | `COMMON-1006` | 只读/`fee_adjustment`、`warehouse_measurement` |
+| RECON-001 自动生成与查询 | 导入时自动生成；`GET /api/v1/reconciliations`、`GET /api/v1/reconciliations/{reconciliationId}` | `scope:TENANT` + `finance:reconcile` | 订单、状态、分页 | 对账记录及详情 | `COMMON-1001`、`COMMON-1006` | `system_amount = shipment_order.current_fee`；相等 `AUTO_CLOSED`，非零 `PENDING_CONFIRMATION`；不修改订单/费用调整 |
+| RECON-002 财务确认并关闭差异 | `POST /api/v1/reconciliations/{reconciliationId}/confirm` | `scope:TENANT` + `finance:reconcile`；JSON `version` | `resolutionType`、`remark`、`version` | `PENDING_CONFIRMATION → CONFIRMED` | `RECON-1003`、`COMMON-1006` | 乐观锁和审计；已自动关闭、已确认或版本冲突均不可重复处理 |
 
 ## 14. 异常件与索赔
 
