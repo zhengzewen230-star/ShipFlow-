@@ -49,6 +49,33 @@ public class LogisticsMasterApplicationService {
         return new LogisticsChannelPage(page, pageSize, total, pages(total, pageSize), mapper.pageChannels(providerId, status, offset(page, pageSize), pageSize).stream().map(this::toChannel).toList());
     }
     public LogisticsChannel channel(Long id) { return channelRequired(id); }
+    public List<PublishedPriceRule> publishedPriceRules(Long channelId) {
+        channelRequired(channelId);
+        return mapper.findPublishedPriceRules(channelId).stream().map(this::toPublishedRule).toList();
+    }
+    public PublishedPriceRule publishedPriceRule(Long channelId, Long priceRuleId) {
+        channelRequired(channelId);
+        PublishedPriceRule rule = publishedRuleRequired(priceRuleId);
+        if (!rule.channelId().equals(channelId)) throw new LogisticsException("COMMON-1006", 404);
+        return rule;
+    }
+    public LogisticsChannelPage availableChannels(String countryCode, int page, int pageSize) {
+        checkPage(page, pageSize);
+        String country = countryCode == null ? null : countryCode.toUpperCase(Locale.ROOT);
+        long total = mapper.countAvailableChannels(country);
+        return new LogisticsChannelPage(page, pageSize, total, pages(total, pageSize), mapper.pageAvailableChannels(country, offset(page, pageSize), pageSize).stream().map(this::toChannel).toList());
+    }
+    public LogisticsChannel availableChannel(Long channelId) {
+        LogisticsChannelRow row = mapper.findAvailableChannel(channelId);
+        if (row == null) throw new LogisticsException("COMMON-1006", 404);
+        return toChannel(row);
+    }
+    public PublishedPriceRule effectivePublishedPriceRule(Long channelId) {
+        availableChannel(channelId);
+        PriceRuleRow row = mapper.findEffectivePublishedPriceRule(channelId, LocalDateTime.now(clock));
+        if (row == null) throw new LogisticsException("COMMON-1006", 404);
+        return toPublishedRule(row);
+    }
     @Transactional public LogisticsChannel createChannel(CreateLogisticsChannelRequest request, String key, Long operator, String requestId) {
         String hash=hash(request.providerId()+"\n"+request.channelCode()+"\n"+request.channelName()+"\n"+request.transportMode()+"\n"+request.serviceArea()); LogisticsIdempotencyMapper.Record prior=prior("createLogisticsChannel",key,hash); if(prior!=null)return channelRequired(prior.resourceId());
         providerRequired(request.providerId());
@@ -93,7 +120,8 @@ public class LogisticsMasterApplicationService {
     private LogisticsProvider providerRequired(Long id) { LogisticsProvider value = mapper.findProvider(id); if(value == null) throw new LogisticsException("COMMON-1006", 404); return value; }
     private LogisticsChannel channelRequired(Long id) { LogisticsChannelRow row = mapper.findChannel(id); if(row == null) throw new LogisticsException("COMMON-1006", 404); return toChannel(row); }
     private LogisticsChannel toChannel(LogisticsChannelRow row) { return new LogisticsChannel(row.id(), row.providerId(), row.channelCode(), row.channelName(), row.transportMode(), row.serviceArea(), row.status(), row.version(), mapper.findServiceCountries(row.id()), row.createdAt(), row.updatedAt()); }
-    private PublishedPriceRule publishedRuleRequired(Long id) { PriceRuleRow row=mapper.findPublishedPriceRule(id); if(row==null)throw new LogisticsException("COMMON-1006",404); return new PublishedPriceRule(row.id(),row.channelId(),row.versionNo(),row.ruleName(),row.currency(),row.volumeDivisor(),row.roundingMode(),row.roundingIncrement(),row.effectiveFrom(),mapper.findPriceRuleTiers(id)); }
+    private PublishedPriceRule publishedRuleRequired(Long id) { PriceRuleRow row=mapper.findPublishedPriceRule(id); if(row==null)throw new LogisticsException("COMMON-1006",404); return toPublishedRule(row); }
+    private PublishedPriceRule toPublishedRule(PriceRuleRow row) { return new PublishedPriceRule(row.id(),row.channelId(),row.versionNo(),row.ruleName(),row.currency(),row.volumeDivisor(),row.roundingMode(),row.roundingIncrement(),row.effectiveFrom(),mapper.findPriceRuleTiers(row.id())); }
     private LogisticsException conflictOrMissingProvider(Long id) { return mapper.findProvider(id) == null ? new LogisticsException("COMMON-1006", 404) : new LogisticsException("COMMON-1005", 409); }
     private LogisticsException conflictOrMissingChannel(Long id) { return mapper.findChannel(id) == null ? new LogisticsException("COMMON-1006", 404) : new LogisticsException("COMMON-1005", 409); }
     private LogisticsException duplicate() { return new LogisticsException("LOGISTICS-1001", 409); }

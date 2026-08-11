@@ -30,6 +30,11 @@ public interface LogisticsMasterMapper {
     int insertPublishedPriceRule(@Param("channelId") Long channelId, @Param("versionNo") int versionNo, @Param("ruleName") String ruleName, @Param("currency") String currency, @Param("volumeDivisor") BigDecimal volumeDivisor, @Param("roundingMode") String roundingMode, @Param("roundingIncrement") BigDecimal roundingIncrement, @Param("effectiveFrom") LocalDateTime effectiveFrom);
     Long findPriceRuleId(@Param("channelId") Long channelId, @Param("versionNo") int versionNo);
     PriceRuleRow findPublishedPriceRule(@Param("priceRuleId") Long priceRuleId);
+    List<PriceRuleRow> findPublishedPriceRules(@Param("channelId") Long channelId);
+    LogisticsChannelRow findAvailableChannel(@Param("channelId") Long channelId);
+    List<LogisticsChannelRow> pageAvailableChannels(@Param("countryCode") String countryCode, @Param("offset") int offset, @Param("pageSize") int pageSize);
+    long countAvailableChannels(@Param("countryCode") String countryCode);
+    PriceRuleRow findEffectivePublishedPriceRule(@Param("channelId") Long channelId, @Param("now") LocalDateTime now);
     List<com.shipflow.logistics.domain.model.PriceRuleTier> findPriceRuleTiers(@Param("priceRuleId") Long priceRuleId);
     int insertPriceRuleTier(@Param("priceRuleId") Long priceRuleId, @Param("tier") com.shipflow.logistics.domain.model.PriceRuleTier tier);
 }

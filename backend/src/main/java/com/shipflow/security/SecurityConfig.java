@@ -57,6 +57,8 @@ public class SecurityConfig {
                         .access(AuthorizationManagers.allOf(hasAuthority("scope:PLATFORM"), hasAuthority("price-rule:manage")))
                         .requestMatchers("/api/v1/platform/logistics-providers/**", "/api/v1/platform/logistics-channels/**")
                         .access(AuthorizationManagers.allOf(hasAuthority("scope:PLATFORM"), hasAuthority("logistics:manage")))
+                        .requestMatchers("/api/v1/logistics/channels", "/api/v1/logistics/channels/**")
+                        .access(AuthorizationManagers.allOf(hasAuthority("scope:TENANT"), hasAuthority("logistics:read")))
                         .requestMatchers("/api/v1/quotes", "/api/v1/quotes/**").hasAuthority("scope:TENANT")
                         .requestMatchers(HttpMethod.POST, "/api/v1/orders/*/inbound", "/api/v1/orders/*/measurements", "/api/v1/orders/*/outbound")
                         .access(AuthorizationManagers.allOf(hasAuthority("scope:TENANT"), hasAuthority("warehouse:manage")))

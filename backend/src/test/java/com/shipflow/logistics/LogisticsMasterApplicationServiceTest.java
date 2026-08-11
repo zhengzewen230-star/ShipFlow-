@@ -33,4 +33,16 @@ class LogisticsMasterApplicationServiceTest {
         assertThatThrownBy(() -> service.createProvider(new CreateLogisticsProviderRequest("P1","Provider"),"key",1L,null)).isInstanceOf(LogisticsException.class).extracting(e->((LogisticsException)e).code()).isEqualTo("COMMON-1009");
         verify(mapper,never()).insertProvider(any());
     }
+    @Test void tenantCatalogueExcludesDisabledProviderOrChannel() {
+        when(mapper.findAvailableChannel(2L)).thenReturn(null);
+        assertThatThrownBy(() -> service.availableChannel(2L)).isInstanceOf(LogisticsException.class).extracting(e -> ((LogisticsException) e).code()).isEqualTo("COMMON-1006");
+        verify(mapper).findAvailableChannel(2L);
+    }
+    @Test void priceRuleMustBelongToRequestedChannel() {
+        when(mapper.findChannel(2L)).thenReturn(new LogisticsChannelRow(2L,1L,"C","Channel", LogisticsChannel.TransportMode.AIR,"CN-US","DISABLED",0L,null,null));
+        when(mapper.findServiceCountries(2L)).thenReturn(List.of("US"));
+        when(mapper.findPublishedPriceRule(9L)).thenReturn(new PriceRuleRow(9L,3L,1,"Rule","USD",java.math.BigDecimal.valueOf(5000), PublishedPriceRule.RoundingMode.CEILING,java.math.BigDecimal.ONE,LocalDateTime.now()));
+        when(mapper.findPriceRuleTiers(9L)).thenReturn(List.of());
+        assertThatThrownBy(() -> service.publishedPriceRule(2L,9L)).isInstanceOf(LogisticsException.class).extracting(e -> ((LogisticsException) e).code()).isEqualTo("COMMON-1006");
+    }
 }

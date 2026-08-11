@@ -604,6 +604,16 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
   /platform/logistics-channels/{channelId}/price-rules:
+    get:
+      tags: [LogisticsMaster]
+      summary: 查询渠道已发布价格规则版本
+      operationId: listPublishedPriceRules
+      parameters: [{ $ref: '#/components/parameters/ChannelId' }]
+      responses:
+        '200': { description: 已发布规则版本与阶梯, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessPriceRuleList' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
     post:
       tags: [LogisticsMaster]
       summary: 创建并发布价格规则版本
@@ -618,6 +628,56 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/QuoteRuleError' }
+
+  /platform/logistics-channels/{channelId}/price-rules/{priceRuleId}:
+    get:
+      tags: [LogisticsMaster]
+      summary: 查询已发布价格规则及阶梯
+      operationId: getPublishedPriceRule
+      parameters: [{ $ref: '#/components/parameters/ChannelId' }, { name: priceRuleId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }]
+      responses:
+        '200': { description: 已发布价格规则, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessPriceRule' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /logistics/channels:
+    get:
+      tags: [LogisticsMaster]
+      summary: 租户分页查询可用公共渠道
+      operationId: listAvailableLogisticsChannels
+      parameters: [{ name: countryCode, in: query, schema: { type: string, pattern: '^[A-Z]{2}$' } }]
+      responses:
+        '200': { description: 启用渠道分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessLogisticsChannelPage' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /logistics/channels/{channelId}:
+    get:
+      tags: [LogisticsMaster]
+      summary: 租户查询可用公共渠道详情
+      operationId: getAvailableLogisticsChannel
+      parameters: [{ $ref: '#/components/parameters/ChannelId' }]
+      responses:
+        '200': { description: 启用渠道详情, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessLogisticsChannel' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /logistics/channels/{channelId}/service-countries:
+    get:
+      tags: [LogisticsMaster]
+      summary: 租户查询可用渠道服务国家
+      operationId: getAvailableChannelServiceCountries
+      parameters: [{ $ref: '#/components/parameters/ChannelId' }]
+      responses:
+        '200': { description: 国家编码列表 }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /logistics/channels/{channelId}/price-rule:
+    get:
+      tags: [LogisticsMaster]
+      summary: 租户查询当前生效价格规则
+      operationId: getEffectivePublishedPriceRule
+      parameters: [{ $ref: '#/components/parameters/ChannelId' }]
+      responses:
+        '200': { description: 当前生效已发布规则, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessPriceRule' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /quotes:
     get:
@@ -2659,6 +2719,8 @@ components:
       allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/LogisticsChannel' } } } }]
     ApiSuccessPriceRule:
       allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/PriceRule' } } }]
+    ApiSuccessPriceRuleList:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { type: array, items: { $ref: '#/components/schemas/PriceRule' } } } }]
     CreateExceptionRequest:
       type: object
       required: [exceptionType, description, reportedAt]
