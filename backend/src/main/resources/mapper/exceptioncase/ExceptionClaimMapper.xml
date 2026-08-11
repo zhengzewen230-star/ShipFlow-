@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.exceptioncase.mapper.ExceptionClaimMapper">
+  <resultMap id="exceptionMap" type="com.shipflow.exceptioncase.domain.ExceptionCase">
+    <constructor>
+      <idArg column="id" javaType="long"/><arg column="tenant_id" javaType="long"/>
+      <arg column="shipment_order_id" javaType="long"/><arg column="exception_no" javaType="string"/>
+      <arg column="exception_type" javaType="string"/><arg column="status" javaType="string"/>
+      <arg column="description" javaType="string"/><arg column="reported_at" javaType="java.time.LocalDateTime"/>
+      <arg column="version" javaType="long"/><arg column="created_at" javaType="java.time.LocalDateTime"/>
+      <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+      <arg column="assigned_to_user_id" javaType="java.lang.Long"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="claimMap" type="com.shipflow.exceptioncase.domain.ClaimRecord">
+    <constructor>
+      <idArg column="id" javaType="long"/><arg column="tenant_id" javaType="long"/>
+      <arg column="exception_case_id" javaType="long"/><arg column="claim_no" javaType="string"/>
+      <arg column="status" javaType="string"/><arg column="claim_amount" javaType="java.math.BigDecimal"/>
+      <arg column="currency" javaType="string"/><arg column="submitted_at" javaType="java.time.LocalDateTime"/>
+      <arg column="resolved_at" javaType="java.time.LocalDateTime"/><arg column="version" javaType="long"/>
+      <arg column="created_at" javaType="java.time.LocalDateTime"/><arg column="updated_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="eligibilityMap" type="com.shipflow.exceptioncase.domain.ClaimEligibility">
+    <constructor><idArg column="exception_id" javaType="long"/><arg column="exception_status" javaType="string"/>
+      <arg column="order_status" javaType="string"/><arg column="order_currency" javaType="string"/></constructor>
+  </resultMap>
+  <resultMap id="idempotencyMap" type="com.shipflow.exceptioncase.mapper.ExceptionClaimMapper$IdempotencyRecord">
+    <constructor><arg column="request_hash" javaType="string"/><arg column="resource_id" javaType="java.lang.Long"/></constructor>
+  </resultMap>
+
+  <sql id="exceptionColumns">e.id,e.tenant_id,e.shipment_order_id,e.exception_no,e.exception_type,e.status,e.description,e.reported_at,e.version,e.created_at,e.updated_at,
+    (SELECT CAST(JSON_UNQUOTE(JSON_EXTRACT(a.detail,'$.assignedToUserId')) AS UNSIGNED)
+     FROM audit_log a WHERE a.tenant_id=e.tenant_id AND a.resource_type='EXCEPTION_CASE'
+       AND a.resource_id=e.id AND a.action_type='EXCEPTION_ASSIGN' ORDER BY a.id DESC LIMIT 1) AS assigned_to_user_id</sql>
+  <sql id="claimColumns">c.id,c.tenant_id,c.exception_case_id,c.claim_no,c.status,c.claim_amount,c.currency,c.submitted_at,c.resolved_at,c.version,c.created_at,c.updated_at</sql>
+
+  <select id="orderExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM shipment_order WHERE tenant_id=#{tenantId} AND id=#{orderId})</select>
+  <select id="trackingEventExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM tracking_event WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} AND id=#{trackingEventId})</select>
+  <select id="activeTenantUserExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM sys_user WHERE tenant_id=#{tenantId} AND id=#{userId} AND status='ACTIVE' AND deleted=0)</select>
+  <select id="countExceptions" resultType="long">SELECT COUNT(*) FROM exception_case e WHERE e.tenant_id=#{tenantId}<if test="orderId != null"> AND e.shipment_order_id=#{orderId}</if><if test="status != null and status != ''"> AND e.status=#{status}</if></select>
+  <select id="findExceptions" resultMap="exceptionMap">SELECT <include refid="exceptionColumns"/> FROM exception_case e WHERE e.tenant_id=#{tenantId}<if test="orderId != null"> AND e.shipment_order_id=#{orderId}</if><if test="status != null and status != ''"> AND e.status=#{status}</if> ORDER BY e.reported_at DESC,e.id DESC LIMIT #{limit} OFFSET #{offset}</select>
+  <select id="findException" resultMap="exceptionMap">SELECT <include refid="exceptionColumns"/> FROM exception_case e WHERE e.tenant_id=#{tenantId} AND e.id=#{exceptionId}</select>
+  <select id="findExceptionByNo" resultMap="exceptionMap">SELECT <include refid="exceptionColumns"/> FROM exception_case e WHERE e.tenant_id=#{tenantId} AND e.exception_no=#{exceptionNo}</select>
+  <insert id="insertException">INSERT INTO exception_case (tenant_id,shipment_order_id,exception_no,exception_type,status,description,reported_at,version) VALUES (#{tenantId},#{orderId},#{exceptionNo},#{exceptionType},'OPEN',#{description},#{reportedAt},0)</insert>
+  <update id="transitionException">UPDATE exception_case SET status=#{toStatus},version=version+1 WHERE tenant_id=#{tenantId} AND id=#{exceptionId} AND status=#{fromStatus} AND version=#{version}</update>
+
+  <select id="findClaimEligibility" resultMap="eligibilityMap">SELECT e.id AS exception_id,e.status AS exception_status,o.current_status AS order_status,o.currency AS order_currency FROM exception_case e JOIN shipment_order o ON o.id=e.shipment_order_id AND o.tenant_id=e.tenant_id WHERE e.tenant_id=#{tenantId} AND e.id=#{exceptionId} FOR UPDATE</select>
+  <select id="findClaim" resultMap="claimMap">SELECT <include refid="claimColumns"/> FROM claim_record c WHERE c.tenant_id=#{tenantId} AND c.id=#{claimId}</select>
+  <select id="findClaimByException" resultMap="claimMap">SELECT <include refid="claimColumns"/> FROM claim_record c WHERE c.tenant_id=#{tenantId} AND c.exception_case_id=#{exceptionId}</select>
+  <select id="findClaimByNo" resultMap="claimMap">SELECT <include refid="claimColumns"/> FROM claim_record c WHERE c.tenant_id=#{tenantId} AND c.claim_no=#{claimNo}</select>
+  <insert id="insertClaim">INSERT INTO claim_record (tenant_id,exception_case_id,claim_no,status,claim_amount,currency,version) VALUES (#{tenantId},#{exceptionId},#{claimNo},'OPEN',#{amount},#{currency},0)</insert>
+  <update id="transitionClaim">UPDATE claim_record SET status=#{toStatus},submitted_at=COALESCE(#{submittedAt},submitted_at),resolved_at=COALESCE(#{resolvedAt},resolved_at),version=version+1 WHERE tenant_id=#{tenantId} AND id=#{claimId} AND status=#{fromStatus} AND version=#{version}</update>
+
+  <select id="findIdempotency" resultMap="idempotencyMap">SELECT request_hash,resource_id FROM api_idempotency_record WHERE scope_tenant_id=#{tenantId} AND operation_id=#{operationId} AND idempotency_key=#{idempotencyKey}</select>
+  <insert id="insertIdempotency">INSERT INTO api_idempotency_record (scope_tenant_id,operation_id,idempotency_key,http_method,request_path,request_hash,processing_status,expires_at) VALUES (#{tenantId},#{operationId},#{idempotencyKey},'POST',#{requestPath},#{requestHash},'PROCESSING',#{expiresAt})</insert>
+  <update id="completeIdempotency">UPDATE api_idempotency_record SET resource_type=#{resourceType},resource_id=#{resourceId},processing_status='SUCCEEDED',response_status=201 WHERE scope_tenant_id=#{tenantId} AND operation_id=#{operationId} AND idempotency_key=#{idempotencyKey}</update>
+  <insert id="insertAudit">INSERT INTO audit_log (tenant_id,operator_user_id,action_type,resource_type,resource_id,request_id,result_status,reason,detail,occurred_at) VALUES (#{tenantId},#{operatorUserId},#{actionType},#{resourceType},#{resourceId},#{requestId},'SUCCESS',#{reason},CAST(#{detail} AS JSON),#{occurredAt})</insert>
+</mapper>

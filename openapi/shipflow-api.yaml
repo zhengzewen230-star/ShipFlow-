@@ -1205,6 +1205,85 @@ paths:
         '422':
           $ref: '#/components/responses/ReconciliationError'
 
+  /exceptions:
+    get:
+      tags: [Exceptions]
+      summary: 查询当前租户异常单
+      operationId: listExceptionCases
+      parameters: [{ name: orderId, in: query, schema: { $ref: '#/components/schemas/Id' } }, { name: status, in: query, schema: { type: string, enum: [OPEN, PROCESSING, RESOLVED, CLOSED] } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: 异常单分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionCasePage' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /exceptions/{exceptionId}:
+    get:
+      tags: [Exceptions]
+      summary: 查询当前租户异常单详情
+      operationId: getExceptionCase
+      parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }]
+      responses: { '200': { description: 异常单详情及索赔摘要, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionCase' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /orders/{orderId}/exceptions:
+    post:
+      tags: [Exceptions]
+      summary: 从订单或其轨迹事件创建异常单
+      operationId: createExceptionCase
+      parameters: [{ $ref: '#/components/parameters/OrderId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateExceptionRequest' } } } }
+      responses: { '201': { description: 创建成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionCase' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '422': { $ref: '#/components/responses/ExceptionClaimError' } }
+  /exceptions/{exceptionId}/assign:
+    post:
+      tags: [Exceptions]
+      summary: 分派异常单并从 OPEN 进入 PROCESSING
+      operationId: assignExceptionCase
+      parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AssignExceptionRequest' } } } }
+      responses: { '200': { description: 分派成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionCase' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /exceptions/{exceptionId}/status:
+    post:
+      tags: [Exceptions]
+      summary: 解决或关闭异常单
+      operationId: transitionExceptionCase
+      description: 仅允许 PROCESSING 到 RESOLVED、RESOLVED 到 CLOSED。
+      parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExceptionStatusRequest' } } } }
+      responses: { '200': { description: 状态推进成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionCase' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /exceptions/{exceptionId}/claim:
+    post:
+      tags: [Exceptions]
+      summary: 为已解决且符合条件的异常单创建索赔
+      operationId: createClaim
+      parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateClaimRequest' } } } }
+      responses: { '201': { description: 创建成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '422': { $ref: '#/components/responses/ExceptionClaimError' } }
+  /claims/{claimId}:
+    get:
+      tags: [Exceptions]
+      summary: 查询当前租户索赔详情
+      operationId: getClaim
+      parameters: [{ name: claimId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }]
+      responses: { '200': { description: 索赔详情, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /claims/{claimId}/submit:
+    post:
+      tags: [Exceptions]
+      summary: 提交索赔
+      operationId: submitClaim
+      parameters: [{ name: claimId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ClaimActionRequest' } } } }
+      responses: { '200': { description: 提交成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /claims/{claimId}/result:
+    post:
+      tags: [Exceptions]
+      summary: 审核通过或驳回索赔
+      operationId: resolveClaim
+      parameters: [{ name: claimId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ClaimResultRequest' } } } }
+      responses: { '200': { description: 审核完成, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /claims/{claimId}/close:
+    post:
+      tags: [Exceptions]
+      summary: 关闭已审核索赔
+      operationId: closeClaim
+      parameters: [{ name: claimId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ClaimActionRequest' } } } }
+      responses: { '200': { description: 关闭成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1462,6 +1541,15 @@ components:
             $ref: '#/components/schemas/ApiError'
     TrackingError:
       description: 轨迹业务处理失败。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    ExceptionClaimError:
+      description: 异常或索赔业务前置条件不满足。
       headers:
         X-Trace-Id:
           $ref: '#/components/headers/TraceId'
@@ -2487,3 +2575,84 @@ components:
       allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/LogisticsChannel' } } } }]
     ApiSuccessPriceRule:
       allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/PriceRule' } } }]
+    CreateExceptionRequest:
+      type: object
+      required: [exceptionType, description, reportedAt]
+      properties:
+        exceptionType: { type: string, enum: [ADDRESS, CUSTOMS, TRANSPORT, OTHER] }
+        description: { type: string, minLength: 1, maxLength: 1000 }
+        reportedAt: { $ref: '#/components/schemas/UtcDateTime' }
+        trackingEventId: { $ref: '#/components/schemas/Id', nullable: true, description: 必须属于路径订单及当前租户。 }
+    AssignExceptionRequest:
+      type: object
+      required: [assignedToUserId, version]
+      properties:
+        assignedToUserId: { $ref: '#/components/schemas/Id' }
+        reason: { type: string, maxLength: 1000 }
+        version: { type: integer, format: int64, minimum: 0 }
+    ExceptionStatusRequest:
+      type: object
+      required: [status, reason, version]
+      properties:
+        status: { type: string, enum: [RESOLVED, CLOSED] }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+        version: { type: integer, format: int64, minimum: 0 }
+    CreateClaimRequest:
+      type: object
+      required: [claimAmount, currency]
+      properties:
+        claimAmount: { type: number, format: decimal, minimum: 0.01, multipleOf: 0.01 }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+    ClaimActionRequest:
+      type: object
+      required: [version]
+      properties:
+        reason: { type: string, maxLength: 1000 }
+        version: { type: integer, format: int64, minimum: 0 }
+    ClaimResultRequest:
+      type: object
+      required: [status, reason, resolvedAt, version]
+      properties:
+        status: { type: string, enum: [APPROVED, REJECTED] }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+        resolvedAt: { $ref: '#/components/schemas/UtcDateTime' }
+        version: { type: integer, format: int64, minimum: 0 }
+    ClaimView:
+      type: object
+      required: [id, exceptionId, claimNo, status, claimAmount, currency, version, createdAt, updatedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        exceptionId: { $ref: '#/components/schemas/Id' }
+        claimNo: { type: string }
+        status: { type: string, enum: [OPEN, SUBMITTED, APPROVED, REJECTED, CLOSED] }
+        claimAmount: { type: number, format: decimal }
+        currency: { type: string }
+        submittedAt: { $ref: '#/components/schemas/UtcDateTime', nullable: true }
+        resolvedAt: { $ref: '#/components/schemas/UtcDateTime', nullable: true }
+        version: { type: integer, format: int64 }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
+    ExceptionCaseView:
+      type: object
+      required: [id, orderId, exceptionNo, exceptionType, status, description, reportedAt, version, createdAt, updatedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        orderId: { $ref: '#/components/schemas/Id' }
+        exceptionNo: { type: string }
+        exceptionType: { type: string, enum: [ADDRESS, CUSTOMS, TRANSPORT, OTHER] }
+        status: { type: string, enum: [OPEN, PROCESSING, RESOLVED, CLOSED] }
+        description: { type: string }
+        reportedAt: { $ref: '#/components/schemas/UtcDateTime' }
+        assignedToUserId: { $ref: '#/components/schemas/Id', nullable: true }
+        version: { type: integer, format: int64 }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
+        claim: { $ref: '#/components/schemas/ClaimView', nullable: true }
+    ExceptionCasePage:
+      allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/ExceptionCaseView' } } } }]
+    ApiSuccessExceptionCase:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/ExceptionCaseView' } } }]
+    ApiSuccessExceptionCasePage:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/ExceptionCasePage' } } }]
+    ApiSuccessClaim:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/ClaimView' } } }]

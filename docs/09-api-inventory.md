@@ -22,12 +22,12 @@
 | 物流轨迹 | 6 |
 | 物流商账单 | 6 |
 | 费用对账 | 5 |
-| 异常件与索赔 | 5 |
+| 异常件与索赔 | 10 |
 | 审计查询 | 3 |
 | 运营看板 | 2 |
-| **目标总计** | **90** |
+| **目标总计** | **95** |
 
-> 已实现 operation 为 25 个；原 OpenAPI 已登记 38 个，其中 13 个为早期物流契约。ADR-021 将总目标冻结为 90 个 operation；本表的后续模块数量是实施目标，不代表已实现。
+> ADR-021 原将总目标冻结为 90 个 operation；本轮异常/索赔需求把原 5 个合并操作扩展为 10 个实际 operation，因此当前目标为 95。表中后续模块数量是实施目标，不代表均已实现。
 
 ## 3. 认证与当前用户
 
@@ -161,10 +161,11 @@
 
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| CLAIM-001 创建异常单 | `POST /api/v1/orders/{orderId}/exceptions` | 商家操作员、商家管理员、平台管理员 | `exceptionType`、`description`、`reportedAt` | `201` 异常单 | `CLAIM-1001`、`COMMON-1001` | `Idempotency-Key`幂等/写审计/`exception_case` |
-| CLAIM-002 更新异常状态 | `POST /api/v1/exceptions/{exceptionId}/status` | 商家操作员、商家管理员、平台管理员；JSON `version` | `status`、`reason`、`version` | 新异常状态 | `COMMON-1005`、`CLAIM-1001` | 幂等/写审计/`exception_case` |
-| CLAIM-003 创建索赔 | `POST /api/v1/exceptions/{exceptionId}/claim` | 商家操作员、商家管理员 | `claimAmount`、`currency` | `201` 索赔记录 | `CLAIM-1001`、`CLAIM-1002`、`CLAIM-1003` | `Idempotency-Key`幂等/写审计/`claim_record` |
-| CLAIM-004 更新索赔结果 | `POST /api/v1/claims/{claimId}/result` | 商家管理员、平台管理员；JSON `version` | `status`、`resolvedAt`、`version` | 新索赔状态 | `COMMON-1005`、`CLAIM-1001` | 幂等/写审计/`claim_record` |
+| EXCEPTION-001 查询异常列表/详情 | `GET /api/v1/exceptions`、`GET /api/v1/exceptions/{exceptionId}` | 当前租户 JWT | `orderId`、`status`、分页或 `exceptionId` | 租户异常分页、详情及索赔摘要 | `COMMON-1001`、`COMMON-1006` | 只读；所有 SQL 带 `tenant_id`；`exception_case`、`claim_record`、分派审计投影 |
+| EXCEPTION-002 从订单或轨迹创建异常 | `POST /api/v1/orders/{orderId}/exceptions` | `scope:TENANT` + `order:operate` | `Idempotency-Key`；`exceptionType`、`description`、`reportedAt`、可选 `trackingEventId` | `201`、`OPEN` 异常单 | `EXCEPTION-1001`、`COMMON-1006`、`COMMON-1009`、`COMMON-1010` | 通用幂等记录；轨迹必须属于同租户同订单；写审计 |
+| EXCEPTION-003 分派/解决/关闭 | `POST /api/v1/exceptions/{exceptionId}/assign`、`POST /api/v1/exceptions/{exceptionId}/status` | `scope:TENANT` + `order:operate`；CSRF | 分派人或目标状态、原因、`version` | `OPEN→PROCESSING→RESOLVED→CLOSED` | `EXCEPTION-1002`、`COMMON-1006` | 乐观锁防重复；分派人写追加审计详情；不修改订单状态或费用 |
+| CLAIM-001 创建/查询索赔 | `POST /api/v1/exceptions/{exceptionId}/claim`、`GET /api/v1/claims/{claimId}` | 写：`scope:TENANT` + `order:operate`；读：当前租户 JWT | `Idempotency-Key`、金额和币种；或 `claimId` | `201 OPEN` 索赔或索赔详情 | `CLAIM-1001`、`CLAIM-1002`、`CLAIM-1003`、`COMMON-1006` | 异常须已解决，订单须为 `DELIVERED/RETURNED/LOST`，币种须匹配；一异常一索赔；写审计 |
+| CLAIM-002 提交/审核/关闭索赔 | `POST /api/v1/claims/{claimId}/submit`、`/result`、`/close` | `scope:TENANT` + `order:operate`；CSRF | 原因、`version`；审核另含 `APPROVED/REJECTED` 和 `resolvedAt` | `OPEN→SUBMITTED→APPROVED/REJECTED→CLOSED` | `CLAIM-1004`、`COMMON-1006` | 状态前置条件与乐观锁防跳跃、回退和重复；每步写审计 |
 
 ## 15. 审计日志
 
