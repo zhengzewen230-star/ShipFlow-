@@ -1,0 +1,2 @@
+package com.shipflow.warehouse; import org.junit.jupiter.api.Test;import java.nio.file.*;import static org.assertj.core.api.Assertions.assertThat;
+class WarehouseMapperXmlTest{@Test void usesTenantPredicatesAndAppendOnlyHistory(){try{String x=Files.readString(Path.of("src/main/resources/mapper/warehouse/WarehouseMapper.xml"));assertThat(x).contains("warehouse_measurement","fee_adjustment","warehouse_outbound_record","tenant_id=#{tenantId}","INSERT INTO audit_log").doesNotContain("SELECT *","shipment_quote_snapshot SET");}catch(Exception e){throw new AssertionError(e);}}}
