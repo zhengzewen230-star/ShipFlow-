@@ -37,6 +37,7 @@ import com.shipflow.order.mapper.ShipmentOrderMapper;
 import com.shipflow.order.mapper.ShipmentOrderIdempotencyMapper;
 import com.shipflow.warehouse.mapper.WarehouseMapper;
 import com.shipflow.tracking.mapper.TrackingQueryMapper;
+import com.shipflow.tracking.mapper.TrackingCallbackMapper;
 import static org.mockito.Mockito.mock;
 
 import java.io.Reader;
@@ -123,6 +124,7 @@ class AuthMapperXmlTest {
         @Bean ShipmentOrderIdempotencyMapper shipmentOrderIdempotencyMapper() { return mock(ShipmentOrderIdempotencyMapper.class); }
         @Bean WarehouseMapper warehouseMapper() { return mock(WarehouseMapper.class); }
         @Bean TrackingQueryMapper trackingQueryMapper() { return mock(TrackingQueryMapper.class); }
+        @Bean TrackingCallbackMapper trackingCallbackMapper() { return mock(TrackingCallbackMapper.class); }
 
         @Bean
         SqlSessionFactory sqlSessionFactory() throws Exception {

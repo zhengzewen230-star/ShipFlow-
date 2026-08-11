@@ -19,6 +19,7 @@ import com.shipflow.logistics.application.LogisticsException;
 import com.shipflow.quote.application.QuoteException;
 import com.shipflow.order.application.ShipmentOrderException;
 import com.shipflow.warehouse.application.WarehouseException;
+import com.shipflow.tracking.application.TrackingCallbackException;
 import com.shipflow.common.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,6 +78,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(WarehouseException.class)
     public ResponseEntity<ApiErrorResponse> handleWarehouseFailure(WarehouseException exception) {
         return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Warehouse operation failed"));
+    }
+
+    @ExceptionHandler(TrackingCallbackException.class)
+    public ResponseEntity<ApiErrorResponse> handleTrackingCallbackFailure(TrackingCallbackException exception) {
+        return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Tracking callback failed"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -133,7 +133,7 @@
 
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| TRACK-001 Mock回调 | `POST /api/v1/integrations/logistics/{providerCode}/tracking-events` | Mock系统账号；签名头 | 事件数组：`trackingNo`、`eventId`、`eventCode`、`eventTime`、原始报文 | 接收结果和每事件处理状态 | `TRACK-1004`、`TRACK-1002` | 业务键幂等/首次处理写审计/`tracking_event`、`shipment_order` |
+| TRACK-001 Mock回调 | `POST /api/v1/integrations/logistics/{providerCode}/tracking-events` | 应用安全配置绑定的 Mock 系统账号；`X-Provider-Signature`、`X-Provider-Timestamp`；实时要求 `tracking:callback` | 事件数组：`trackingNo`、`eventId`、`eventCode`、`eventTime`、原始报文；事件时间转 UTC；事件码映射见 OpenAPI | `202` 接收结果和每事件 `ACCEPTED`/`DUPLICATE`；重复事件仍为成功 | `COMMON-1001`、`COMMON-1004`、`TRACK-1002`、`TRACK-1003`、`TRACK-1004`、`TRACK-1005` | `(provider_id,tracking_no,event_id)` 幂等；首次成功处理写审计；乱序只保存不回退；`tracking_event`、`shipment_order`、`audit_log` |
 | TRACK-002 查询订单轨迹 | `GET /api/v1/orders/{orderId}/tracking-events` | 当前租户用户 | `orderId`、分页 | 按 `eventTime` 排序的轨迹 | `COMMON-1006` | 只读/`tracking_event` |
 | TRACK-003 轨迹查询 | `GET /api/v1/shipment-orders/{orderId}/tracking`、`/tracking/status` | 当前租户 JWT | `orderId` | 升序轨迹、当前状态和最新摘要 | `COMMON-1006` | 只读；按 tenant_id 隔离；不写审计日志 |
 | TRACK-003 查询回调异常 | `GET /api/v1/platform/tracking-events/errors` | 平台管理员、Mock系统账号 | `providerId`、`processStatus`、分页 | 异常事件列表 | `COMMON-1004` | 只读/`tracking_event` |

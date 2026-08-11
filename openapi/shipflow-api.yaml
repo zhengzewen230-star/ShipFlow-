@@ -1019,10 +1019,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessTrackingResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/TrackingSignatureError'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/TrackingError'
 
@@ -1997,6 +2003,8 @@ components:
           type: string
         eventCode:
           type: string
+          maxLength: 64
+          description: PICKED_UP、DEPARTED、IN_TRANSIT 映射为 IN_TRANSIT；DELIVERED、RETURNED、LOST 映射为同名订单状态。
         eventDescription:
           type: string
         eventTime:
