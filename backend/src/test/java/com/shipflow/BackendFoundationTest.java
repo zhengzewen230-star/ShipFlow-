@@ -35,6 +35,7 @@ import com.shipflow.tracking.mapper.TrackingQueryMapper;
 import com.shipflow.tracking.mapper.TrackingCallbackMapper;
 import com.shipflow.exceptioncase.mapper.ExceptionClaimMapper;
 import com.shipflow.billing.mapper.BillingMapper;
+import com.shipflow.audit.mapper.AuditQueryMapper;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -76,6 +77,7 @@ class BackendFoundationTest {
     @MockBean TrackingCallbackMapper trackingCallbackMapper;
     @MockBean ExceptionClaimMapper exceptionClaimMapper;
     @MockBean BillingMapper billingMapper;
+    @MockBean AuditQueryMapper auditQueryMapper;
 
     @Autowired
     private MockMvc mockMvc;

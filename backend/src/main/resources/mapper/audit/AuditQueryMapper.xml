@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.audit.mapper.AuditQueryMapper">
+ <resultMap id="auditMap" type="com.shipflow.audit.domain.AuditLog"><constructor><idArg column="id" javaType="long"/><arg column="tenant_id" javaType="long"/><arg column="operator_user_id" javaType="java.lang.Long"/><arg column="action_type" javaType="string"/><arg column="resource_type" javaType="string"/><arg column="resource_id" javaType="java.lang.Long"/><arg column="result_status" javaType="string"/><arg column="detail" javaType="string"/><arg column="occurred_at" javaType="java.time.LocalDateTime"/><arg column="created_at" javaType="java.time.LocalDateTime"/></constructor></resultMap>
+ <sql id="columns">id,tenant_id,operator_user_id,action_type,resource_type,resource_id,result_status,CAST(detail AS CHAR) AS detail,occurred_at,created_at</sql>
+ <sql id="filters">tenant_id=#{tenantId}<if test="resourceType != null"> AND resource_type=#{resourceType}</if><if test="resourceId != null"> AND resource_id=#{resourceId}</if><if test="action != null"> AND action_type=#{action}</if><if test="operatorId != null"> AND operator_user_id=#{operatorId}</if><if test="from != null"> AND occurred_at &gt;= #{from}</if><if test="to != null"> AND occurred_at &lt;= #{to}</if></sql>
+ <select id="tenantExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM tenant WHERE id=#{tenantId} AND deleted=0)</select>
+ <select id="count" resultType="long">SELECT COUNT(*) FROM audit_log WHERE <include refid="filters"/></select>
+ <select id="findPage" resultMap="auditMap">SELECT <include refid="columns"/> FROM audit_log WHERE <include refid="filters"/> ORDER BY occurred_at DESC,id DESC LIMIT #{limit} OFFSET #{offset}</select>
+ <select id="findById" resultMap="auditMap">SELECT <include refid="columns"/> FROM audit_log WHERE tenant_id=#{tenantId} AND id=#{auditId}</select>
+</mapper>

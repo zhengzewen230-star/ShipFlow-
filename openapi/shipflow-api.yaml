@@ -1213,6 +1213,35 @@ paths:
         '422':
           $ref: '#/components/responses/ReconciliationError'
 
+  /audit-logs:
+    get:
+      tags: [Audit]
+      summary: 查询当前租户审计日志
+      operationId: listTenantAuditLogs
+      parameters: [{ name: resourceType, in: query, schema: { type: string } }, { name: resourceId, in: query, schema: { $ref: '#/components/schemas/Id' } }, { name: action, in: query, schema: { type: string } }, { name: operatorId, in: query, schema: { $ref: '#/components/schemas/Id' } }, { name: from, in: query, schema: { $ref: '#/components/schemas/UtcDateTime' } }, { name: to, in: query, schema: { $ref: '#/components/schemas/UtcDateTime' } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: 脱敏审计日志分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessAuditLogPage' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /audit-logs/{auditId}:
+    get:
+      tags: [Audit]
+      summary: 查询当前租户审计日志详情
+      operationId: getTenantAuditLog
+      parameters: [{ name: auditId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }]
+      responses: { '200': { description: 脱敏审计日志详情, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessAuditLog' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /platform/audit-logs:
+    get:
+      tags: [Audit]
+      summary: 平台管理员查询指定租户审计日志
+      operationId: listPlatformTenantAuditLogs
+      parameters: [{ name: tenantId, in: query, required: true, schema: { $ref: '#/components/schemas/Id' } }, { name: resourceType, in: query, schema: { type: string } }, { name: resourceId, in: query, schema: { $ref: '#/components/schemas/Id' } }, { name: action, in: query, schema: { type: string } }, { name: operatorId, in: query, schema: { $ref: '#/components/schemas/Id' } }, { name: from, in: query, schema: { $ref: '#/components/schemas/UtcDateTime' } }, { name: to, in: query, schema: { $ref: '#/components/schemas/UtcDateTime' } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: 指定租户脱敏审计日志分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessAuditLogPage' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /platform/audit-logs/{auditId}:
+    get:
+      tags: [Audit]
+      summary: 平台管理员查询指定租户审计日志详情
+      operationId: getPlatformTenantAuditLog
+      parameters: [{ name: auditId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { name: tenantId, in: query, required: true, schema: { $ref: '#/components/schemas/Id' } }]
+      responses: { '200': { description: 指定租户脱敏审计日志详情, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessAuditLog' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+
   /exceptions:
     get:
       tags: [Exceptions]
@@ -2283,6 +2312,26 @@ components:
           type: integer
           format: int64
           minimum: 0
+    AuditLog:
+      type: object
+      required: [id, tenantId, actionType, resourceType, resultStatus, detail, occurredAt, createdAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        tenantId: { $ref: '#/components/schemas/Id' }
+        operatorUserId: { $ref: '#/components/schemas/Id', nullable: true }
+        actionType: { type: string }
+        resourceType: { type: string }
+        resourceId: { $ref: '#/components/schemas/Id', nullable: true }
+        resultStatus: { type: string, enum: [SUCCESS, FAILURE, REJECTED] }
+        detail: { type: object, additionalProperties: true, description: 已递归脱敏，不返回密码、令牌、密钥或完整地址 }
+        occurredAt: { $ref: '#/components/schemas/UtcDateTime' }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+    AuditLogPage:
+      allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/AuditLog' } } } }]
+    ApiSuccessAuditLog:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/AuditLog' } } }]
+    ApiSuccessAuditLogPage:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/AuditLogPage' } } }]
     ActiveStatus:
       type: string
       enum: [ACTIVE, DISABLED]

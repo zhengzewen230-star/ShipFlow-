@@ -23,11 +23,11 @@
 | 物流商账单 | 5 |
 | 费用对账 | 3 |
 | 异常件与索赔 | 10 |
-| 审计查询 | 3 |
+| 审计查询 | 4 |
 | 运营看板 | 2 |
-| **目标总计** | **92** |
+| **目标总计** | **93** |
 
-> ADR-021 原将总目标冻结为 90 个 operation；异常/索赔扩展为 10 个实际 operation，账单/对账按本轮已实现的 8 个 operation 归并后，当前目标为 92。表中后续模块数量是实施目标，不代表均已实现。
+> ADR-021 原将总目标冻结为 90 个 operation；异常/索赔、账单/对账和审计查询按实际接口扩展后，当前目标为 93。表中后续模块数量是实施目标，不代表均已实现。
 
 ## 3. 认证与当前用户
 
@@ -175,4 +175,5 @@
 
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| AUDIT-001 查询审计日志 | `GET /api/v1/audit-logs` | 平台管理员；租户管理员只能本租户 | `operatorUserId`、`resourceType`、`resourceId`、时间范围、分页 | 审计日志分页 | `COMMON-1004`、`COMMON-1006` | 只读/不得修改日志/`audit_log` |
+| AUDIT-001 租户审计列表/详情 | `GET /api/v1/audit-logs`、`GET /api/v1/audit-logs/{auditId}` | `scope:TENANT` + `audit:read` | `resourceType`、`resourceId`、`action`、`operatorId`、UTC 时间范围、分页 | 本租户脱敏日志分页/详情 | `COMMON-1001`、`COMMON-1006` | 只读；查询必带 JWT `tenant_id`；不返回 `reason`、`requestId`、密码、JWT、Refresh Token、HMAC、认证凭据或完整地址 |
+| AUDIT-002 平台指定租户查询 | `GET /api/v1/platform/audit-logs`、`GET /api/v1/platform/audit-logs/{auditId}` | `scope:PLATFORM` + `audit:read` | 必填 `tenantId`，其余筛选同租户查询 | 指定租户脱敏日志分页/详情 | `COMMON-1004`、`COMMON-1006` | 平台必须显式指定存在的租户；只读，无更新/删除接口 |

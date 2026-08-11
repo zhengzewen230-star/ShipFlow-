@@ -22,6 +22,7 @@ import com.shipflow.warehouse.application.WarehouseException;
 import com.shipflow.tracking.application.TrackingCallbackException;
 import com.shipflow.exceptioncase.application.ExceptionClaimException;
 import com.shipflow.billing.application.BillingException;
+import com.shipflow.audit.application.AuditQueryException;
 import com.shipflow.common.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,6 +96,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BillingException.class)
     public ResponseEntity<ApiErrorResponse> handleBillingFailure(BillingException exception) {
         return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Billing operation failed"));
+    }
+    @ExceptionHandler(AuditQueryException.class)
+    public ResponseEntity<ApiErrorResponse> handleAuditFailure(AuditQueryException exception) {
+        return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Audit query failed"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

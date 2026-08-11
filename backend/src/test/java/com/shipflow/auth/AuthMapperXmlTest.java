@@ -40,6 +40,7 @@ import com.shipflow.tracking.mapper.TrackingQueryMapper;
 import com.shipflow.tracking.mapper.TrackingCallbackMapper;
 import com.shipflow.exceptioncase.mapper.ExceptionClaimMapper;
 import com.shipflow.billing.mapper.BillingMapper;
+import com.shipflow.audit.mapper.AuditQueryMapper;
 import static org.mockito.Mockito.mock;
 
 import java.io.Reader;
@@ -129,6 +130,7 @@ class AuthMapperXmlTest {
         @Bean TrackingCallbackMapper trackingCallbackMapper() { return mock(TrackingCallbackMapper.class); }
         @Bean ExceptionClaimMapper exceptionClaimMapper() { return mock(ExceptionClaimMapper.class); }
         @Bean BillingMapper billingMapper() { return mock(BillingMapper.class); }
+        @Bean AuditQueryMapper auditQueryMapper() { return mock(AuditQueryMapper.class); }
 
         @Bean
         SqlSessionFactory sqlSessionFactory() throws Exception {
