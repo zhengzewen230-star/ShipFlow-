@@ -1056,6 +1056,29 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /shipment-orders/{orderId}/tracking:
+    get:
+      tags: [Tracking]
+      summary: 查询当前租户订单轨迹
+      operationId: listShipmentOrderTracking
+      parameters: [ { $ref: '#/components/parameters/OrderId' } ]
+      responses:
+        '200': { description: 按 eventTime、事件ID升序的轨迹列表 }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /shipment-orders/{orderId}/tracking/status:
+    get:
+      tags: [Tracking]
+      summary: 查询当前租户订单物流状态与最新轨迹
+      operationId: getShipmentOrderTrackingStatus
+      parameters: [ { $ref: '#/components/parameters/OrderId' } ]
+      responses:
+        '200': { description: 当前状态及最新轨迹摘要 }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /billing/import-batches:
     post:
       tags: [Billing]

@@ -31,6 +31,7 @@ import com.shipflow.quote.mapper.QuoteAuditMapper;
 import com.shipflow.order.mapper.ShipmentOrderMapper;
 import com.shipflow.order.mapper.ShipmentOrderIdempotencyMapper;
 import com.shipflow.warehouse.mapper.WarehouseMapper;
+import com.shipflow.tracking.mapper.TrackingQueryMapper;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -68,6 +69,7 @@ class BackendFoundationTest {
     @MockBean ShipmentOrderMapper shipmentOrderMapper;
     @MockBean ShipmentOrderIdempotencyMapper shipmentOrderIdempotencyMapper;
     @MockBean WarehouseMapper warehouseMapper;
+    @MockBean TrackingQueryMapper trackingQueryMapper;
 
     @Autowired
     private MockMvc mockMvc;

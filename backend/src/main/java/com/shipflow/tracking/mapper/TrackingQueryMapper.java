@@ -1,0 +1,2 @@
+package com.shipflow.tracking.mapper;import com.shipflow.tracking.domain.TrackingEvent;import org.apache.ibatis.annotations.*;import java.util.*;
+@Mapper public interface TrackingQueryMapper{boolean orderExists(@Param("tenantId")Long tenantId,@Param("orderId")Long orderId);String currentStatus(@Param("tenantId")Long tenantId,@Param("orderId")Long orderId);List<TrackingEvent> findEvents(@Param("tenantId")Long tenantId,@Param("orderId")Long orderId);TrackingEvent findLatest(@Param("tenantId")Long tenantId,@Param("orderId")Long orderId);}

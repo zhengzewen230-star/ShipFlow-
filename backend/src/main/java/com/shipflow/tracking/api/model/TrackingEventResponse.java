@@ -1,0 +1,1 @@
+package com.shipflow.tracking.api.model;import java.time.OffsetDateTime;public record TrackingEventResponse(Long id,String trackingNo,String eventCode,String description,OffsetDateTime eventTime,String processStatus){}
