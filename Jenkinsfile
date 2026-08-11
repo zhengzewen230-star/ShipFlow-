@@ -315,7 +315,7 @@ verify_database("SHIPFLOW_HTTP_TEST_DB_URL", "SHIPFLOW_HTTP_TEST_DB_USERNAME", "
 print("Module 2 isolated environment check: PASS")
 '@
 
-$checkScript | & .\.venv\Scripts\python.exe -
+$checkScript | & .\\.venv\\Scripts\\python.exe -
 exit $LASTEXITCODE
 '''
                 }
@@ -343,7 +343,7 @@ exit $LASTEXITCODE
                 dir('api-tests') {
                     powershell '''
 New-Item -ItemType Directory -Force -Path reports | Out-Null
-& .\.venv\Scripts\python.exe -m pytest -q tests/module2/test_module2_api.py `
+& .\\.venv\\Scripts\\python.exe -m pytest -q tests/module2/test_module2_api.py `
     --alluredir=reports/module2-allure-results `
     --clean-alluredir `
     --junitxml=reports/module2-junit.xml
