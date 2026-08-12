@@ -2,7 +2,7 @@
 
 ## 范围
 
-本阶段只验证登录身份查询模块的 Mapper XML、MySQL 字段映射、权限 JOIN 和 `LoginIdentityService`。不创建 Controller，不开放登录接口，不签发 JWT，不处理 Refresh Token、Cookie 或 CSRF。
+本阶段验证当前 82 个 OpenAPI operationId 的 MyBatis 映射、MySQL 字段映射、租户隔离、权限 JOIN、状态机和幂等约束。空库初始化顺序以 `31-migration-chain-and-integration-acceptance.md` 为准。
 
 ## 单元测试与集成测试
 
@@ -20,7 +20,7 @@ SHIPFLOW_IT_DB_USERNAME
 SHIPFLOW_IT_DB_PASSWORD
 ```
 
-集成测试不会自动执行 `schema.sql`、V001、V002 或 V003；`spring.flyway.enabled=false`，Spring SQL 初始化也被关闭。
+集成测试不会自动执行 `schema.sql` 或迁移；`spring.flyway.enabled=false`，Spring SQL 初始化也被关闭。执行前必须由受控初始化链准备空测试库。
 
 ## 测试数据隔离
 

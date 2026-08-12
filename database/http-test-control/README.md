@@ -1,8 +1,8 @@
 # shipflow_http_test 受控初始化脚本
 
-本目录是对既有 `database/schema.sql`、`database/init_data.sql` 和 V002 至 V005 的隔离副本；原文件没有被修改。
+本目录是对既有 `database/schema.sql`、`database/init_data.sql` 和 V002 至 V006 的隔离副本；原文件没有被修改。
 
-仅在以下前提全部满足时，按编号顺序执行 `01` 至 `06`：
+仅在以下前提全部满足时，按编号顺序执行 `01` 至 `07`：
 
 - MySQL 客户端连接参数已显式指定 `--database=shipflow_http_test`；
 - `SELECT DATABASE()` 返回 `shipflow_http_test`；
@@ -10,7 +10,7 @@
 - 执行账号拥有在该隔离库建表和写入种子数据的权限；
 - 项目负责人已书面批准本目录的初始化脚本。
 
-`01_schema_empty_target.sql` 删除了原始 `CREATE DATABASE` 和 `USE shipflow`，并将全部 `DROP TABLE` 源语句隔离为注释。`03_V002__add_api_support_tables.sql` 以 `IF NOT EXISTS` 保留 V002 来源，同时兼容已由当前 `schema.sql` 建立的同名基线表；其余迁移保持原有业务内容，仅删除硬编码 `USE shipflow`。
+`01_schema_empty_target.sql` 删除了原始 `CREATE DATABASE` 和 `USE shipflow`，并将全部 `DROP TABLE` 源语句隔离为注释。`03_V002__add_api_support_tables.sql` 以 `IF NOT EXISTS` 保留 V002 来源，同时兼容已由当前 `schema.sql` 建立的同名基线表。`07_V006__add_logistics_master_data_permissions.sql` 只保留权限 DML：当前基线已经有 `transport_mode` 与检查约束，重复执行原始 V006 的 `ALTER TABLE` 会失败。
 
 示例（只在批准后由执行者在其终端运行；不在本轮执行）：
 
