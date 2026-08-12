@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.operations.mapper.OperationsMapper">
+  <select id="findSummary" resultType="com.shipflow.operations.domain.OperationsSummary">
+    SELECT COALESCE(SUM(current_status='DRAFT'),0) AS draft, COALESCE(SUM(current_status='PENDING_INBOUND'),0) AS pendingInbound,
+           COALESCE(SUM(current_status='INBOUND'),0) AS inbound, COALESCE(SUM(current_status='PENDING_PRICE_CONFIRMATION'),0) AS pendingPriceConfirmation,
+           COALESCE(SUM(current_status='READY_FOR_OUTBOUND'),0) AS readyForOutbound, COALESCE(SUM(current_status='OUTBOUND'),0) AS outbound,
+           COALESCE(SUM(current_status='IN_TRANSIT'),0) AS inTransit, COALESCE(SUM(current_status='DELIVERED'),0) AS delivered,
+           COALESCE(SUM(current_status IN ('EXCEPTION','LOST','RETURNED')),0) AS exception, COALESCE(SUM(current_status='CANCELLED'),0) AS cancelled
+    FROM shipment_order WHERE tenant_id=#{tenantId}
+  </select>
+  <select id="findTodos" resultType="com.shipflow.operations.domain.OperationsTodos">
+    SELECT
+      (SELECT COUNT(*) FROM shipment_order WHERE tenant_id=#{tenantId} AND current_status='PENDING_PRICE_CONFIRMATION') AS pendingPriceConfirmation,
+      (SELECT COUNT(*) FROM reconciliation_record WHERE tenant_id=#{tenantId} AND reconciliation_status='PENDING_CONFIRMATION') AS pendingReconciliation,
+      (SELECT COUNT(*) FROM exception_case WHERE tenant_id=#{tenantId} AND status IN ('OPEN','PROCESSING')) AS activeExceptions,
+      (SELECT COUNT(*) FROM claim_record WHERE tenant_id=#{tenantId} AND status='SUBMITTED') AS submittedClaims
+  </select>
+</mapper>

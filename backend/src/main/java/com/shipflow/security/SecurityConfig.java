@@ -74,6 +74,7 @@ public class SecurityConfig {
                         .access(AuthorizationManagers.allOf(hasAuthority("scope:PLATFORM"), hasAuthority("audit:read")))
                         .requestMatchers("/api/v1/audit-logs", "/api/v1/audit-logs/**")
                         .access(AuthorizationManagers.allOf(hasAuthority("scope:TENANT"), hasAuthority("audit:read")))
+                        .requestMatchers("/api/v1/operations", "/api/v1/operations/**").hasAuthority("scope:TENANT")
                         .requestMatchers("/api/v1/orders", "/api/v1/orders/**").hasAuthority("scope:TENANT")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll())

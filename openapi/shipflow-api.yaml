@@ -889,6 +889,21 @@ paths:
         '422':
           $ref: '#/components/responses/OrderRuleError'
 
+  /orders/{orderId}/cancel:
+    post:
+      tags: [Orders]
+      summary: 取消草稿或待入库订单
+      operationId: cancelOrder
+      parameters: [{ $ref: '#/components/parameters/OrderId' }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OrderActionRequest' } } } }
+      responses:
+        '200': { description: 已取消订单, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOrder' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /orders/{orderId}/inbound:
     post:
       tags: [Warehouse]
@@ -1372,6 +1387,19 @@ paths:
       parameters: [{ name: claimId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/RequestId' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ClaimResultRequest' } } } }
       responses: { '200': { description: 审核完成, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /operations/summary:
+    get:
+      tags: [Operations]
+      summary: 查询当前租户订单履约概览
+      operationId: getOperationsSummary
+      responses: { '200': { description: 各订单状态数量, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOperationsSummary' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /operations/todos:
+    get:
+      tags: [Operations]
+      summary: 查询当前租户跨域待办汇总
+      operationId: getOperationsTodos
+      responses: { '200': { description: 价格、对账、异常和索赔待办数量, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOperationsTodos' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' } }
+
   /claims/{claimId}/close:
     post:
       tags: [Exceptions]
@@ -2721,6 +2749,16 @@ components:
       allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/PriceRule' } } }]
     ApiSuccessPriceRuleList:
       allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { type: array, items: { $ref: '#/components/schemas/PriceRule' } } } }]
+    OperationsSummary:
+      type: object
+      properties: { draft: { type: integer, format: int64 }, pendingInbound: { type: integer, format: int64 }, inbound: { type: integer, format: int64 }, pendingPriceConfirmation: { type: integer, format: int64 }, readyForOutbound: { type: integer, format: int64 }, outbound: { type: integer, format: int64 }, inTransit: { type: integer, format: int64 }, delivered: { type: integer, format: int64 }, exception: { type: integer, format: int64 }, cancelled: { type: integer, format: int64 } }
+    OperationsTodos:
+      type: object
+      properties: { pendingPriceConfirmation: { type: integer, format: int64 }, pendingReconciliation: { type: integer, format: int64 }, activeExceptions: { type: integer, format: int64 }, submittedClaims: { type: integer, format: int64 } }
+    ApiSuccessOperationsSummary:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OperationsSummary' } } }]
+    ApiSuccessOperationsTodos:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OperationsTodos' } } }]
     CreateExceptionRequest:
       type: object
       required: [exceptionType, description, reportedAt]

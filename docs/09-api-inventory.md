@@ -177,3 +177,10 @@
 |---|---|---|---|---|---|---|---|
 | AUDIT-001 租户审计列表/详情 | `GET /api/v1/audit-logs`、`GET /api/v1/audit-logs/{auditId}` | `scope:TENANT` + `audit:read` | `resourceType`、`resourceId`、`action`、`operatorId`、UTC 时间范围、分页 | 本租户脱敏日志分页/详情 | `COMMON-1001`、`COMMON-1006` | 只读；查询必带 JWT `tenant_id`；不返回 `reason`、`requestId`、密码、JWT、Refresh Token、HMAC、认证凭据或完整地址 |
 | AUDIT-002 平台指定租户查询 | `GET /api/v1/platform/audit-logs`、`GET /api/v1/platform/audit-logs/{auditId}` | `scope:PLATFORM` + `audit:read` | 必填 `tenantId`，其余筛选同租户查询 | 指定租户脱敏日志分页/详情 | `COMMON-1004`、`COMMON-1006` | 平台必须显式指定存在的租户；只读，无更新/删除接口 |
+
+## 16. 运营首页
+
+| 编号/用途 | 方法 URL | 允许角色/请求头 | 成功响应 | 错误 | 数据边界 |
+|---|---|---|---|---|---|
+| OPS-001 订单履约概览 | `GET /api/v1/operations/summary` | 当前租户 JWT | 各订单状态的计数 | `COMMON-1004` | 只读；所有聚合以 JWT `tenant_id` 为唯一条件 |
+| OPS-002 跨域待办汇总 | `GET /api/v1/operations/todos` | 当前租户 JWT | 待确认涨价、待对账、处理中异常、待审核索赔计数 | `COMMON-1004` | 只读；聚合 `shipment_order`、`reconciliation_record`、`exception_case`、`claim_record`，不暴露明细或金额 |
