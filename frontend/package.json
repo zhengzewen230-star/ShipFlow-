@@ -1,0 +1,26 @@
+{
+  "name": "shipflow-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "axios": "^1.11.0",
+    "@lucide/vue": "^1.31.0",
+    "pinia": "^2.3.1",
+    "vue": "^3.5.18",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@vue/tsconfig": "^0.7.0",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "@types/node": "^22.13.4",
+    "typescript": "~5.7.3",
+    "vite": "^6.1.0",
+    "vue-tsc": "^2.2.12"
+  }
+}

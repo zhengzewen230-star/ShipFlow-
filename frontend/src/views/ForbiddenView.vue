@@ -1,0 +1,1 @@
+<template><main class="not-found"><div class="not-found__graphic"><span>403</span></div><h1>无权访问</h1><p>当前账号没有访问此页面所需的角色或权限。</p><RouterLink class="btn btn--primary" to="/app">返回工作台</RouterLink></main></template>

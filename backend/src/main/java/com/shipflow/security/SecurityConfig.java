@@ -36,8 +36,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/public/estimate-requests", "/api/v1/public/onboarding-applications", "/api/v1/public/onboarding-activations").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/integrations/logistics/*/tracking-events").permitAll()
                         .requestMatchers("/api/v1/users/me").authenticated()
+                        .requestMatchers("/api/v1/platform/onboarding-applications", "/api/v1/platform/onboarding-applications/**")
+                        .access(AuthorizationManagers.allOf(hasAuthority("scope:PLATFORM"), hasAuthority("tenant:manage")))
                         .requestMatchers(HttpMethod.POST, "/api/v1/platform/tenants").access(AuthorizationManagers.allOf(hasAuthority("scope:PLATFORM"), hasAuthority("tenant:create")))
                         .requestMatchers(HttpMethod.GET, "/api/v1/platform/tenants").access(AuthorizationManagers.allOf(hasAuthority("scope:PLATFORM"), hasAuthority("tenant:read")))
                         .requestMatchers(HttpMethod.GET, "/api/v1/platform/tenants/**").access(AuthorizationManagers.allOf(hasAuthority("scope:PLATFORM"), hasAuthority("tenant:read")))

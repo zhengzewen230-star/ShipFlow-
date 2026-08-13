@@ -156,7 +156,7 @@ class TenantApplicationServiceIT {
         assertThatThrownBy(() -> service.create(new CreateTenantRequest(request.tenantCode(), "Different", request.initialAdmin()), key, operatorUserId, null))
                 .hasMessage("COMMON-1009");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_user WHERE tenant_id=?", Integer.class, first.id())).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_role WHERE tenant_id=?", Integer.class, first.id())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_role WHERE tenant_id=? AND role_code='MERCHANT_ADMIN'", Integer.class, first.id())).isEqualTo(1);
     }
 
     @Test

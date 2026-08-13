@@ -222,6 +222,7 @@ CREATE TABLE logistics_channel (
     provider_id BIGINT NOT NULL COMMENT '物流商ID',
     channel_code VARCHAR(64) NOT NULL COMMENT '渠道编码',
     channel_name VARCHAR(128) NOT NULL COMMENT '渠道名称',
+    transport_mode VARCHAR(32) NOT NULL COMMENT '运输方式：OCEAN、AIR、ROAD、RAIL、COURIER',
     service_area VARCHAR(255) NOT NULL COMMENT '服务区域说明',
     status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE' COMMENT '渠道状态：ACTIVE、DISABLED',
     deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除标记：0未删除、1已删除',
@@ -232,7 +233,8 @@ CREATE TABLE logistics_channel (
     UNIQUE KEY uk_channel_provider_code (provider_id, channel_code),
     KEY idx_channel_status (status),
     CONSTRAINT fk_channel_provider FOREIGN KEY (provider_id) REFERENCES logistics_provider (id),
-    CONSTRAINT chk_channel_status CHECK (status IN ('ACTIVE', 'DISABLED'))
+    CONSTRAINT chk_channel_status CHECK (status IN ('ACTIVE', 'DISABLED')),
+    CONSTRAINT chk_channel_transport_mode CHECK (transport_mode IN ('OCEAN', 'AIR', 'ROAD', 'RAIL', 'COURIER'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='平台公共物流渠道';
 
 CREATE TABLE logistics_channel_service_country (

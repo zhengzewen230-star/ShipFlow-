@@ -35,6 +35,7 @@ import com.shipflow.exceptioncase.mapper.ExceptionClaimMapper;
 import com.shipflow.billing.mapper.BillingMapper;
 import com.shipflow.audit.mapper.AuditQueryMapper;
 import com.shipflow.operations.mapper.OperationsMapper;
+import com.shipflow.onboarding.mapper.OnboardingMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -100,6 +101,7 @@ class AuthBeanRegistrationTest {
         @Bean BillingMapper billingMapper() { return mock(BillingMapper.class); }
         @Bean AuditQueryMapper auditQueryMapper() { return mock(AuditQueryMapper.class); }
         @Bean OperationsMapper operationsMapper() { return mock(OperationsMapper.class); }
+        @Bean OnboardingMapper onboardingMapper() { return mock(OnboardingMapper.class); }
         @Bean org.springframework.security.oauth2.jwt.JwtEncoder jwtEncoder() {
             try {
                 var generator = java.security.KeyPairGenerator.getInstance("RSA");

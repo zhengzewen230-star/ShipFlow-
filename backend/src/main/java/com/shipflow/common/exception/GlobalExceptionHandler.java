@@ -23,6 +23,7 @@ import com.shipflow.tracking.application.TrackingCallbackException;
 import com.shipflow.exceptioncase.application.ExceptionClaimException;
 import com.shipflow.billing.application.BillingException;
 import com.shipflow.audit.application.AuditQueryException;
+import com.shipflow.onboarding.application.OnboardingException;
 import com.shipflow.common.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,6 +101,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuditQueryException.class)
     public ResponseEntity<ApiErrorResponse> handleAuditFailure(AuditQueryException exception) {
         return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Audit query failed"));
+    }
+
+    @ExceptionHandler(OnboardingException.class)
+    public ResponseEntity<ApiErrorResponse> handleOnboardingFailure(OnboardingException exception) {
+        return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Onboarding operation failed"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

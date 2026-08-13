@@ -33,9 +33,63 @@ tags:
     description: 账单导入
   - name: Reconciliation
     description: 费用对账
+  - name: Onboarding
+    description: Guest estimate leads and platform merchant onboarding review
 security:
   - bearerAuth: []
 paths:
+  /public/estimate-requests:
+    post:
+      tags: [Onboarding]
+      summary: Submit a guest estimate lead (not a formal quote)
+      operationId: createGuestEstimateRequest
+      security: []
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/XsrfHeader' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateGuestEstimateRequest' } } } }
+      responses: { '201': { description: Lead accepted, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessGuestEstimate' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/CsrfError' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /public/onboarding-applications:
+    post:
+      tags: [Onboarding]
+      summary: Submit merchant onboarding application
+      operationId: createOnboardingApplication
+      security: []
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/XsrfHeader' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateOnboardingApplicationRequest' } } } }
+      responses: { '201': { description: Application pending platform review, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOnboardingApplication' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/CsrfError' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /public/onboarding-activations:
+    post:
+      tags: [Onboarding]
+      summary: Activate first administrator with one-time invitation
+      operationId: activateOnboardingAdministrator
+      security: []
+      parameters: [{ $ref: '#/components/parameters/XsrfHeader' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ActivationRequest' } } } }
+      responses: { '200': { description: Administrator activated, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessActivation' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/CsrfError' }, '409': { $ref: '#/components/responses/Conflict' }, '422': { $ref: '#/components/responses/BadRequest' } }
+  /platform/onboarding-applications:
+    get:
+      tags: [Onboarding]
+      summary: List onboarding applications for platform reviewers
+      operationId: listOnboardingApplications
+      description: PLATFORM scope plus tenant:manage only; tenants cannot read leads or applications.
+      parameters: [{ name: status, in: query, schema: { type: string, enum: [PENDING, APPROVED, REJECTED] } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Application page, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOnboardingPage' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /platform/onboarding-applications/{applicationId}/approve:
+    post:
+      tags: [Onboarding]
+      summary: Approve application and issue activation invitation
+      operationId: approveOnboardingApplication
+      description: PLATFORM scope plus tenant:manage only. The opaque token is returned once for secure out-of-band delivery; only its hash is persisted.
+      parameters: [{ name: applicationId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/XsrfHeader' }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ApproveOnboardingApplicationRequest' } } } }
+      responses: { '200': { description: Application approved, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOnboardingApproval' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /platform/onboarding-applications/{applicationId}/reject:
+    post:
+      tags: [Onboarding]
+      summary: Reject onboarding application
+      operationId: rejectOnboardingApplication
+      parameters: [{ name: applicationId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/XsrfHeader' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RejectOnboardingApplicationRequest' } } } }
+      responses: { '200': { description: Application rejected, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOnboardingApplication' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/Conflict' } }
   /auth/csrf:
     get:
       tags: [Auth]
@@ -1438,6 +1492,94 @@ paths:
       responses: { '200': { description: 关闭成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
 
 components:
+  x-onboarding-schemas:
+    CreateGuestEstimateRequest:
+      type: object
+      required: [originCountry, destinationCountry, transportMode, cargoType, cargoName, weight, volume, contactName, businessEmail, contactPhone]
+      properties:
+        originCountry: { type: string, pattern: '^[A-Z]{2}$' }
+        destinationCountry: { type: string, pattern: '^[A-Z]{2}$' }
+        transportMode: { type: string, enum: [OCEAN, AIR, ROAD, RAIL, COURIER] }
+        cargoType: { type: string, enum: [GENERAL, BATTERY, SENSITIVE, LIQUID_POWDER, FRAGILE, OVERSIZED, OTHER] }
+        cargoName: { type: string, minLength: 2, maxLength: 80 }
+        weight: { type: number, format: decimal, minimum: 0.001 }
+        volume: { type: number, format: decimal, minimum: 0.000001 }
+        contactName: { type: string, maxLength: 128 }
+        businessEmail: { type: string, format: email, maxLength: 254 }
+        contactPhone: { type: string, maxLength: 64 }
+    GuestEstimateResponse:
+      type: object
+      required: [referenceNo, status, formalQuote, notice, submittedAt]
+      properties:
+        referenceNo: { type: string }
+        status: { type: string, enum: [RECEIVED] }
+        formalQuote: { type: boolean, enum: [false] }
+        notice: { type: string }
+        submittedAt: { type: string, format: date-time }
+    CreateOnboardingApplicationRequest:
+      type: object
+      required: [companyName, contactName, businessEmail, contactPhone, countryCode]
+      properties:
+        companyName: { type: string, maxLength: 128 }
+        contactName: { type: string, maxLength: 128 }
+        businessEmail: { type: string, format: email, maxLength: 254 }
+        contactPhone: { type: string, maxLength: 64 }
+        countryCode: { type: string, pattern: '^[A-Z]{2}$' }
+    OnboardingApplication:
+      type: object
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        applicationNo: { type: string }
+        companyName: { type: string }
+        contactName: { type: string }
+        businessEmail: { type: string, format: email }
+        contactPhone: { type: string }
+        countryCode: { type: string }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+        reviewRemark: { type: string, nullable: true }
+        tenantId: { $ref: '#/components/schemas/Id', nullable: true }
+        initialUserId: { $ref: '#/components/schemas/Id', nullable: true }
+        version: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time, nullable: true }
+        reviewedAt: { type: string, format: date-time, nullable: true }
+    OnboardingPage:
+      allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/OnboardingApplication' } } } }]
+    ApproveOnboardingApplicationRequest:
+      type: object
+      required: [tenantCode, adminUsername, reviewRemark, version]
+      properties:
+        tenantCode: { type: string, maxLength: 64 }
+        adminUsername: { type: string, maxLength: 128 }
+        reviewRemark: { type: string, maxLength: 500 }
+        version: { type: integer, format: int64, minimum: 0 }
+    RejectOnboardingApplicationRequest:
+      type: object
+      required: [reviewRemark, version]
+      properties:
+        reviewRemark: { type: string, maxLength: 500 }
+        version: { type: integer, format: int64, minimum: 0 }
+    ActivationRequest:
+      type: object
+      required: [invitationToken, password]
+      properties:
+        invitationToken: { type: string, writeOnly: true }
+        password: { type: string, writeOnly: true, minLength: 12, maxLength: 128 }
+    ActivationResponse:
+      type: object
+      properties: { tenantCode: { type: string }, username: { type: string }, status: { type: string, enum: [ACTIVE] } }
+    OnboardingApproval:
+      type: object
+      properties: { application: { $ref: '#/components/schemas/OnboardingApplication' }, invitationToken: { type: string, writeOnly: true, description: Returned once only to PLATFORM reviewer for secure out-of-band delivery. } }
+    ApiSuccessGuestEstimate:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/GuestEstimateResponse' } } }]
+    ApiSuccessOnboardingApplication:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OnboardingApplication' } } }]
+    ApiSuccessOnboardingPage:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OnboardingPage' } } }]
+    ApiSuccessActivation:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/ActivationResponse' } } }]
+    ApiSuccessOnboardingApproval:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OnboardingApproval' } } }]
   securitySchemes:
     bearerAuth:
       type: http
@@ -1738,6 +1880,21 @@ components:
           schema:
             $ref: '#/components/schemas/ApiError'
   schemas:
+    CreateGuestEstimateRequest: { type: object, required: [originCountry, destinationCountry, transportMode, cargoType, cargoName, weight, volume, contactName, businessEmail, contactPhone], properties: { originCountry: { type: string, pattern: '^[A-Z]{2}$' }, destinationCountry: { type: string, pattern: '^[A-Z]{2}$' }, transportMode: { type: string, enum: [OCEAN, AIR, ROAD, RAIL, COURIER] }, cargoType: { type: string, enum: [GENERAL, BATTERY, SENSITIVE, LIQUID_POWDER, FRAGILE, OVERSIZED, OTHER] }, cargoName: { type: string, minLength: 2, maxLength: 80 }, weight: { type: number, format: decimal, minimum: 0.001 }, volume: { type: number, format: decimal, minimum: 0.000001 }, contactName: { type: string, maxLength: 128 }, businessEmail: { type: string, format: email, maxLength: 254 }, contactPhone: { type: string, maxLength: 64 } } }
+    GuestEstimateResponse: { type: object, required: [referenceNo, status, formalQuote, notice, submittedAt], properties: { referenceNo: { type: string }, status: { type: string, enum: [RECEIVED] }, formalQuote: { type: boolean, enum: [false] }, notice: { type: string }, submittedAt: { type: string, format: date-time } } }
+    CreateOnboardingApplicationRequest: { type: object, required: [companyName, contactName, businessEmail, contactPhone, countryCode], properties: { companyName: { type: string, maxLength: 128 }, contactName: { type: string, maxLength: 128 }, businessEmail: { type: string, format: email, maxLength: 254 }, contactPhone: { type: string, maxLength: 64 }, countryCode: { type: string, pattern: '^[A-Z]{2}$' } } }
+    OnboardingApplication: { type: object, properties: { id: { $ref: '#/components/schemas/Id' }, applicationNo: { type: string }, companyName: { type: string }, contactName: { type: string }, businessEmail: { type: string, format: email }, contactPhone: { type: string }, countryCode: { type: string }, status: { type: string, enum: [PENDING, APPROVED, REJECTED] }, reviewRemark: { type: string, nullable: true }, tenantId: { $ref: '#/components/schemas/Id', nullable: true }, initialUserId: { $ref: '#/components/schemas/Id', nullable: true }, version: { type: integer, format: int64 }, createdAt: { type: string, format: date-time, nullable: true }, reviewedAt: { type: string, format: date-time, nullable: true } } }
+    OnboardingPage: { allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/OnboardingApplication' } } } }] }
+    ApproveOnboardingApplicationRequest: { type: object, required: [tenantCode, adminUsername, reviewRemark, version], properties: { tenantCode: { type: string, maxLength: 64 }, adminUsername: { type: string, maxLength: 128 }, reviewRemark: { type: string, maxLength: 500 }, version: { type: integer, format: int64, minimum: 0 } } }
+    RejectOnboardingApplicationRequest: { type: object, required: [reviewRemark, version], properties: { reviewRemark: { type: string, maxLength: 500 }, version: { type: integer, format: int64, minimum: 0 } } }
+    ActivationRequest: { type: object, required: [invitationToken, password], properties: { invitationToken: { type: string, writeOnly: true }, password: { type: string, writeOnly: true, minLength: 12, maxLength: 128 } } }
+    ActivationResponse: { type: object, properties: { tenantCode: { type: string }, username: { type: string }, status: { type: string, enum: [ACTIVE] } } }
+    OnboardingApproval: { type: object, properties: { application: { $ref: '#/components/schemas/OnboardingApplication' }, invitationToken: { type: string, writeOnly: true } } }
+    ApiSuccessGuestEstimate: { allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/GuestEstimateResponse' } } }] }
+    ApiSuccessOnboardingApplication: { allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OnboardingApplication' } } }] }
+    ApiSuccessOnboardingPage: { allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OnboardingPage' } } }] }
+    ApiSuccessActivation: { allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/ActivationResponse' } } }] }
+    ApiSuccessOnboardingApproval: { allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OnboardingApproval' } } }] }
     Id:
       type: string
       pattern: '^[0-9]+$'

@@ -1,0 +1,36 @@
+# ShipFlow Nginx main configuration example.
+# Copy this file to <nginx-home>/conf/nginx.conf and copy conf.d/ beside it.
+
+worker_processes  1;
+
+error_log  logs/error.log warn;
+pid        logs/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+
+    # Deliberately excludes request/response headers, cookies, tokens and bodies.
+    log_format shipflow_main '$remote_addr - $remote_user [$time_local] '
+                             '"$request" $status $body_bytes_sent '
+                             '"$http_referer" "$http_user_agent" '
+                             'request_id=$shipflow_request_id '
+                             'request_time=$request_time';
+
+    access_log  logs/access.log shipflow_main;
+
+    sendfile           on;
+    keepalive_timeout  65s;
+
+    # Keep a caller-supplied correlation ID; generate one when it is absent.
+    map $http_x_request_id $shipflow_request_id {
+        default  $http_x_request_id;
+        ""       $request_id;
+    }
+
+    include conf.d/*.conf;
+}

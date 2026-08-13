@@ -85,12 +85,12 @@ VALUES
     (1, 'PROVIDER_ALPHA', 'Alpha国际物流', 'ACTIVE'),
     (2, 'PROVIDER_BETA', 'Beta跨境物流', 'ACTIVE');
 
-INSERT INTO logistics_channel (id, provider_id, channel_code, channel_name, service_area, status)
+INSERT INTO logistics_channel (id, provider_id, channel_code, channel_name, transport_mode, service_area, status)
 VALUES
-    (1, 1, 'ALPHA_JP_STANDARD', 'Alpha日本标准渠道', '中国-日本', 'ACTIVE'),
-    (2, 1, 'ALPHA_US_STANDARD', 'Alpha美国标准渠道', '中国-美国', 'ACTIVE'),
-    (3, 2, 'BETA_EU_STANDARD', 'Beta欧洲标准渠道', '中国-欧洲', 'ACTIVE'),
-    (4, 2, 'BETA_US_AIR', 'Beta美国空运渠道', '中国-美国', 'ACTIVE');
+    (1, 1, 'ALPHA_JP_STANDARD', 'Alpha日本标准渠道', 'COURIER', '中国-日本', 'ACTIVE'),
+    (2, 1, 'ALPHA_US_STANDARD', 'Alpha美国标准渠道', 'COURIER', '中国-美国', 'ACTIVE'),
+    (3, 2, 'BETA_EU_STANDARD', 'Beta欧洲标准渠道', 'ROAD', '中国-欧洲', 'ACTIVE'),
+    (4, 2, 'BETA_US_AIR', 'Beta美国空运渠道', 'AIR', '中国-美国', 'ACTIVE');
 
 INSERT INTO logistics_channel_service_country (id, channel_id, country_code)
 VALUES
