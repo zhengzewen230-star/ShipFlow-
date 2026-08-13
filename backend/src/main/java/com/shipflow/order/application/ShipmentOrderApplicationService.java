@@ -48,7 +48,7 @@ public class ShipmentOrderApplicationService {
         String destination=fee.path("destinationCountry").asText();
         if (!destination.equalsIgnoreCase(request.receiverAddress().countryCode())) throw new ShipmentOrderException("ORDER-1003",422);
         ShipmentOrder pending=new ShipmentOrder(null,tenantId,next("SO",now),key,quote.storeId(),quote.id(),quote.channelId(),"DRAFT",
-                request.senderAddress().countryCode().toUpperCase(Locale.ROOT),destination.toUpperCase(Locale.ROOT),quote.declaredWeight(),quote.declaredLength(),quote.declaredWidth(),quote.declaredHeight(),quote.volumeWeight(),quote.chargeableWeight(),quote.amount(),quote.currency(),now);
+                request.senderAddress().countryCode().toUpperCase(Locale.ROOT),destination.toUpperCase(Locale.ROOT),quote.declaredWeight(),quote.declaredLength(),quote.declaredWidth(),quote.declaredHeight(),quote.volumeWeight(),quote.chargeableWeight(),quote.amount(),quote.currency(),0L,now);
         try { mapper.insertOrder(pending); } catch (DuplicateKeyException e) { return resolveDuplicate(tenantId,quoteId,key); }
         ShipmentOrder created=requireOrder(mapper.findByIdempotencyKey(tenantId,key));
         mapper.insertSnapshot(tenantId,created.id(),quote,decimal(fee,"volumeDivisor"),fee.path("roundingMode").asText(),decimal(fee,"roundingIncrement"));
@@ -62,7 +62,7 @@ public class ShipmentOrderApplicationService {
     private JsonNode readFeeDetail(Quote q){try{return objectMapper.readTree(q.feeDetail());}catch(Exception e){throw new IllegalStateException("Invalid immutable quote fee detail",e);}}
     private BigDecimal decimal(JsonNode n,String name){try{return n.required(name).decimalValue();}catch(Exception e){throw new IllegalStateException("Quote fee detail missing "+name,e);}}
     private ShipmentOrder requireOrder(ShipmentOrder o){if(o==null)throw new IllegalStateException("Order was not created");return o;}
-    private ShipmentOrderResponse response(ShipmentOrder o){return new ShipmentOrderResponse(o.id(),o.orderNo(),o.quoteId(),o.currentStatus(),o.estimatedFee(),o.currency(),o.chargeableWeight(),o.createdAt().atOffset(ZoneOffset.UTC));}
+    private ShipmentOrderResponse response(ShipmentOrder o){return new ShipmentOrderResponse(o.id(),o.orderNo(),o.quoteId(),o.currentStatus(),o.estimatedFee(),o.currency(),o.chargeableWeight(),o.version(),o.createdAt().atOffset(ZoneOffset.UTC));}
     private String next(String prefix,LocalDateTime now){return prefix+DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(now)+UUID.randomUUID().toString().replace("-","").substring(0,12).toUpperCase(Locale.ROOT);}
     private String hash(Long id,CreateShipmentOrderRequest r){return sha256(id+"\n"+r.toString());} private String sha256(String s){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}}
 }

@@ -26,6 +26,7 @@ public interface ShipmentOrderMapper {
     int insertAudit(@Param("tenantId") Long tenantId, @Param("operatorUserId") Long operatorUserId,
                     @Param("orderId") Long orderId, @Param("requestId") String requestId, @Param("occurredAt") LocalDateTime occurredAt);
     int updateAddresses(@Param("tenantId") Long tenantId, @Param("orderId") Long orderId, @Param("sender") com.shipflow.order.api.model.CreateShipmentOrderRequest.Address sender, @Param("receiver") com.shipflow.order.api.model.CreateShipmentOrderRequest.Address receiver);
+    int advanceDraftVersion(@Param("tenantId") Long tenantId, @Param("orderId") Long orderId, @Param("version") Long version);
     int deleteItems(@Param("tenantId") Long tenantId, @Param("orderId") Long orderId);
     int insertDraftItem(@Param("tenantId") Long tenantId, @Param("orderId") Long orderId, @Param("itemNo") int itemNo, @Param("item") com.shipflow.order.api.model.CreateShipmentOrderRequest.Item item);
     int transitionStatus(@Param("tenantId") Long tenantId, @Param("orderId") Long orderId, @Param("fromStatus") String fromStatus, @Param("toStatus") String toStatus, @Param("version") Long version);

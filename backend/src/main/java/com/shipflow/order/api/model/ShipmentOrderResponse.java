@@ -5,4 +5,4 @@ import java.time.OffsetDateTime;
 
 public record ShipmentOrderResponse(Long id, String orderNo, Long quoteId, String status,
                                     BigDecimal estimatedFee, String currency,
-                                    BigDecimal chargeableWeight, OffsetDateTime createdAt) { }
+                                    BigDecimal chargeableWeight, Long version, OffsetDateTime createdAt) { }

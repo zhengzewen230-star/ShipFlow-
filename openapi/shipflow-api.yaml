@@ -665,9 +665,12 @@ paths:
       tags: [LogisticsMaster]
       summary: 租户查询可用渠道服务国家
       operationId: getAvailableChannelServiceCountries
+      description: 仅供具备 `scope:TENANT` 与 `logistics:read` 权限的租户用户查询当前启用渠道的服务国家代码。
       parameters: [{ $ref: '#/components/parameters/ChannelId' }]
       responses:
-        '200': { description: 国家编码列表 }
+        '200': { description: ISO 3166-1 alpha-2 国家编码列表, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessServiceCountryList' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /logistics/channels/{channelId}/price-rule:
     get:
@@ -786,49 +789,45 @@ paths:
         '422': { $ref: '#/components/responses/QuoteRuleError' }
 
   /orders:
-    post:
+    get:
       tags: [Orders]
-      summary: 使用报价创建物流订单
-      operationId: createOrder
+      summary: 分页查询当前租户物流订单
+      operationId: listShipmentOrders
       description: |
-        必须传入有效 quote_id 和 Idempotency-Key。
-        包裹申报重量、长宽高必须与报价输入完全一致；服务端生成 package_no、地址快照类型和订单号。
-        同一租户、同一幂等键和同一请求内容重复提交时返回原订单结果。
+        仅查询 JWT tenant_id 对应租户的订单，需要 `scope:TENANT`。
+        status 按后端订单状态过滤；storeId 按当前租户店铺过滤。
       parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-        - $ref: '#/components/parameters/RequestId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateOrderRequest'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/OrderStatus' }
+        - name: storeId
+          in: query
+          schema: { $ref: '#/components/schemas/Id' }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
       responses:
-        '201':
-          description: 订单创建成功，初始状态为 DRAFT
+        '200':
+          description: 当前租户订单分页
           headers:
             X-Trace-Id:
               $ref: '#/components/headers/TraceId'
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSuccessOrder'
+                $ref: '#/components/schemas/ApiSuccessShipmentOrderPage'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/AuthError'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/OrderRuleError'
 
   /orders/{orderId}:
     get:
       tags: [Orders]
       summary: 查询订单详情
       operationId: getOrder
+      description: 仅查询 JWT tenant_id 对应租户的订单，需要 `scope:TENANT`。
       parameters:
         - $ref: '#/components/parameters/OrderId'
         - $ref: '#/components/parameters/RequestId'
@@ -841,13 +840,39 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSuccessOrder'
+                $ref: '#/components/schemas/ApiSuccessShipmentOrder'
         '401':
           $ref: '#/components/responses/AuthError'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Orders]
+      summary: 更新草稿订单的非计价信息
+      operationId: updateDraftShipmentOrder
+      description: |
+        仅允许当前租户的 DRAFT 订单更新收件地址、寄件地址、商品明细和备注，需要 `scope:TENANT`。
+        渠道、目的国家、申报重量尺寸、包裹数、价格规则版本、计费重量、金额、币种和报价快照均禁止修改；传入这些字段返回 422。
+        version 是必填字段并用于订单乐观锁；版本过期或订单已不再是 DRAFT 时返回 409。
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateShipmentOrderRequest'
+      responses:
+        '200': { description: 更新后的草稿订单, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessShipmentOrder' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/OrderRuleError' }
 
   /orders/{orderId}/submit:
     post:
@@ -860,14 +885,13 @@ paths:
         DRAFT 不允许直接执行入库操作。
       parameters:
         - $ref: '#/components/parameters/OrderId'
-        - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequestId'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VersionRequest'
+              $ref: '#/components/schemas/OrderActionRequest'
       responses:
         '200':
           description: 提交成功，状态为 PENDING_INBOUND
@@ -877,7 +901,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSuccessOrder'
+                $ref: '#/components/schemas/ApiSuccessShipmentOrder'
         '401':
           $ref: '#/components/responses/AuthError'
         '403':
@@ -897,7 +921,7 @@ paths:
       parameters: [{ $ref: '#/components/parameters/OrderId' }, { $ref: '#/components/parameters/RequestId' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OrderActionRequest' } } } }
       responses:
-        '200': { description: 已取消订单, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOrder' } } } }
+        '200': { description: 已取消订单, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessShipmentOrder' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/AuthError' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -1070,6 +1094,8 @@ paths:
       security:
         - providerHmac: []
       description: |
+        Server-to-server 专用回调，不供浏览器、Vue 前端或普通 Bearer Token 客户端调用。
+        调用方必须是已配置共享密钥的物流商服务器，并同时提供 X-Provider-Signature 与 X-Provider-Timestamp。
         签名为 Base64(HMAC-SHA256(secret, timestamp + "." + rawRequestBody))。
         X-Provider-Timestamp 为 Unix 秒级时间戳，允许与服务端时间偏差不超过 300 秒。
         服务端使用恒定时间比较签名。密钥和完整签名禁止写入日志。
@@ -1142,9 +1168,10 @@ paths:
       tags: [Tracking]
       summary: 查询当前租户订单轨迹
       operationId: listShipmentOrderTracking
+      description: 仅供当前租户的已认证用户查询；返回只读轨迹 DTO，不包含原始回调载荷或签名。
       parameters: [ { $ref: '#/components/parameters/OrderId' } ]
       responses:
-        '200': { description: 按 eventTime、事件ID升序的轨迹列表 }
+        '200': { description: 按 eventTime、事件ID升序的轨迹列表, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessShipmentTrackingList' } } } }
         '401': { $ref: '#/components/responses/AuthError' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1153,9 +1180,10 @@ paths:
       tags: [Tracking]
       summary: 查询当前租户订单物流状态与最新轨迹
       operationId: getShipmentOrderTrackingStatus
+      description: 仅供当前租户的已认证用户查询订单当前状态及最新一条只读轨迹。
       parameters: [ { $ref: '#/components/parameters/OrderId' } ]
       responses:
-        '200': { description: 当前状态及最新轨迹摘要 }
+        '200': { description: 当前状态及最新轨迹摘要, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessShipmentTrackingStatus' } } } }
         '401': { $ref: '#/components/responses/AuthError' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -2055,18 +2083,59 @@ components:
         items:
           type: array
           minItems: 1
-          items: { $ref: '#/components/schemas/Item' }
+          items: { $ref: '#/components/schemas/ShipmentOrderItem' }
+    ShipmentOrderItem:
+      type: object
+      additionalProperties: false
+      required: [sku, productName, quantity, unitPrice, currency]
+      properties:
+        sku: { type: string, minLength: 1 }
+        productName: { type: string, minLength: 1 }
+        quantity: { type: number, format: decimal, exclusiveMinimum: true }
+        unitPrice: { $ref: '#/components/schemas/Money' }
+        currency: { type: string, minLength: 1 }
+        hsCode: { type: string }
+        countryOfOrigin: { type: string }
+    UpdateShipmentOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [version, senderAddress, receiverAddress, items]
+      properties:
+        version: { type: integer, format: int64, minimum: 0 }
+        senderAddress: { $ref: '#/components/schemas/Address' }
+        receiverAddress: { $ref: '#/components/schemas/Address' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ShipmentOrderItem' }
+        remark: { type: string }
+        channelId: { nullable: true, description: 禁止修改；非空返回 ORDER-1007。 }
+        destinationCountry: { nullable: true, description: 禁止修改；非空返回 ORDER-1007。 }
+        declaredWeight: { nullable: true, description: 禁止修改；非空返回 ORDER-1007。 }
+        declaredLength: { nullable: true, description: 禁止修改；非空返回 ORDER-1007。 }
+        declaredWidth: { nullable: true, description: 禁止修改；非空返回 ORDER-1007。 }
+        declaredHeight: { nullable: true, description: 禁止修改；非空返回 ORDER-1007。 }
+        packageCount: { nullable: true, description: 禁止修改；非空返回 ORDER-1007。 }
+        priceRuleVersion: { nullable: true, description: 禁止修改；非空返回 ORDER-1007。 }
+        chargeableWeight: { nullable: true, description: 禁止修改；非空返回 ORDER-1007。 }
+        amount: { nullable: true, description: 禁止修改；非空返回 ORDER-1007。 }
+        currency: { nullable: true, description: 禁止修改；非空返回 ORDER-1007。 }
+        quoteSnapshot: { nullable: true, description: 禁止修改；非空返回 ORDER-1007。 }
     ShipmentOrder:
       type: object
-      required: [id, orderNo, quoteId, status, estimatedFee, currency, chargeableWeight, createdAt]
+      required: [id, orderNo, quoteId, status, estimatedFee, currency, chargeableWeight, version, createdAt]
       properties:
         id: { $ref: '#/components/schemas/Id' }
         orderNo: { type: string }
         quoteId: { $ref: '#/components/schemas/Id' }
-        status: { type: string, enum: [DRAFT] }
+        status: { $ref: '#/components/schemas/OrderStatus' }
         estimatedFee: { $ref: '#/components/schemas/Money' }
         currency: { $ref: '#/components/schemas/CurrencyCode' }
         chargeableWeight: { $ref: '#/components/schemas/Weight' }
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          description: 当前订单乐观锁版本；草稿更新、提交或取消成功后返回递增后的最新值。
         createdAt: { $ref: '#/components/schemas/UtcDateTime' }
     ApiSuccessShipmentOrder:
       allOf:
@@ -2074,6 +2143,21 @@ components:
         - type: object
           properties:
             data: { $ref: '#/components/schemas/ShipmentOrder' }
+    ShipmentOrderPage:
+      type: object
+      required: [page, pageSize, totalPages, total, items]
+      properties:
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        totalPages: { type: integer, format: int64, minimum: 0 }
+        total: { type: integer, format: int64, minimum: 0 }
+        items: { type: array, items: { $ref: '#/components/schemas/ShipmentOrder' } }
+    ApiSuccessShipmentOrderPage:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ShipmentOrderPage' }
     Order:
       type: object
       required: [id, orderNo, quoteId, currentStatus, estimatedFee, currentFee, currency, version]
@@ -2307,6 +2391,37 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/TrackingPage'
+    ShipmentTrackingEvent:
+      type: object
+      required: [id, trackingNo, eventCode, eventTime, processStatus]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        trackingNo: { type: string }
+        eventCode: { type: string }
+        description: { type: string, nullable: true }
+        eventTime: { $ref: '#/components/schemas/UtcDateTime' }
+        processStatus: { type: string, enum: [PENDING, PROCESSED, RETRY, REJECTED] }
+    ShipmentTrackingStatus:
+      type: object
+      required: [orderId, currentStatus]
+      properties:
+        orderId: { $ref: '#/components/schemas/Id' }
+        currentStatus: { $ref: '#/components/schemas/OrderStatus' }
+        latestEvent:
+          allOf: [{ $ref: '#/components/schemas/ShipmentTrackingEvent' }]
+          nullable: true
+    ApiSuccessShipmentTrackingList:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data: { type: array, items: { $ref: '#/components/schemas/ShipmentTrackingEvent' } }
+    ApiSuccessShipmentTrackingStatus:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ShipmentTrackingStatus' }
     BillBatch:
       type: object
       properties:
@@ -2400,6 +2515,12 @@ components:
           type: integer
           format: int64
           minimum: 0
+    OrderActionRequest:
+      type: object
+      required: [version]
+      properties:
+        version: { type: integer, format: int64, minimum: 0 }
+        reason: { type: string }
     AuditLog:
       type: object
       required: [id, tenantId, actionType, resourceType, resultStatus, detail, occurredAt, createdAt]
@@ -2721,6 +2842,14 @@ components:
           required: [countryCodes]
           properties:
             countryCodes: { type: array, minItems: 1, uniqueItems: true, items: { type: string, pattern: '^[A-Z]{2}$' } }
+    ApiSuccessServiceCountryList:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { type: string, pattern: '^[A-Z]{2}$' }
     PublishPriceRuleRequest:
       type: object
       required: [versionNo, ruleName, currency, volumeDivisor, roundingMode, roundingIncrement, effectiveFrom, tiers]

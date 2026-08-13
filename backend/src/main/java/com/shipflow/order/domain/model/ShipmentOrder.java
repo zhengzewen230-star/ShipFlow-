@@ -8,4 +8,4 @@ public record ShipmentOrder(Long id, Long tenantId, String orderNo, String idemp
                             String destinationCountry, BigDecimal declaredWeight, BigDecimal declaredLength,
                             BigDecimal declaredWidth, BigDecimal declaredHeight, BigDecimal volumeWeight,
                             BigDecimal chargeableWeight, BigDecimal estimatedFee, String currency,
-                            LocalDateTime createdAt) { }
+                            Long version, LocalDateTime createdAt) { }
