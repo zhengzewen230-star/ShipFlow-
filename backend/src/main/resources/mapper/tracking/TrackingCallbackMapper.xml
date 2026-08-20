@@ -68,4 +68,12 @@
       (#{tenantId}, #{systemUserId}, 'TRACKING_CALLBACK', 'SHIPMENT_ORDER', #{orderId},
        #{requestId}, 'SUCCESS', NULL, CAST(#{detail} AS JSON), #{occurredAt})
   </insert>
+  <insert id="insertRetainedAudit">
+    INSERT INTO audit_log
+      (tenant_id, operator_user_id, action_type, resource_type, resource_id, request_id,
+       result_status, reason, detail, occurred_at)
+    VALUES
+      (#{tenantId}, #{systemUserId}, 'TRACKING_CALLBACK', 'SHIPMENT_ORDER', #{orderId},
+       #{requestId}, 'RETAINED', #{reason}, CAST(#{detail} AS JSON), #{occurredAt})
+  </insert>
 </mapper>

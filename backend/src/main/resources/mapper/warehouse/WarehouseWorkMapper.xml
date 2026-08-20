@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.warehouse.mapper.WarehouseWorkMapper">
+  <resultMap id="workItem" type="com.shipflow.warehouse.domain.WarehouseWorkItem">
+    <constructor>
+      <idArg column="id" javaType="java.lang.Long"/>
+      <arg column="business_order_no" javaType="string"/>
+      <arg column="sf_tracking_no" javaType="string"/>
+      <arg column="tenant_id" javaType="java.lang.Long"/>
+      <arg column="tenant_name" javaType="string"/>
+      <arg column="destination_country" javaType="string"/>
+      <arg column="declared_weight" javaType="java.math.BigDecimal"/>
+      <arg column="declared_length" javaType="java.math.BigDecimal"/>
+      <arg column="declared_width" javaType="java.math.BigDecimal"/>
+      <arg column="declared_height" javaType="java.math.BigDecimal"/>
+      <arg column="declared_volume_weight" javaType="java.math.BigDecimal"/>
+      <arg column="actual_weight" javaType="java.math.BigDecimal"/>
+      <arg column="actual_length" javaType="java.math.BigDecimal"/>
+      <arg column="actual_width" javaType="java.math.BigDecimal"/>
+      <arg column="actual_height" javaType="java.math.BigDecimal"/>
+      <arg column="actual_volume_weight" javaType="java.math.BigDecimal"/>
+      <arg column="chargeable_weight" javaType="java.math.BigDecimal"/>
+      <arg column="estimated_fee" javaType="java.math.BigDecimal"/>
+      <arg column="current_fee" javaType="java.math.BigDecimal"/>
+      <arg column="currency" javaType="string"/>
+      <arg column="fee_difference" javaType="java.math.BigDecimal"/>
+      <arg column="warehouse_status" javaType="string"/>
+      <arg column="logistics_status" javaType="string"/>
+      <arg column="version" javaType="java.lang.Long"/>
+      <arg column="outbound_at" javaType="java.time.LocalDateTime"/>
+      <arg column="outbound_by" javaType="java.lang.Long"/>
+      <arg column="created_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+  <sql id="projection">
+    o.id, o.order_no AS business_order_no, COALESCE(po.tracking_no, obr.tracking_no) AS sf_tracking_no,
+    o.tenant_id, t.tenant_name, o.destination_country,
+    o.declared_weight, o.declared_length, o.declared_width, o.declared_height,
+    o.declared_volume_weight, m.actual_weight, m.actual_length, m.actual_width,
+    m.actual_height, m.actual_volume_weight, o.chargeable_weight, o.estimated_fee,
+    o.current_fee, o.currency, COALESCE(a.difference_amount, 0) AS fee_difference,
+    CASE o.current_status
+      WHEN 'PENDING_INBOUND' THEN 'PENDING_INBOUND'
+      WHEN 'INBOUND' THEN 'PENDING_MEASUREMENT'
+      WHEN 'READY_FOR_OUTBOUND' THEN 'PENDING_OUTBOUND'
+      WHEN 'OUTBOUND' THEN 'OUTBOUND'
+      WHEN 'IN_TRANSIT' THEN 'IN_TRANSIT'
+      WHEN 'DELIVERED' THEN 'DELIVERED'
+      ELSE o.current_status
+    END AS warehouse_status,
+    o.current_status AS logistics_status, o.version, obr.outbound_at, obr.outbound_by, o.created_at
+  </sql>
+  <sql id="fromWhereBase">
+    FROM shipment_order o
+    JOIN tenant t ON t.id=o.tenant_id AND t.deleted=0
+    LEFT JOIN shipment_package p ON p.tenant_id=o.tenant_id AND p.shipment_order_id=o.id
+    LEFT JOIN (
+      SELECT wm.tenant_id, wm.shipment_package_id, wm.actual_weight, wm.actual_length,
+             wm.actual_width, wm.actual_height, wm.actual_volume_weight
+      FROM warehouse_measurement wm
+      JOIN (SELECT tenant_id, shipment_package_id, MAX(id) AS latest_id
+            FROM warehouse_measurement GROUP BY tenant_id, shipment_package_id) latest
+        ON latest.tenant_id=wm.tenant_id AND latest.shipment_package_id=wm.shipment_package_id
+       AND latest.latest_id=wm.id
+    ) m ON m.tenant_id=o.tenant_id AND m.shipment_package_id=p.id
+    LEFT JOIN warehouse_outbound_record obr ON obr.tenant_id=o.tenant_id AND obr.shipment_order_id=o.id
+    LEFT JOIN provider_order po ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+    LEFT JOIN (
+      SELECT fa.tenant_id, fa.shipment_order_id, fa.difference_amount
+      FROM fee_adjustment fa
+      JOIN (SELECT tenant_id, shipment_order_id, MAX(id) AS latest_id
+            FROM fee_adjustment GROUP BY tenant_id, shipment_order_id) latest_fee
+        ON latest_fee.tenant_id=fa.tenant_id AND latest_fee.shipment_order_id=fa.shipment_order_id
+       AND latest_fee.latest_id=fa.id
+    ) a ON a.tenant_id=o.tenant_id AND a.shipment_order_id=o.id
+    WHERE o.tenant_id=#{tenantId}
+  </sql>
+  <sql id="fromWhere">
+    <include refid="fromWhereBase"/>
+      <if test="status != null and status != ''">AND o.current_status=#{status}</if>
+      <if test="orderNo != null and orderNo != ''">AND o.order_no LIKE CONCAT('%',#{orderNo},'%')</if>
+  </sql>
+  <sql id="fromWhereById">
+    <include refid="fromWhereBase"/>
+    AND o.id=#{orderId}
+  </sql>
+  <select id="count" resultType="long">SELECT COUNT(1) <include refid="fromWhere"/></select>
+  <select id="findPage" resultMap="workItem">SELECT <include refid="projection"/> <include refid="fromWhere"/>
+    ORDER BY o.created_at DESC, o.id DESC LIMIT #{offset},#{pageSize}</select>
+  <select id="findById" resultMap="workItem">SELECT <include refid="projection"/> <include refid="fromWhereById"/></select>
+</mapper>

@@ -2,6 +2,7 @@ package com.shipflow.quote.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shipflow.logistics.domain.model.PriceRuleTier;
+import com.shipflow.logistics.application.LogisticsRejectionAuditService;
 import com.shipflow.quote.api.model.CreateQuoteRequest;
 import com.shipflow.quote.api.model.QuoteResponse;
 import com.shipflow.quote.domain.QuoteCalculator;
@@ -14,6 +15,7 @@ import com.shipflow.quote.mapper.QuotePricingRule;
 import com.shipflow.quote.mapper.QuotePricingRuleRow;
 import com.shipflow.store.domain.model.Store;
 import com.shipflow.store.mapper.StoreMapper;
+import com.shipflow.store.mapper.StoreScopeMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,20 +42,26 @@ public class QuoteCreationApplicationService {
     private final QuoteIdempotencyMapper idempotencyMapper;
     private final QuotePricingMapper pricingMapper;
     private final StoreMapper storeMapper;
+    private final StoreScopeMapper storeScopeMapper;
     private final QuoteAuditMapper auditMapper;
+    private final LogisticsRejectionAuditService rejectionAudit;
     private final QuoteQueryApplicationService queryService;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
     public QuoteCreationApplicationService(QuoteMapper quoteMapper, QuoteIdempotencyMapper idempotencyMapper,
                                            QuotePricingMapper pricingMapper, StoreMapper storeMapper,
+                                           StoreScopeMapper storeScopeMapper,
                                            QuoteAuditMapper auditMapper, QuoteQueryApplicationService queryService,
-                                           ObjectMapper objectMapper, Clock clock) {
+                                           ObjectMapper objectMapper, Clock clock,
+                                           LogisticsRejectionAuditService rejectionAudit) {
         this.quoteMapper = quoteMapper;
         this.idempotencyMapper = idempotencyMapper;
         this.pricingMapper = pricingMapper;
         this.storeMapper = storeMapper;
+        this.storeScopeMapper = storeScopeMapper;
         this.auditMapper = auditMapper;
+        this.rejectionAudit = rejectionAudit;
         this.queryService = queryService;
         this.objectMapper = objectMapper;
         this.clock = clock;
@@ -74,6 +82,9 @@ public class QuoteCreationApplicationService {
             return queryService.responseOf(existing);
         }
 
+        if (!storeScopeMapper.canAccessStore(tenantId, operatorUserId, request.storeId())) {
+            throw new QuoteException("COMMON-1006", 404);
+        }
         Store store = storeMapper.findById(tenantId, request.storeId());
         if (store == null) {
             throw new QuoteException("COMMON-1006", 404);
@@ -81,8 +92,12 @@ public class QuoteCreationApplicationService {
         if (!"ACTIVE".equals(store.status())) {
             throw new QuoteException("QUOTE-1006", 422);
         }
-        if (!pricingMapper.isActiveChannel(request.channelId())
-                || !pricingMapper.servesCountry(request.channelId(), country)) {
+        if (!pricingMapper.isActiveChannel(request.channelId())) {
+            rejectionAudit.record(tenantId, operatorUserId, "CREATE_QUOTE_REJECTED", "LOGISTICS_CHANNEL",
+                    request.channelId(), requestId, "CHANNEL_INACTIVE");
+            throw new QuoteException("QUOTE-1006", 422);
+        }
+        if (!pricingMapper.servesCountry(request.channelId(), country)) {
             throw new QuoteException("QUOTE-1006", 422);
         }
 
@@ -94,6 +109,9 @@ public class QuoteCreationApplicationService {
         QuotePricingRule rule = new QuotePricingRule(ruleRow.id(), ruleRow.channelId(), ruleRow.versionNo(),
                 ruleRow.ruleName(), ruleRow.currency(), ruleRow.volumeDivisor(), ruleRow.roundingMode(),
                 ruleRow.roundingIncrement(), ruleRow.effectiveFrom(), pricingMapper.findTiers(ruleRow.id()));
+        if (!rule.currency().matches("[A-Z]{3}")) {
+            throw new QuoteException("QUOTE-1002", 422);
+        }
         QuoteCalculator.Calculation calculation;
         try {
             calculation = QuoteCalculator.calculate(rule.publishedRule(), request.declaredWeight(),

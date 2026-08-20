@@ -43,4 +43,12 @@ public interface TrackingCallbackMapper {
                     @Param("requestId") String requestId,
                     @Param("detail") String detail,
                     @Param("occurredAt") LocalDateTime occurredAt);
+
+    int insertRetainedAudit(@Param("tenantId") Long tenantId,
+                            @Param("systemUserId") Long systemUserId,
+                            @Param("orderId") Long orderId,
+                            @Param("requestId") String requestId,
+                            @Param("detail") String detail,
+                            @Param("reason") String reason,
+                            @Param("occurredAt") LocalDateTime occurredAt);
 }

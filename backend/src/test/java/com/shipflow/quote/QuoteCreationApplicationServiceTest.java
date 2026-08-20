@@ -3,6 +3,7 @@ package com.shipflow.quote;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shipflow.logistics.domain.model.PriceRuleTier;
 import com.shipflow.logistics.domain.model.PublishedPriceRule;
+import com.shipflow.logistics.application.LogisticsRejectionAuditService;
 import com.shipflow.quote.api.model.CreateQuoteRequest;
 import com.shipflow.quote.application.QuoteCreationApplicationService;
 import com.shipflow.quote.application.QuoteException;
@@ -15,6 +16,7 @@ import com.shipflow.quote.mapper.QuotePricingMapper;
 import com.shipflow.quote.mapper.QuotePricingRuleRow;
 import com.shipflow.store.domain.model.Store;
 import com.shipflow.store.mapper.StoreMapper;
+import com.shipflow.store.mapper.StoreScopeMapper;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -41,11 +43,13 @@ class QuoteCreationApplicationServiceTest {
     private final QuoteIdempotencyMapper idempotency = mock(QuoteIdempotencyMapper.class);
     private final QuotePricingMapper pricing = mock(QuotePricingMapper.class);
     private final StoreMapper stores = mock(StoreMapper.class);
+    private final StoreScopeMapper scopes = mock(StoreScopeMapper.class);
     private final QuoteAuditMapper audit = mock(QuoteAuditMapper.class);
+    private final LogisticsRejectionAuditService rejectionAudit = mock(LogisticsRejectionAuditService.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-08-11T08:00:00Z"), ZoneOffset.UTC);
     private final QuoteQueryApplicationService query = new QuoteQueryApplicationService(quotes, new ObjectMapper(), clock);
     private final QuoteCreationApplicationService service = new QuoteCreationApplicationService(quotes, idempotency,
-            pricing, stores, audit, query, new ObjectMapper(), clock);
+            pricing, stores, scopes, audit, query, new ObjectMapper(), clock, rejectionAudit);
 
     @Test
     void createsFrozenQuoteFromCurrentRuleAndWritesIdempotencyAndAudit() {
@@ -71,6 +75,7 @@ class QuoteCreationApplicationServiceTest {
     void rejectsInactiveOrUnsupportedChannelBeforeQuoteInsert() {
         CreateQuoteRequest request = request("JP");
         when(idempotency.find(7L, "createQuote", "quote-key")).thenReturn(null);
+        when(scopes.canAccessStore(7L, 12L, 3L)).thenReturn(true);
         when(stores.findById(7L, 3L)).thenReturn(activeStore());
         when(pricing.isActiveChannel(4L)).thenReturn(true);
         when(pricing.servesCountry(4L, "JP")).thenReturn(false);
@@ -78,6 +83,21 @@ class QuoteCreationApplicationServiceTest {
         assertThatThrownBy(() -> service.create(7L, 12L, request, "quote-key", null))
                 .isInstanceOf(QuoteException.class)
                 .satisfies(error -> assertThat(((QuoteException) error).code()).isEqualTo("QUOTE-1006"));
+        verify(quotes, never()).insert(any());
+    }
+
+    @Test
+    void recordsInactiveChannelRejectionOutsideQuoteTransaction() {
+        CreateQuoteRequest request = request("US");
+        when(idempotency.find(7L, "createQuote", "quote-key")).thenReturn(null);
+        when(scopes.canAccessStore(7L, 12L, 3L)).thenReturn(true);
+        when(stores.findById(7L, 3L)).thenReturn(activeStore());
+        when(pricing.isActiveChannel(4L)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.create(7L, 12L, request, "quote-key", "trace-1"))
+                .isInstanceOf(QuoteException.class);
+        verify(rejectionAudit).record(7L, 12L, "CREATE_QUOTE_REJECTED", "LOGISTICS_CHANNEL", 4L,
+                "trace-1", "CHANNEL_INACTIVE");
         verify(quotes, never()).insert(any());
     }
 
@@ -108,6 +128,7 @@ class QuoteCreationApplicationServiceTest {
 
     private void setEligiblePrerequisites(CreateQuoteRequest request) {
         when(idempotency.find(7L, "createQuote", "quote-key")).thenReturn(null);
+        when(scopes.canAccessStore(7L, 12L, 3L)).thenReturn(true);
         when(stores.findById(7L, 3L)).thenReturn(activeStore());
         when(pricing.isActiveChannel(4L)).thenReturn(true);
         when(pricing.servesCountry(4L, request.destinationCountry())).thenReturn(true);

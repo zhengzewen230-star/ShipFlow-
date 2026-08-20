@@ -19,6 +19,7 @@ import com.shipflow.logistics.domain.PriceRuleTierValidator;
 import com.shipflow.logistics.mapper.LogisticsIdempotencyMapper;
 import com.shipflow.logistics.mapper.LogisticsAuditMapper;
 import com.shipflow.logistics.mapper.PriceRuleRow;
+import com.shipflow.logistics.mapper.PublicLogisticsChannelRow;
 
 /** Platform-only orchestration for logistics master data. */
 @Service
@@ -65,16 +66,30 @@ public class LogisticsMasterApplicationService {
         long total = mapper.countAvailableChannels(country);
         return new LogisticsChannelPage(page, pageSize, total, pages(total, pageSize), mapper.pageAvailableChannels(country, offset(page, pageSize), pageSize).stream().map(this::toChannel).toList());
     }
+    public PublicLogisticsChannelPage publicChannels(String channelCode, String channelName, String serviceCountry,
+                                                     String status, int page, int pageSize, String sortField,
+                                                     String sortDirection) {
+        checkPage(page, pageSize);
+        String normalizedStatus = normalizeStatus(status);
+        String normalizedSortField = normalizeSortField(sortField);
+        String normalizedSortDirection = normalizeSortDirection(sortDirection);
+        String country = normalizeCountry(serviceCountry);
+        String code = normalizeFilter(channelCode, 64);
+        String name = normalizeFilter(channelName, 128);
+        long total = mapper.countPublicChannels(code, name, country, normalizedStatus);
+        return new PublicLogisticsChannelPage(page, pageSize, total, pages(total, pageSize),
+                mapper.pagePublicChannels(code, name, country, normalizedStatus, normalizedSortField,
+                        normalizedSortDirection, offset(page, pageSize), pageSize).stream().map(this::toPublicChannel).toList());
+    }
+    public PublicLogisticsChannel publicChannel(Long channelId) {
+        PublicLogisticsChannelRow row = mapper.findPublicChannel(channelId);
+        if (row == null) throw new LogisticsException("COMMON-1006", 404);
+        return toPublicChannel(row);
+    }
     public LogisticsChannel availableChannel(Long channelId) {
         LogisticsChannelRow row = mapper.findAvailableChannel(channelId);
         if (row == null) throw new LogisticsException("COMMON-1006", 404);
         return toChannel(row);
-    }
-    public PublishedPriceRule effectivePublishedPriceRule(Long channelId) {
-        availableChannel(channelId);
-        PriceRuleRow row = mapper.findEffectivePublishedPriceRule(channelId, LocalDateTime.now(clock));
-        if (row == null) throw new LogisticsException("COMMON-1006", 404);
-        return toPublishedRule(row);
     }
     @Transactional public LogisticsChannel createChannel(CreateLogisticsChannelRequest request, String key, Long operator, String requestId) {
         String hash=hash(request.providerId()+"\n"+request.channelCode()+"\n"+request.channelName()+"\n"+request.transportMode()+"\n"+request.serviceArea()); LogisticsIdempotencyMapper.Record prior=prior("createLogisticsChannel",key,hash); if(prior!=null)return channelRequired(prior.resourceId());
@@ -120,6 +135,12 @@ public class LogisticsMasterApplicationService {
     private LogisticsProvider providerRequired(Long id) { LogisticsProvider value = mapper.findProvider(id); if(value == null) throw new LogisticsException("COMMON-1006", 404); return value; }
     private LogisticsChannel channelRequired(Long id) { LogisticsChannelRow row = mapper.findChannel(id); if(row == null) throw new LogisticsException("COMMON-1006", 404); return toChannel(row); }
     private LogisticsChannel toChannel(LogisticsChannelRow row) { return new LogisticsChannel(row.id(), row.providerId(), row.channelCode(), row.channelName(), row.transportMode(), row.serviceArea(), row.status(), row.version(), mapper.findServiceCountries(row.id()), row.createdAt(), row.updatedAt()); }
+    private PublicLogisticsChannel toPublicChannel(PublicLogisticsChannelRow row) {
+        return new PublicLogisticsChannel(row.id(), row.providerName(), row.channelCode(), row.channelName(),
+                row.transportMode(), mapper.findServiceCountries(row.id()), row.priceRuleVersion(),
+                row.effectiveFrom(), row.effectiveTo(), row.volumeDivisor(), row.status(),
+                List.of("supportedCargoAttributes", "publicPriceDescription", "priceRuleTiers", "internalCost", "supplierConfiguration"));
+    }
     private PublishedPriceRule publishedRuleRequired(Long id) { PriceRuleRow row=mapper.findPublishedPriceRule(id); if(row==null)throw new LogisticsException("COMMON-1006",404); return toPublishedRule(row); }
     private PublishedPriceRule toPublishedRule(PriceRuleRow row) { return new PublishedPriceRule(row.id(),row.channelId(),row.versionNo(),row.ruleName(),row.currency(),row.volumeDivisor(),row.roundingMode(),row.roundingIncrement(),row.effectiveFrom(),mapper.findPriceRuleTiers(row.id())); }
     private LogisticsException conflictOrMissingProvider(Long id) { return mapper.findProvider(id) == null ? new LogisticsException("COMMON-1006", 404) : new LogisticsException("COMMON-1005", 409); }
@@ -127,6 +148,11 @@ public class LogisticsMasterApplicationService {
     private LogisticsException duplicate() { return new LogisticsException("LOGISTICS-1001", 409); }
     private LogisticsException rule(String code) { return new LogisticsException(code, 422); }
     private boolean activeStatus(String status) { return "ACTIVE".equals(status) || "DISABLED".equals(status); }
+    private String normalizeStatus(String status) { if (status == null || status.isBlank()) return null; if (!activeStatus(status)) throw new LogisticsException("COMMON-1001", 400); return status; }
+    private String normalizeSortField(String value) { if (value == null || value.isBlank()) return "updatedAt"; return switch (value) { case "channelCode", "channelName", "providerName", "status", "effectiveFrom", "updatedAt" -> value; default -> throw new LogisticsException("COMMON-1001", 400); }; }
+    private String normalizeSortDirection(String value) { if (value == null || value.isBlank()) return "DESC"; if ("ASC".equals(value) || "DESC".equals(value)) return value; throw new LogisticsException("COMMON-1001", 400); }
+    private String normalizeCountry(String value) { if (value == null || value.isBlank()) return null; String country = value.trim().toUpperCase(Locale.ROOT); if (!country.matches("[A-Z]{2}")) throw new LogisticsException("COMMON-1001", 400); return country; }
+    private String normalizeFilter(String value, int max) { if (value == null || value.isBlank()) return null; String result = value.trim(); if (result.length() > max) throw new LogisticsException("COMMON-1001", 400); return result; }
     private void checkPage(int page, int pageSize) { if(page < 1 || pageSize < 1 || pageSize > 100) throw new LogisticsException("COMMON-1001", 400); }
     private int offset(int page, int pageSize) { return (page - 1) * pageSize; }
     private int pages(long total, int pageSize) { return (int) ((total + pageSize - 1) / pageSize); }

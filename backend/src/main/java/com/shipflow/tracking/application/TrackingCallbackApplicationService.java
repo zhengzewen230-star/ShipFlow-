@@ -64,6 +64,8 @@ public class TrackingCallbackApplicationService {
             results.add(result);
             if ("DUPLICATE".equals(result.status())) {
                 duplicated++;
+            } else if ("RETAINED".equals(result.status())) {
+                // The event was stored for traceability but intentionally did not mutate the order.
             } else {
                 accepted++;
             }
@@ -164,7 +166,9 @@ public class TrackingCallbackApplicationService {
             throw new TrackingCallbackException("TRACK-1003", 409);
         }
         if (decision == TrackingStatusMapping.Decision.ILLEGAL) {
-            throw new RetainedTrackingCallbackException("TRACK-1002", 422);
+            mapper.insertRetainedAudit(order.tenantId(), identity.systemUserId(), order.orderId(), requestId,
+                    auditDetail(event, order.currentStatus(), target, false), processMessage, receivedTime);
+            return TrackingEventResult.retained(event.eventId(), "TRACK-1002", processMessage);
         }
 
         boolean advanced = decision == TrackingStatusMapping.Decision.ADVANCE;

@@ -1,6 +1,7 @@
 package com.shipflow.onboarding.mapper;
 
 import com.shipflow.onboarding.domain.model.OnboardingApplication;
+import com.shipflow.onboarding.domain.model.GuestEstimateLead;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import java.time.LocalDateTime;
@@ -15,6 +16,18 @@ public interface OnboardingMapper {
                        @Param("contactName") String contactName, @Param("businessEmail") String businessEmail,
                        @Param("contactPhone") String contactPhone, @Param("idempotencyKey") String idempotencyKey);
     IdempotentEstimate findEstimateByIdempotencyKey(@Param("idempotencyKey") String idempotencyKey);
+    long countEstimateLeads(@Param("status") String status, @Param("keyword") String keyword,
+                            @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+    List<GuestEstimateLead> findEstimateLeads(@Param("status") String status, @Param("keyword") String keyword,
+                                              @Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
+                                              @Param("offset") int offset, @Param("pageSize") int pageSize);
+    GuestEstimateLead findEstimateLead(@Param("leadId") Long leadId);
+    int updateEstimateLeadStatus(@Param("leadId") Long leadId, @Param("status") String status,
+                                 @Param("handlingRemark") String handlingRemark, @Param("handledByUserId") Long handledByUserId,
+                                 @Param("handledAt") LocalDateTime handledAt, @Param("version") long version);
+    int insertEstimateLeadAudit(@Param("operatorUserId") Long operatorUserId, @Param("leadId") Long leadId,
+                                @Param("requestId") String requestId, @Param("reason") String reason,
+                                @Param("occurredAt") LocalDateTime occurredAt);
     int insertApplication(@Param("applicationNo") String applicationNo, @Param("companyName") String companyName,
                           @Param("contactName") String contactName, @Param("businessEmail") String businessEmail,
                           @Param("contactPhone") String contactPhone, @Param("countryCode") String countryCode,

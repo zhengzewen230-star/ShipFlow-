@@ -14,9 +14,18 @@ mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
 
 shipflow:
+  sf:
+    api-base-url: ${SF_OPEN_URL:https://sfapi-sbox.sf-express.com/std/service}
+    partner-id: ${SF_OPEN_PARTNER_ID:YBGO1LWA}
+    check-word: ${SF_OPEN_CHECK_WORD:OkhXKWh8E66Aoacd4WawoZ7cBaj2CR7i}
+    customer-code: ${SF_OPEN_CUSTOMER_CODE:YBGO1LWA}
+    api-timeout-ms: ${SF_OPEN_TIMEOUT_MS:5000}
+    api-retry-limit: ${SF_OPEN_RETRY_LIMIT:0}
+    sandbox-enabled: ${SF_OPEN_SANDBOX_ENABLED:true}
+    strict-mode: ${SF_OPEN_STRICT_MODE:false}
   security:
     jwt:
-      enabled: ${SHIPFLOW_JWT_ENABLED:false}
+      enabled: ${SHIPFLOW_JWT_ENABLED:true}
       issuer: ${SHIPFLOW_JWT_ISSUER:shipflow}
       audience: ${SHIPFLOW_JWT_AUDIENCE:shipflow-api}
       access-token-ttl: ${SHIPFLOW_JWT_ACCESS_TOKEN_TTL:15m}

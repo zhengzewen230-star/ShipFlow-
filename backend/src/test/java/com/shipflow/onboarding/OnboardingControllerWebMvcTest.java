@@ -3,6 +3,9 @@ package com.shipflow.onboarding;
 import com.shipflow.common.exception.GlobalExceptionHandler;
 import com.shipflow.onboarding.api.OnboardingController;
 import com.shipflow.onboarding.api.model.GuestEstimateResponse;
+import com.shipflow.onboarding.domain.model.GuestEstimateLead;
+import com.shipflow.onboarding.domain.model.GuestEstimateLeadPage;
+import com.shipflow.onboarding.domain.model.OnboardingApplication;
 import com.shipflow.onboarding.application.OnboardingApplicationService;
 import com.shipflow.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
@@ -39,4 +42,24 @@ class OnboardingControllerWebMvcTest {
     }
     @Test void tenantCannotReadPlatformOnboardingApplications() throws Exception { mockMvc.perform(get("/api/v1/platform/onboarding-applications").with(jwt().jwt(j->j.subject("2").claim("tenant_id","7")).authorities(new SimpleGrantedAuthority("scope:TENANT"),new SimpleGrantedAuthority("tenant:manage")))).andExpect(status().isForbidden()); }
     @Test void platformReviewerCanListApplications() throws Exception { when(service.list(null,1,20)).thenReturn(new com.shipflow.onboarding.domain.model.OnboardingPage(1,20,0,0,java.util.List.of())); mockMvc.perform(get("/api/v1/platform/onboarding-applications").with(jwt().jwt(j->j.subject("1")).authorities(new SimpleGrantedAuthority("scope:PLATFORM"),new SimpleGrantedAuthority("tenant:manage")))).andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isArray()); }
+    @Test void platformReviewerCanGetApplicationDetail() throws Exception { when(service.get(7L)).thenReturn(application()); mockMvc.perform(get("/api/v1/platform/onboarding-applications/7").with(jwt().jwt(j->j.subject("1")).authorities(new SimpleGrantedAuthority("scope:PLATFORM"),new SimpleGrantedAuthority("tenant:manage")))).andExpect(status().isOk()).andExpect(jsonPath("$.data.applicationNo").value("APP-TEST")); }
+    @Test void tenantCannotGetPlatformApplicationDetail() throws Exception { mockMvc.perform(get("/api/v1/platform/onboarding-applications/7").with(jwt().jwt(j->j.subject("2").claim("tenant_id","7")).authorities(new SimpleGrantedAuthority("scope:TENANT"),new SimpleGrantedAuthority("tenant:manage")))).andExpect(status().isForbidden()); }
+    @Test void platformReviewerCanListGuestEstimateLeads() throws Exception { when(service.listEstimateLeads(eq("RECEIVED"),eq("UUID"),any(),any(),eq(1),eq(20))).thenReturn(new GuestEstimateLeadPage(1,20,1,1,java.util.List.of(lead()))); mockMvc.perform(get("/api/v1/platform/guest-estimate-leads").param("status","RECEIVED").param("keyword","UUID").with(jwt().jwt(j->j.subject("1")).authorities(new SimpleGrantedAuthority("scope:PLATFORM"),new SimpleGrantedAuthority("tenant:manage")))).andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].referenceNo").value("EST-UUID")); }
+    @Test void tenantCannotReadGuestEstimateLeads() throws Exception { mockMvc.perform(get("/api/v1/platform/guest-estimate-leads").with(jwt().jwt(j->j.subject("2").claim("tenant_id","7")).authorities(new SimpleGrantedAuthority("scope:TENANT"),new SimpleGrantedAuthority("tenant:manage")))).andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("COMMON-1004")); }
+    @Test void platformReviewerCanUpdateGuestEstimateLeadStatus() throws Exception {
+        when(service.updateEstimateLeadStatus(eq(4L), any(), eq(1L), any())).thenReturn(lead());
+
+        mockMvc.perform(patch("/api/v1/platform/guest-estimate-leads/4/status")
+                .with(csrf())
+                .with(jwt().jwt(jwt -> jwt.subject("1"))
+                        .authorities(
+                                new SimpleGrantedAuthority("scope:PLATFORM"),
+                                new SimpleGrantedAuthority("tenant:manage")))
+                .contentType("application/json")
+                .content("{\"status\":\"CONTACTING\",\"handlingRemark\":\"UUID follow-up\",\"version\":0}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("RECEIVED"));
+    }
+    private GuestEstimateLead lead(){return new GuestEstimateLead(4L,"EST-UUID","CN","US","AIR","GENERAL","Test cargo",new java.math.BigDecimal("1.000"),new java.math.BigDecimal("0.010000"),"Test","uuid@example.com","+8613800000000","RECEIVED",null,null,null,0L,java.time.LocalDateTime.parse("2026-08-13T00:00:00"),java.time.LocalDateTime.parse("2026-08-13T00:00:00"));}
+    private OnboardingApplication application(){return new OnboardingApplication(7L,"APP-TEST","Test Company","Test Contact","test@example.com","+8613800000000","CN","PENDING",null,null,null,0L,java.time.LocalDateTime.parse("2026-08-13T00:00:00"),null);}
 }

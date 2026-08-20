@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.format.annotation.DateTimeFormat;
+import java.time.LocalDateTime;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -42,24 +44,32 @@ public class QuoteController {
 
     @GetMapping
     public ApiResponse<QuotePageResponse> listQuotes(
+            @RequestParam(required = false) String quoteNo,
             @RequestParam(required = false) Long storeId,
             @RequestParam(required = false) Long channelId,
+            @RequestParam(required = false) String destinationCountry,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdTo,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime validFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime validTo,
+            @RequestParam(defaultValue = "createdAt") String sortField,
+            @RequestParam(defaultValue = "DESC") String sortDirection,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize,
             @AuthenticationPrincipal Jwt jwt) {
-        return ApiResponse.success(service.list(tenant(jwt), storeId, channelId, status, page, pageSize));
+        return ApiResponse.success(service.list(tenant(jwt), user(jwt), quoteNo, storeId, channelId, destinationCountry, status, createdFrom, createdTo, validFrom, validTo, sortField, sortDirection, page, pageSize));
     }
 
     @GetMapping("/{quoteId}")
     public ApiResponse<QuoteResponse> getQuote(@PathVariable Long quoteId, @AuthenticationPrincipal Jwt jwt) {
-        return ApiResponse.success(service.get(tenant(jwt), quoteId));
+        return ApiResponse.success(service.get(tenant(jwt), user(jwt), quoteId));
     }
 
     @PostMapping("/{quoteId}/validate")
     public ApiResponse<QuoteValidationResponse> validateQuote(@PathVariable Long quoteId,
                                                                @AuthenticationPrincipal Jwt jwt) {
-        return ApiResponse.success(service.validate(tenant(jwt), quoteId));
+        return ApiResponse.success(service.validate(tenant(jwt), user(jwt), quoteId));
     }
 
     private Long tenant(Jwt jwt) {
@@ -70,4 +80,5 @@ public class QuoteController {
             throw new QuoteException("COMMON-1004", 403);
         }
     }
+    private Long user(Jwt jwt) { try { return jwt == null ? null : Long.valueOf(jwt.getSubject()); } catch (NumberFormatException exception) { throw new QuoteException("COMMON-1004", 403); } }
 }

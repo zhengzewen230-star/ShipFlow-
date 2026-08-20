@@ -2,7 +2,7 @@ import { http, unwrap } from './http'
 import { writeConfig } from './request'
 import type { ApiPage, Id, PageQuery } from '@/types/api'
 export type BillBatchStatus = 'PROCESSING' | 'PARTIAL_SUCCESS' | 'SUCCESS' | 'FAILED'
-export interface BillBatch { id?: Id; batchNo?: string; fileHash?: string; status?: BillBatchStatus; totalCount?: number; successCount?: number; failureCount?: number }
+export interface BillBatch { id?: Id; providerId?: Id; batchNo?: string; fileName?: string; fileHash?: string; fileSize?: number; status?: BillBatchStatus; totalCount?: number; successCount?: number; failureCount?: number; version?: number; importedAt?: string; createdAt?: string; updatedAt?: string }
 export interface BillDetail { id?: Id; batchId?: Id; providerId?: Id; providerBillDetailNo?: string; lineNo?: number; shipmentOrderId?: Id | null; trackingNo?: string | null; billedAmount?: number; currency?: string; feeType?: string; detailStatus?: 'IMPORTED' | 'MATCHED' | 'ERROR'; errorMessage?: string | null }
 export interface Reconciliation { id?: Id; shipmentOrderId?: Id; billDetailId?: Id; systemAmount?: number; billedAmount?: number; differenceAmount?: number; reconciliationStatus?: 'AUTO_CLOSED' | 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'REJECTED'; version?: number }
 export const importBillingCsv = async (file: File, providerId: Id) => { const body = new FormData(); body.append('file', file); body.append('providerId', providerId); return unwrap<BillBatch>(await http.post('/billing/import-batches', body, writeConfig('bill-import'))) }

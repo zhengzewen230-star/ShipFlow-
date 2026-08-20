@@ -23,5 +23,5 @@ public record CreateShipmentOrderRequest(@NotNull @Valid Address senderAddress,
     public record Item(@NotBlank String sku, @NotBlank String productName,
                        @NotNull @DecimalMin(value = "0", inclusive = false) BigDecimal quantity,
                        @NotNull @DecimalMin(value = "0", inclusive = false) BigDecimal unitPrice,
-                       @NotBlank String currency, String hsCode, String countryOfOrigin) { }
+                       @NotBlank String currency, String countryOfOrigin) { }
 }

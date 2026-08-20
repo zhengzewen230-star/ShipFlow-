@@ -38,6 +38,22 @@ class LogisticsMasterApplicationServiceTest {
         assertThatThrownBy(() -> service.availableChannel(2L)).isInstanceOf(LogisticsException.class).extracting(e -> ((LogisticsException) e).code()).isEqualTo("COMMON-1006");
         verify(mapper).findAvailableChannel(2L);
     }
+    @Test void publicCatalogueAppliesWhitelistedFiltersAndNeverLoadsPriceTiers() {
+        when(mapper.countPublicChannels("SF", "Express", "US", "ACTIVE")).thenReturn(1L);
+        when(mapper.pagePublicChannels("SF", "Express", "US", "ACTIVE", "channelName", "ASC", 0, 20))
+                .thenReturn(List.of(new PublicLogisticsChannelRow(2L, "Provider", "SF-1", "Express", LogisticsChannel.TransportMode.AIR, "ACTIVE", 3, LocalDateTime.of(2026, 8, 1, 0, 0), null, java.math.BigDecimal.valueOf(5000))));
+        when(mapper.findServiceCountries(2L)).thenReturn(List.of("US"));
+        PublicLogisticsChannel channel = service.publicChannels(" SF ", " Express ", "us", "ACTIVE", 1, 20, "channelName", "ASC").items().getFirst();
+        assertThat(channel.providerName()).isEqualTo("Provider");
+        assertThat(channel.priceRuleVersion()).isEqualTo(3);
+        assertThat(channel.unavailableFields()).contains("priceRuleTiers", "internalCost", "supplierConfiguration");
+        verify(mapper, never()).findPriceRuleTiers(anyLong());
+    }
+    @Test void publicCatalogueRejectsUnknownSortField() {
+        assertThatThrownBy(() -> service.publicChannels(null, null, null, null, 1, 20, "internalCost", "ASC"))
+                .isInstanceOf(LogisticsException.class)
+                .extracting(error -> ((LogisticsException) error).code()).isEqualTo("COMMON-1001");
+    }
     @Test void priceRuleMustBelongToRequestedChannel() {
         when(mapper.findChannel(2L)).thenReturn(new LogisticsChannelRow(2L,1L,"C","Channel", LogisticsChannel.TransportMode.AIR,"CN-US","DISABLED",0L,null,null));
         when(mapper.findServiceCountries(2L)).thenReturn(List.of("US"));

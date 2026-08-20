@@ -58,6 +58,7 @@ class LoginIdentityServiceTest {
 
         assertThat(identity.scope()).isEqualTo(LoginIdentity.Scope.PLATFORM);
         assertThat(identity.tenantId()).isNull();
+        assertThat(identity.roleCodes()).containsExactly("PLATFORM_ADMIN");
         assertThat(identity.permissionCodes()).containsExactly("tenant:create");
     }
 
@@ -73,6 +74,7 @@ class LoginIdentityServiceTest {
 
         assertThat(identity.scope()).isEqualTo(LoginIdentity.Scope.TENANT);
         assertThat(identity.tenantId()).isEqualTo(1L);
+        assertThat(identity.roleCodes()).containsExactly("MERCHANT_ADMIN");
     }
 
     @Test
@@ -232,6 +234,7 @@ class LoginIdentityServiceTest {
         LoginIdentity identity = service.authenticate(new LoginCredentials("merchant", PASSWORD, "TENANT_DEMO_001"));
 
         assertThat(identity.permissionCodes()).containsExactly("order:create", "order:operate");
+        assertThat(identity.roleCodes()).containsExactly("MERCHANT_ADMIN");
     }
 
     @Test
@@ -279,6 +282,20 @@ class LoginIdentityServiceTest {
 
         assertThat(identity.permissionCodes()).containsExactly("order:create");
         assertThatThrownBy(() -> identity.permissionCodes().add("admin:all"))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void loginIdentityRoleCodesAreImmutableAndDefensivelyCopied() {
+        java.util.LinkedHashSet<String> mutableRoles = new java.util.LinkedHashSet<>();
+        mutableRoles.add("MERCHANT_ADMIN");
+        LoginIdentity identity = new LoginIdentity(1L, 1L, "user-a", "User A",
+                LoginIdentity.Scope.TENANT, mutableRoles, java.util.Set.of("order:create"));
+
+        mutableRoles.add("PLATFORM_ADMIN");
+
+        assertThat(identity.roleCodes()).containsExactly("MERCHANT_ADMIN");
+        assertThatThrownBy(() -> identity.roleCodes().add("PLATFORM_ADMIN"))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 

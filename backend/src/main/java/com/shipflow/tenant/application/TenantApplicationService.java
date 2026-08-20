@@ -29,7 +29,10 @@ public class TenantApplicationService {
     private static final String OPERATION = "createTenant";
     private static final List<String> INITIAL_ADMIN_PERMISSIONS = List.of(
             "store:create", "store:read", "store:manage", "user:read", "user:manage",
-            "role:read", "role:manage", "permission:read");
+            "role:read", "role:manage", "permission:read", "logistics:read",
+            "quote:read", "quote:create", "quote:validate", "order:read", "order:create",
+            "order:manage", "order:price-confirm", "tracking:read", "exception:read",
+            "exception:manage", "billing:read", "operations:read", "audit:read");
     private final TenantMapper tenantMapper;
     private final TenantProvisioningMapper provisioningMapper;
     private final TenantIdempotencyMapper idempotencyMapper;
@@ -76,6 +79,7 @@ public class TenantApplicationService {
             Long userId = provisioningMapper.findUserId(createdTenant.id(), request.initialAdmin().username());
             if (userId == null) throw new IllegalStateException("Initial admin user was not created");
             provisioningMapper.insertAdminRole(createdTenant.id());
+            provisioningMapper.insertStandardTenantRoles(createdTenant.id());
             provisioningMapper.insertNoPermissionRole(createdTenant.id());
             Long roleId = provisioningMapper.findRoleId(createdTenant.id(), "MERCHANT_ADMIN");
             if (roleId == null) throw new IllegalStateException("Tenant admin role was not created");

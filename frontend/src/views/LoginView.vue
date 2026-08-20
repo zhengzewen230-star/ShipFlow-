@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Eye, EyeOff, LockKeyhole, ShieldCheck } from '@l
 import { useAuthStore } from '@/stores/auth'
 import { getApiErrorMessage } from '@/services/http'
 import BrandMark from '@/components/BrandMark.vue'
+import { defaultConsolePath, isSafeConsoleRedirect } from '@/navigation/access'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,7 +18,7 @@ async function submit() {
   errorMessage.value = ''
   try {
     await auth.login({ username: form.username.trim(), password: form.password, tenantCode: form.tenantCode.trim() || undefined })
-    const redirect = typeof route.query.redirect === 'string' && (route.query.redirect === '/quote' || route.query.redirect.startsWith('/app')) ? route.query.redirect : '/app'
+    const redirect = isSafeConsoleRedirect(route.query.redirect) ? route.query.redirect : defaultConsolePath(auth)
     await router.replace(redirect)
   } catch (error) {
     errorMessage.value = error instanceof Error && error.message === 'CSRF_COOKIE_MISSING'

@@ -91,9 +91,9 @@
 
 | 编号/用途 | 方法 URL | 允许角色/请求头 | 参数/请求体 | 成功响应 | 业务错误 | 幂等/审计/数据表 | 测试重点 |
 |---|---|---|---|---|---|---|---|
-| CHANNEL-001 查询可用渠道 | `GET /api/v1/logistics/channels` | 租户用户；查询国家 | `countryCode`、`status=ACTIVE` | 渠道公开列表 | `COMMON-1001` | 只读/`logistics_channel`、`logistics_channel_service_country` |
+| CHANNEL-001 查询公开渠道目录 | `GET /api/v1/logistics/channels` | 租户用户；`scope=TENANT`、`logistics:read` | `channelCode`、`channelName`、`serviceCountry`、`status`、分页和白名单排序 | 渠道公开列表；不返回价格阶梯、成本、密钥或供应商配置 | `COMMON-1001` | 只读/`logistics_channel`、`logistics_channel_service_country`、当前生效规则摘要 |
 | CHANNEL-002 查询服务国家 | `GET /api/v1/logistics/channels/{channelId}/service-countries` | 租户用户 | `channelId` | 国家编码列表 | `COMMON-1006` | 只读/`logistics_channel_service_country` |
-| CHANNEL-003 查询渠道公开信息 | `GET /api/v1/logistics/channels/{channelId}` | 租户用户 | `channelId` | 渠道、物流商和价格规则摘要 | `COMMON-1006` | 只读/`logistics_provider`、`logistics_channel`、`price_rule` |
+| CHANNEL-003 查询渠道公开信息 | `GET /api/v1/logistics/channels/{channelId}` | 租户用户 | `channelId` | 渠道、物流商、服务国家和规则版本摘要；不可公开字段明确列出 | `COMMON-1006` | 只读/`logistics_provider`、`logistics_channel`、`price_rule` |
 | CHANNEL-004 查询/维护价格规则 | `GET/POST /api/v1/platform/logistics-channels/{channelId}/price-rules`、`GET /api/v1/platform/logistics-channels/{channelId}/price-rules/{priceRuleId}` | 平台管理员；创建请求含 `Idempotency-Key` | `versionNo`、计费参数、tiers | 已发布版本及阶梯；`201` 新版本 | `LOGISTICS-1004`、`LOGISTICS-1005`、`COMMON-1005` | 发布即不可修改；新版本唯一；写审计/`price_rule`、`price_rule_tier` |
 
 ## 8. 运费报价

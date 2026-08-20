@@ -27,7 +27,7 @@ class OperationsControllerWebMvcTest {
     @TestConfiguration static class Config { @Bean JwtDecoder jwtDecoder() { return token -> { throw new org.springframework.security.oauth2.jwt.BadJwtException("test"); }; } }
     @Test void summaryUsesTenantFromJwt() throws Exception {
         when(service.summary(7L)).thenReturn(new OperationsSummary(1,0,0,0,0,0,0,0,0,0));
-        mvc.perform(get("/api/v1/operations/summary").with(jwt().jwt(j -> j.subject("2").claim("tenant_id","7")).authorities(new SimpleGrantedAuthority("scope:TENANT"))))
+        mvc.perform(get("/api/v1/operations/summary").with(jwt().jwt(j -> j.subject("2").claim("tenant_id","7")).authorities(new SimpleGrantedAuthority("scope:TENANT"), new SimpleGrantedAuthority("operations:read"))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.draft").value(1));
         verify(service).summary(7L);
     }

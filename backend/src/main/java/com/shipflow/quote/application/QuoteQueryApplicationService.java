@@ -31,25 +31,32 @@ public class QuoteQueryApplicationService {
         this.clock = clock;
     }
 
-    public QuotePageResponse list(Long tenantId, Long storeId, Long channelId, String status,
+    public QuotePageResponse list(Long tenantId, Long userId, String quoteNo, Long storeId, Long channelId,
+                                  String destinationCountry, String status, LocalDateTime createdFrom, LocalDateTime createdTo,
+                                  LocalDateTime validFrom, LocalDateTime validTo, String sortField, String sortDirection,
                                   int page, int pageSize) {
         requireTenant(tenantId);
-        if (page < 1 || pageSize < 1 || pageSize > 100 || (status != null && !STATUSES.contains(status))) {
+        if (userId == null || userId < 1 || page < 1 || pageSize < 1 || pageSize > 100 || (status != null && !STATUSES.contains(status))
+                || !Set.of("createdAt", "quoteNo", "validTo", "amount", "status").contains(sortField == null ? "createdAt" : sortField)
+                || !("ASC".equals(sortDirection) || "DESC".equals(sortDirection) || sortDirection == null)
+                || (destinationCountry != null && !destinationCountry.matches("[A-Z]{2}"))) {
             throw new QuoteException("COMMON-1001", 400);
         }
-        long total = mapper.count(tenantId, storeId, channelId, status);
-        var items = mapper.findPage(tenantId, storeId, channelId, status,
-                (page - 1) * pageSize, pageSize).stream().map(this::response).toList();
+        LocalDateTime now = LocalDateTime.now(clock);
+        long total = mapper.countForUser(tenantId, userId, quoteNo, storeId, channelId, destinationCountry, status, createdFrom, createdTo, validFrom, validTo, now);
+        var items = mapper.findPageForUser(tenantId, userId, quoteNo, storeId, channelId, destinationCountry, status, createdFrom, createdTo, validFrom, validTo,
+                now, sortField == null ? "createdAt" : sortField, sortDirection == null ? "DESC" : sortDirection, (page - 1) * pageSize, pageSize).stream().map(this::response).toList();
         return new QuotePageResponse(page, pageSize, total,
                 (int) ((total + pageSize - 1) / pageSize), items);
     }
 
-    public QuoteResponse get(Long tenantId, Long quoteId) {
-        return response(required(tenantId, quoteId));
+
+    public QuoteResponse get(Long tenantId, Long userId, Long quoteId) {
+        return response(required(tenantId, userId, quoteId));
     }
 
-    public QuoteValidationResponse validate(Long tenantId, Long quoteId) {
-        Quote quote = required(tenantId, quoteId);
+    public QuoteValidationResponse validate(Long tenantId, Long userId, Long quoteId) {
+        Quote quote = required(tenantId, userId, quoteId);
         boolean expired = "EXPIRED".equals(quote.status())
                 || !quote.validTo().isAfter(LocalDateTime.now(clock));
         if ("CANCELLED".equals(quote.status())) {
@@ -64,12 +71,12 @@ public class QuoteQueryApplicationService {
         return new QuoteValidationResponse(quote.id(), true, false, true, "AVAILABLE");
     }
 
-    private Quote required(Long tenantId, Long quoteId) {
+    private Quote required(Long tenantId, Long userId, Long quoteId) {
         requireTenant(tenantId);
         if (quoteId == null || quoteId < 1) {
             throw new QuoteException("COMMON-1006", 404);
         }
-        Quote quote = mapper.findById(tenantId, quoteId);
+        Quote quote = mapper.findByIdForUser(tenantId, userId, quoteId);
         if (quote == null) {
             throw new QuoteException("COMMON-1006", 404);
         }
@@ -95,7 +102,14 @@ public class QuoteQueryApplicationService {
                 quote.declaredWeight(), quote.declaredLength(), quote.declaredWidth(), quote.declaredHeight(),
                 quote.volumeWeight(), quote.chargeableWeight(), quote.amount(), quote.currency(), feeDetail,
                 quote.validFrom().atOffset(ZoneOffset.UTC), quote.validTo().atOffset(ZoneOffset.UTC),
-                quote.status(), quote.version());
+                effectiveStatus(quote), quote.version());
+    }
+
+    private String effectiveStatus(Quote quote) {
+        if ("VALID".equals(quote.status()) && !quote.validTo().isAfter(LocalDateTime.now(clock))) {
+            return "EXPIRED";
+        }
+        return quote.status();
     }
 
     private QuoteResponse response(Quote quote) {

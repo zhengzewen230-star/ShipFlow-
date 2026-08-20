@@ -1,1 +1,94 @@
-<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.shipflow.tracking.mapper.TrackingQueryMapper"><resultMap id="event" type="com.shipflow.tracking.domain.TrackingEvent"><constructor><idArg column="id" javaType="long"/><arg column="tracking_no" javaType="string"/><arg column="event_code" javaType="string"/><arg column="event_description" javaType="string"/><arg column="event_time" javaType="java.time.LocalDateTime"/><arg column="process_status" javaType="string"/></constructor></resultMap><select id="orderExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM shipment_order WHERE tenant_id=#{tenantId} AND id=#{orderId})</select><select id="currentStatus" resultType="string">SELECT current_status FROM shipment_order WHERE tenant_id=#{tenantId} AND id=#{orderId}</select><select id="findEvents" resultMap="event">SELECT id,tracking_no,event_code,event_description,event_time,process_status FROM tracking_event WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} ORDER BY event_time ASC,id ASC</select><select id="findLatest" resultMap="event">SELECT id,tracking_no,event_code,event_description,event_time,process_status FROM tracking_event WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} ORDER BY event_time DESC,id DESC LIMIT 1</select></mapper>
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.tracking.mapper.TrackingQueryMapper">
+  <resultMap id="event" type="com.shipflow.tracking.domain.TrackingEvent">
+    <constructor>
+      <idArg column="id" javaType="long"/>
+      <arg column="tracking_no" javaType="string"/>
+      <arg column="event_code" javaType="string"/>
+      <arg column="event_description" javaType="string"/>
+      <arg column="event_time" javaType="java.time.LocalDateTime"/>
+      <arg column="process_status" javaType="string"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="eventView" type="com.shipflow.tracking.domain.TrackingEventView">
+    <constructor>
+      <idArg column="id" javaType="long"/>
+      <arg column="tracking_no" javaType="string"/>
+      <arg column="event_id" javaType="string"/>
+      <arg column="event_code" javaType="string"/>
+      <arg column="event_description" javaType="string"/>
+      <arg column="event_time" javaType="java.time.LocalDateTime"/>
+      <arg column="received_time" javaType="java.time.LocalDateTime"/>
+      <arg column="process_status" javaType="string"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="unifiedEvent" type="com.shipflow.tracking.domain.TrackingEventListItem">
+    <constructor>
+      <idArg column="id" javaType="long"/>
+      <arg column="order_id" javaType="long"/>
+      <arg column="order_no" javaType="string"/>
+      <arg column="tracking_no" javaType="string"/>
+      <arg column="occurred_at" javaType="java.time.LocalDateTime"/>
+      <arg column="location" javaType="string"/>
+      <arg column="event_code" javaType="string"/>
+      <arg column="event_description" javaType="string"/>
+      <arg column="source" javaType="string"/>
+      <arg column="process_status" javaType="string"/>
+      <arg column="exception_code" javaType="string"/>
+      <arg column="exception_id" javaType="long"/>
+      <arg column="request_id" javaType="string"/>
+    </constructor>
+  </resultMap>
+  <select id="orderExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM shipment_order WHERE tenant_id=#{tenantId} AND id=#{orderId})</select>
+  <select id="findOrderStoreId" resultType="long">SELECT store_id FROM shipment_order WHERE tenant_id=#{tenantId} AND id=#{orderId}</select>
+  <select id="currentStatus" resultType="string">SELECT current_status FROM shipment_order WHERE tenant_id=#{tenantId} AND id=#{orderId}</select>
+  <select id="findEvents" resultMap="event">SELECT id,tracking_no,event_code,event_description,event_time,process_status FROM tracking_event WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} ORDER BY event_time ASC,id ASC</select>
+  <select id="findLatest" resultMap="event">SELECT id,tracking_no,event_code,event_description,event_time,process_status FROM tracking_event WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} ORDER BY event_time DESC,id DESC LIMIT 1</select>
+  <select id="countEvents" resultType="long">SELECT COUNT(*) FROM tracking_event WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId}</select>
+  <select id="findEventPage" resultMap="eventView">SELECT id,tracking_no,event_id,event_code,event_description,event_time,received_time,process_status FROM tracking_event WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} ORDER BY event_time ASC,id ASC LIMIT #{limit} OFFSET #{offset}</select>
+
+  <sql id="unifiedEvents">
+    SELECT * FROM (
+      SELECT te.id, te.shipment_order_id AS order_id, o.order_no, te.tracking_no,
+             te.event_time AS occurred_at, NULL AS location, te.event_code, te.event_description,
+             'SF_EXPRESS' AS source, te.process_status,
+             CASE WHEN te.event_code IN ('LOST','RETURNED','EXCEPTION') OR te.process_status IN ('RETRY','REJECTED') THEN te.event_code END AS exception_code,
+             (SELECT ec.id FROM exception_case ec WHERE ec.tenant_id=o.tenant_id AND ec.shipment_order_id=o.id ORDER BY ec.id DESC LIMIT 1) AS exception_id,
+             (SELECT a.request_id FROM audit_log a WHERE a.tenant_id=o.tenant_id AND a.resource_id=o.id AND a.action_type='TRACKING_CALLBACK' ORDER BY a.id DESC LIMIT 1) AS request_id
+      FROM tracking_event te
+      JOIN shipment_order o ON o.tenant_id=te.tenant_id AND o.id=te.shipment_order_id
+      WHERE te.tenant_id=#{tenantId}
+      UNION ALL
+      SELECT se.id, se.order_id, se.order_no, se.waybill_no AS tracking_no,
+             se.occurred_at, se.location, se.status_code AS event_code, se.description AS event_description,
+             se.source, 'PROCESSED' AS process_status,
+             CASE WHEN se.status_code IN ('LOST','RETURNED','EXCEPTION') THEN se.status_code END AS exception_code,
+             (SELECT ec.id FROM exception_case ec WHERE ec.tenant_id=se.tenant_id AND ec.shipment_order_id=se.order_id ORDER BY ec.id DESC LIMIT 1) AS exception_id,
+             NULL AS request_id
+      FROM shipment_tracking_event se
+      WHERE se.tenant_id=#{tenantId}
+    ) events
+    WHERE EXISTS (
+      SELECT 1 FROM shipment_order scoped
+      JOIN sys_user_store_scope scope ON scope.tenant_id=scoped.tenant_id AND scope.store_id=scoped.store_id
+        AND scope.user_id=#{userId} AND scope.status='ACTIVE'
+      WHERE scoped.tenant_id=#{tenantId} AND scoped.id=events.order_id
+    )
+    <if test="orderNo != null">AND events.order_no = #{orderNo}</if>
+    <if test="trackingNo != null">AND events.tracking_no = #{trackingNo}</if>
+    <if test="statusCode != null">AND events.event_code = #{statusCode}</if>
+    <if test="from != null">AND events.occurred_at <![CDATA[>=]]> #{from}</if>
+    <if test="to != null">AND events.occurred_at <![CDATA[<=]]> #{to}</if>
+  </sql>
+  <select id="countUnifiedEventsForCaller" resultType="long">
+    SELECT COUNT(*) FROM (<include refid="unifiedEvents"/>) filtered
+  </select>
+  <select id="findUnifiedEventsForCaller" resultMap="unifiedEvent">
+    <include refid="unifiedEvents"/>
+    ORDER BY occurred_at
+    <choose><when test="sortDirection == 'ASC'">ASC</when><otherwise>DESC</otherwise></choose>, id
+    <choose><when test="sortDirection == 'ASC'">ASC</when><otherwise>DESC</otherwise></choose>
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+</mapper>

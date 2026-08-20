@@ -12,6 +12,7 @@ import com.shipflow.tenant.mapper.TenantMapper;
 import com.shipflow.tenant.mapper.TenantProvisioningMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.time.Clock;
@@ -49,7 +50,7 @@ class TenantApplicationServiceTest {
         when(tenantMapper.findByCode("TENANT_NEW")).thenReturn(null, created);
         when(provisioning.findUserId(42L, "admin")).thenReturn(8L);
         when(provisioning.findRoleId(42L, "MERCHANT_ADMIN")).thenReturn(9L);
-        when(provisioning.findPermissionIds(anyList())).thenReturn(java.util.List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L));
+        when(provisioning.findPermissionIds(anyList())).thenReturn(java.util.stream.LongStream.rangeClosed(1, 22).boxed().toList());
         when(tenantMapper.findById(42L)).thenReturn(created);
 
         Tenant result = service.create(request(), "key-1", 1L, "request-1");
@@ -57,8 +58,12 @@ class TenantApplicationServiceTest {
         assertThat(result.id()).isEqualTo(42L);
         verify(provisioning).insertAdminUser(eq(42L), eq("admin"), eq("Admin"), argThat(hash -> hash.startsWith("$2")));
         verify(provisioning).insertAdminRole(42L);
+        verify(provisioning).insertStandardTenantRoles(42L);
+        ArgumentCaptor<java.util.List<String>> permissionCodes = ArgumentCaptor.forClass(java.util.List.class);
+        verify(provisioning).findPermissionIds(permissionCodes.capture());
+        assertThat(permissionCodes.getValue()).contains("store:read", "logistics:read");
         verify(provisioning).bindAdmin(42L, 8L, 9L);
-        verify(provisioning).bindRolePermissions(eq(9L), argThat(ids -> ids.size() == 8));
+        verify(provisioning).bindRolePermissions(eq(9L), argThat(ids -> ids.size() == 22));
         verify(idempotency).complete("createTenant", "key-1", 42L);
         verify(audit).insert(eq(42L), eq(1L), eq("CREATE"), eq("tenant"), eq(42L), eq("request-1"), eq("SUCCESS"), isNull(), any());
     }

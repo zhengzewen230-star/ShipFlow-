@@ -34,7 +34,17 @@ public interface LogisticsMasterMapper {
     LogisticsChannelRow findAvailableChannel(@Param("channelId") Long channelId);
     List<LogisticsChannelRow> pageAvailableChannels(@Param("countryCode") String countryCode, @Param("offset") int offset, @Param("pageSize") int pageSize);
     long countAvailableChannels(@Param("countryCode") String countryCode);
-    PriceRuleRow findEffectivePublishedPriceRule(@Param("channelId") Long channelId, @Param("now") LocalDateTime now);
+    PublicLogisticsChannelRow findPublicChannel(@Param("channelId") Long channelId);
+    List<PublicLogisticsChannelRow> pagePublicChannels(@Param("channelCode") String channelCode,
+                                                        @Param("channelName") String channelName,
+                                                        @Param("serviceCountry") String serviceCountry,
+                                                        @Param("status") String status,
+                                                        @Param("sortField") String sortField,
+                                                        @Param("sortDirection") String sortDirection,
+                                                        @Param("offset") int offset,
+                                                        @Param("pageSize") int pageSize);
+    long countPublicChannels(@Param("channelCode") String channelCode, @Param("channelName") String channelName,
+                             @Param("serviceCountry") String serviceCountry, @Param("status") String status);
     List<com.shipflow.logistics.domain.model.PriceRuleTier> findPriceRuleTiers(@Param("priceRuleId") Long priceRuleId);
     int insertPriceRuleTier(@Param("priceRuleId") Long priceRuleId, @Param("tier") com.shipflow.logistics.domain.model.PriceRuleTier tier);
 }

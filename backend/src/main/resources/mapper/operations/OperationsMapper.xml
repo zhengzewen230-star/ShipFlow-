@@ -1,6 +1,49 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.shipflow.operations.mapper.OperationsMapper">
+  <sql id="tenantStoreVisible">
+    s.tenant_id=#{tenantId} AND s.status='ACTIVE' AND s.deleted=0
+    AND EXISTS (SELECT 1 FROM sys_user u WHERE u.id=#{userId} AND u.tenant_id=#{tenantId} AND u.status='ACTIVE' AND u.deleted=0)
+    AND (
+      EXISTS (SELECT 1 FROM sys_user_role ur JOIN sys_role r ON r.id=ur.role_id
+        WHERE ur.tenant_id=#{tenantId} AND ur.user_id=#{userId} AND r.tenant_id=#{tenantId}
+          AND r.role_scope='TENANT' AND r.status='ACTIVE' AND r.deleted=0
+          AND r.role_code IN ('MERCHANT_ADMIN','FINANCE_OPERATOR','WAREHOUSE_OPERATOR','CUSTOMER_SERVICE_OPERATOR'))
+      OR (
+        EXISTS (SELECT 1 FROM sys_user_role ur JOIN sys_role r ON r.id=ur.role_id
+          WHERE ur.tenant_id=#{tenantId} AND ur.user_id=#{userId} AND r.tenant_id=#{tenantId}
+            AND r.role_code='MERCHANT_OPERATOR' AND r.role_scope='TENANT' AND r.status='ACTIVE' AND r.deleted=0)
+        AND EXISTS (SELECT 1 FROM sys_user_store_scope uss
+          WHERE uss.tenant_id=#{tenantId} AND uss.user_id=#{userId} AND uss.store_id=s.id AND uss.status='ACTIVE')
+      )
+    )
+  </sql>
+
+  <sql id="orderVisible">
+    o.tenant_id=#{tenantId}
+    AND EXISTS (SELECT 1 FROM merchant_store s_scope WHERE s_scope.id=o.store_id
+      AND s_scope.tenant_id=#{tenantId} AND s_scope.status='ACTIVE' AND s_scope.deleted=0
+      AND EXISTS (SELECT 1 FROM sys_user u_scope WHERE u_scope.id=#{userId}
+        AND u_scope.tenant_id=#{tenantId} AND u_scope.status='ACTIVE' AND u_scope.deleted=0)
+      AND (
+        EXISTS (SELECT 1 FROM sys_user_role ur_scope JOIN sys_role r_scope ON r_scope.id=ur_scope.role_id
+          WHERE ur_scope.tenant_id=#{tenantId} AND ur_scope.user_id=#{userId} AND r_scope.tenant_id=#{tenantId}
+            AND r_scope.role_scope='TENANT' AND r_scope.status='ACTIVE' AND r_scope.deleted=0
+            AND r_scope.role_code IN ('MERCHANT_ADMIN','FINANCE_OPERATOR','WAREHOUSE_OPERATOR','CUSTOMER_SERVICE_OPERATOR'))
+        OR (
+          EXISTS (SELECT 1 FROM sys_user_role ur_scope JOIN sys_role r_scope ON r_scope.id=ur_scope.role_id
+            WHERE ur_scope.tenant_id=#{tenantId} AND ur_scope.user_id=#{userId} AND r_scope.tenant_id=#{tenantId}
+              AND r_scope.role_code='MERCHANT_OPERATOR' AND r_scope.role_scope='TENANT'
+              AND r_scope.status='ACTIVE' AND r_scope.deleted=0)
+          AND EXISTS (SELECT 1 FROM sys_user_store_scope uss_scope
+            WHERE uss_scope.tenant_id=#{tenantId} AND uss_scope.user_id=#{userId}
+              AND uss_scope.store_id=o.store_id AND uss_scope.status='ACTIVE')
+        )
+      )
+    )
+    <if test="storeId != null">AND o.store_id=#{storeId}</if>
+  </sql>
+
   <select id="findSummary" resultType="com.shipflow.operations.domain.OperationsSummary">
     SELECT COALESCE(SUM(current_status='DRAFT'),0) AS draft, COALESCE(SUM(current_status='PENDING_INBOUND'),0) AS pendingInbound,
            COALESCE(SUM(current_status='INBOUND'),0) AS inbound, COALESCE(SUM(current_status='PENDING_PRICE_CONFIRMATION'),0) AS pendingPriceConfirmation,
@@ -9,11 +52,128 @@
            COALESCE(SUM(current_status IN ('EXCEPTION','LOST','RETURNED')),0) AS exception, COALESCE(SUM(current_status='CANCELLED'),0) AS cancelled
     FROM shipment_order WHERE tenant_id=#{tenantId}
   </select>
+
   <select id="findTodos" resultType="com.shipflow.operations.domain.OperationsTodos">
     SELECT
       (SELECT COUNT(*) FROM shipment_order WHERE tenant_id=#{tenantId} AND current_status='PENDING_PRICE_CONFIRMATION') AS pendingPriceConfirmation,
       (SELECT COUNT(*) FROM reconciliation_record WHERE tenant_id=#{tenantId} AND reconciliation_status='PENDING_CONFIRMATION') AS pendingReconciliation,
       (SELECT COUNT(*) FROM exception_case WHERE tenant_id=#{tenantId} AND status IN ('OPEN','PROCESSING')) AS activeExceptions,
       (SELECT COUNT(*) FROM claim_record WHERE tenant_id=#{tenantId} AND status='SUBMITTED') AS submittedClaims
+  </select>
+
+  <select id="findVisibleStoreIds" resultType="long">
+    SELECT s.id FROM merchant_store s
+    WHERE <include refid="tenantStoreVisible"/>
+    <if test="storeId != null">AND s.id=#{storeId}</if>
+    ORDER BY s.id
+  </select>
+
+  <select id="findWorkbenchCounts" resultType="com.shipflow.operations.domain.WorkbenchCounts">
+    SELECT
+      (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/>
+        AND o.current_status IN ('DRAFT','PENDING_INBOUND','INBOUND','PENDING_PRICE_CONFIRMATION','READY_FOR_OUTBOUND','OUTBOUND','IN_TRANSIT')
+        AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}) AS pending_orders,
+      (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status='PENDING_INBOUND') AS pending_inbound,
+      (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status='INBOUND'
+        AND NOT EXISTS (SELECT 1 FROM shipment_package sp JOIN warehouse_measurement wm ON wm.shipment_package_id=sp.id
+          WHERE sp.tenant_id=o.tenant_id AND sp.shipment_order_id=o.id AND wm.tenant_id=o.tenant_id)) AS pending_measurement,
+      (SELECT COUNT(*) FROM shipment_order o LEFT JOIN provider_order po ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+        WHERE <include refid="orderVisible"/> AND o.current_status='READY_FOR_OUTBOUND' AND COALESCE(po.lifecycle_status,'') &lt;&gt; 'LABEL_READY') AS pending_label,
+      (SELECT COUNT(*) FROM shipment_order o JOIN provider_order po ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+        WHERE <include refid="orderVisible"/> AND o.current_status='READY_FOR_OUTBOUND' AND po.lifecycle_status='LABEL_READY') AS pending_outbound,
+      (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status='IN_TRANSIT') AS in_transit,
+      (SELECT COUNT(DISTINCT t.shipment_order_id) FROM tracking_event t JOIN shipment_order o ON o.id=t.shipment_order_id AND o.tenant_id=t.tenant_id
+        WHERE <include refid="orderVisible"/> AND t.process_status IN ('RETRY','REJECTED') AND t.received_time &gt;= #{from} AND t.received_time &lt; #{to}) AS tracking_exception,
+      (SELECT COUNT(*) FROM fee_adjustment fa JOIN shipment_order o ON o.id=fa.shipment_order_id AND o.tenant_id=fa.tenant_id
+        WHERE <include refid="orderVisible"/> AND fa.confirmation_status IN ('PENDING_CONFIRMATION','REQUESTED')) AS pending_fee_confirmation,
+      (SELECT COUNT(DISTINCT b.id) FROM bill_import_batch b JOIN bill_detail d ON d.bill_import_batch_id=b.id AND d.tenant_id=b.tenant_id
+        JOIN shipment_order o ON o.id=d.shipment_order_id AND o.tenant_id=d.tenant_id
+        WHERE <include refid="orderVisible"/> AND (b.status IN ('FAILED','PARTIAL_SUCCESS') OR d.detail_status='ERROR')
+          AND b.created_at &gt;= #{from} AND b.created_at &lt; #{to}) AS bill_import_errors,
+      (SELECT COUNT(*) FROM reconciliation_record rr JOIN shipment_order o ON o.id=rr.shipment_order_id AND o.tenant_id=rr.tenant_id
+        WHERE <include refid="orderVisible"/> AND rr.reconciliation_status IN ('PENDING_CONFIRMATION','REJECTED')
+          AND rr.difference_amount &lt;&gt; 0 AND rr.created_at &gt;= #{from} AND rr.created_at &lt; #{to}) AS reconciliation_difference,
+      (SELECT COUNT(*) FROM exception_case e JOIN shipment_order o ON o.id=e.shipment_order_id AND o.tenant_id=e.tenant_id
+        WHERE <include refid="orderVisible"/> AND e.status='PENDING_FINANCE_CONFIRMATION'
+          AND e.created_at &gt;= #{from} AND e.created_at &lt; #{to}) AS pending_finance_review,
+      (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/>
+        AND (NOT EXISTS (SELECT 1 FROM shipment_address a WHERE a.tenant_id=o.tenant_id AND a.shipment_order_id=o.id AND a.address_type='RECEIVER')
+          OR NOT EXISTS (SELECT 1 FROM shipment_address a WHERE a.tenant_id=o.tenant_id AND a.shipment_order_id=o.id AND a.address_type='SENDER'))
+        AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}) AS missing_address,
+      (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status IN ('PENDING_INBOUND','INBOUND','READY_FOR_OUTBOUND')
+        AND NOT EXISTS (SELECT 1 FROM customs_document cd WHERE cd.tenant_id=o.tenant_id AND cd.shipment_order_id=o.id AND cd.document_status='UPLOADED')) AS missing_customs_document,
+      (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status IN ('PENDING_INBOUND','INBOUND','READY_FOR_OUTBOUND')) AS pending_warehouse,
+      (SELECT COUNT(*) FROM exception_case e JOIN shipment_order o ON o.id=e.shipment_order_id AND o.tenant_id=e.tenant_id
+        WHERE <include refid="orderVisible"/> AND e.status IN ('OPEN','PROCESSING','WAITING_PROVIDER_FEEDBACK')) AS pending_exception_follow_up,
+      (SELECT COUNT(*) FROM reconciliation_record rr JOIN shipment_order o ON o.id=rr.shipment_order_id AND o.tenant_id=rr.tenant_id
+        WHERE <include refid="orderVisible"/> AND rr.reconciliation_status='PENDING_CONFIRMATION') AS pending_reconciliation
+  </select>
+
+  <select id="findRecentOrders" resultType="com.shipflow.operations.domain.WorkbenchRecentOrder">
+    SELECT o.id AS order_id, o.order_no, o.store_id, s.store_name, o.destination_country AS destination,
+           o.current_status AS order_status, po.lifecycle_status AS label_status, o.chargeable_weight,
+           o.current_fee AS estimated_fee, o.currency, COALESCE(po.tracking_no, obr.tracking_no) AS sf_tracking_no,
+           o.updated_at
+    FROM shipment_order o JOIN merchant_store s ON s.id=o.store_id AND s.tenant_id=o.tenant_id
+      LEFT JOIN provider_order po ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+      LEFT JOIN warehouse_outbound_record obr ON obr.tenant_id=o.tenant_id AND obr.shipment_order_id=o.id
+    WHERE <include refid="orderVisible"/> AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}
+    <choose>
+      <when test="sortBy == 'createdAt' and sortDirection == 'ASC'">ORDER BY o.created_at ASC, o.id ASC</when>
+      <when test="sortBy == 'createdAt'">ORDER BY o.created_at DESC, o.id DESC</when>
+      <when test="sortDirection == 'ASC'">ORDER BY o.updated_at ASC, o.id ASC</when>
+      <otherwise>ORDER BY o.updated_at DESC, o.id DESC</otherwise>
+    </choose>
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="findRisks" resultType="com.shipflow.operations.domain.WorkbenchRisk">
+    SELECT id, type, level, title, resource_type, resource_id, store_id, occurred_at, description FROM (
+      SELECT CONCAT('QUOTE:',q.id) AS id, 'QUOTE_EXPIRING' AS type, 'MEDIUM' AS level, '报价即将过期' AS title,
+             'QUOTE' AS resource_type, q.id AS resource_id, q.store_id, q.valid_to AS occurred_at,
+             '报价将在平台默认24小时阈值内过期' AS description
+      FROM quote q JOIN merchant_store s ON s.id=q.store_id AND s.tenant_id=q.tenant_id
+      WHERE <include refid="tenantStoreVisible"/> AND q.status='VALID'
+        AND q.valid_to &gt;= #{asOf} AND q.valid_to &lt;= TIMESTAMPADD(HOUR, #{thresholdHours}, #{asOf})
+      UNION ALL
+      SELECT CONCAT('ORDER:',o.id) AS id, 'ORDER_UNPROCESSED' AS type, 'MEDIUM' AS level, '订单长时间未处理' AS title,
+             'SHIPMENT_ORDER' AS resource_type, o.id AS resource_id, o.store_id, o.created_at AS occurred_at,
+             '订单创建超过平台默认24小时阈值且仍未完成处理' AS description
+      FROM shipment_order o WHERE <include refid="orderVisible"/>
+        AND o.current_status IN ('DRAFT','PENDING_INBOUND','INBOUND','PENDING_PRICE_CONFIRMATION')
+        AND o.created_at &lt; TIMESTAMPADD(HOUR, -#{thresholdHours}, #{asOf})
+      UNION ALL
+      SELECT CONCAT('SF:',o.id) AS id, 'SF_CALL_FAILED' AS type, 'HIGH' AS level, '顺丰调用失败' AS title,
+             'SHIPMENT_ORDER' AS resource_type, o.id AS resource_id, o.store_id, po.updated_at AS occurred_at,
+             COALESCE(po.last_error_summary,'物流服务调用失败，请检查重试状态') AS description
+      FROM provider_order po JOIN shipment_order o ON o.id=po.shipment_order_id AND o.tenant_id=po.tenant_id
+      WHERE <include refid="orderVisible"/> AND po.lifecycle_status='FAILED' AND po.updated_at &gt;= #{from} AND po.updated_at &lt; #{to}
+      UNION ALL
+      SELECT CONCAT('TRACKING:',t.id) AS id, 'TRACKING_EXCEPTION' AS type, 'HIGH' AS level, '轨迹异常' AS title,
+             'TRACKING_EVENT' AS resource_type, t.shipment_order_id AS resource_id, o.store_id, t.event_time AS occurred_at,
+             COALESCE(t.process_message,t.event_description,'轨迹事件处理异常') AS description
+      FROM tracking_event t JOIN shipment_order o ON o.id=t.shipment_order_id AND o.tenant_id=t.tenant_id
+      WHERE <include refid="orderVisible"/> AND t.process_status IN ('RETRY','REJECTED')
+        AND t.received_time &gt;= #{from} AND t.received_time &lt; #{to}
+      UNION ALL
+      SELECT CONCAT('RECON:',rr.id) AS id, 'RECONCILIATION_DIFFERENCE' AS type, 'MEDIUM' AS level, '费用差异' AS title,
+             'RECONCILIATION' AS resource_type, rr.id AS resource_id, o.store_id, rr.created_at AS occurred_at,
+             CONCAT('对账差异金额：', rr.difference_amount, ' ', d.currency) AS description
+      FROM reconciliation_record rr JOIN shipment_order o ON o.id=rr.shipment_order_id AND o.tenant_id=rr.tenant_id
+        JOIN bill_detail d ON d.id=rr.bill_detail_id AND d.tenant_id=rr.tenant_id
+      WHERE <include refid="orderVisible"/> AND rr.reconciliation_status IN ('PENDING_CONFIRMATION','REJECTED')
+        AND rr.difference_amount &lt;&gt; 0 AND rr.created_at &gt;= #{from} AND rr.created_at &lt; #{to}
+      UNION ALL
+      SELECT CONCAT('CUSTOMS:',o.id) AS id, 'CUSTOMS_DOCUMENT_MISSING' AS type, 'MEDIUM' AS level, '清关资料缺失' AS title,
+             'SHIPMENT_ORDER' AS resource_type, o.id AS resource_id, o.store_id, o.updated_at AS occurred_at,
+             '订单尚未存在已上传的清关资料' AS description
+      FROM shipment_order o WHERE <include refid="orderVisible"/>
+        AND o.current_status IN ('PENDING_INBOUND','INBOUND','READY_FOR_OUTBOUND')
+        AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}
+        AND NOT EXISTS (SELECT 1 FROM customs_document cd WHERE cd.tenant_id=o.tenant_id
+          AND cd.shipment_order_id=o.id AND cd.document_status='UPLOADED')
+    ) risk
+    ORDER BY occurred_at DESC, id DESC
+    LIMIT #{limit}
   </select>
 </mapper>

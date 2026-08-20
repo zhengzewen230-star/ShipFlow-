@@ -138,7 +138,8 @@ class TenantApplicationServiceIT {
         Long userId = jdbc.queryForObject("SELECT id FROM sys_user WHERE tenant_id = ? AND username = ? AND deleted = 0", Long.class, tenant.id(), adminUsername);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_user_role WHERE tenant_id = ? AND user_id = ? AND role_id = ?", Integer.class, tenant.id(), userId, roleId)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_role_permission rp JOIN sys_permission p ON p.id=rp.permission_id WHERE rp.role_id=? AND p.permission_code LIKE 'tenant:%'", Integer.class, roleId)).isZero();
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_role_permission rp JOIN sys_permission p ON p.id=rp.permission_id WHERE rp.role_id=?", Integer.class, roleId)).isEqualTo(8);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_role_permission rp JOIN sys_permission p ON p.id=rp.permission_id WHERE rp.role_id=?", Integer.class, roleId)).isEqualTo(9);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_role_permission rp JOIN sys_permission p ON p.id=rp.permission_id WHERE rp.role_id=? AND p.permission_code='logistics:read'", Integer.class, roleId)).isEqualTo(1);
         String hash = jdbc.queryForObject("SELECT password_hash FROM sys_user WHERE id = ?", String.class, userId);
         assertThat(passwordEncoder.matches(PASSWORD, hash)).isTrue();
         assertThat(hash).doesNotContain(PASSWORD);

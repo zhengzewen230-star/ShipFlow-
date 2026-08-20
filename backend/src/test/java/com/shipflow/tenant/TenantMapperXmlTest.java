@@ -50,5 +50,13 @@ class TenantMapperXmlTest {
                 .contains("role_scope = 'TENANT'", "tenant_id IS NOT NULL", "r.deleted = 0", "r.status = 'ACTIVE'")
                 .contains("NOT EXISTS")
                 .doesNotContain("JOIN sys_permission p ON p.permission_code IN ('tenant:create', 'tenant:read', 'tenant:manage')");
+        String repairMigration = Files.readString(Path.of("..", "database", "migrations", "V009__repair_merchant_admin_logistics_read_permission.sql"), StandardCharsets.UTF_8);
+        assertThat(repairMigration).contains("MERCHANT_ADMIN", "logistics:read", "role_scope = 'TENANT'",
+                        "tenant_id IS NOT NULL", "r.deleted = 0", "r.status = 'ACTIVE'", "NOT EXISTS")
+                .doesNotContain("INSERT INTO sys_permission");
+        String ensureMigration = Files.readString(Path.of("..", "database", "migrations", "V010__ensure_merchant_admin_logistics_read_permission.sql"), StandardCharsets.UTF_8);
+        assertThat(ensureMigration).contains("INSERT INTO sys_permission", "logistics:read", "MERCHANT_ADMIN",
+                        "role_scope = 'TENANT'", "tenant_id IS NOT NULL", "r.deleted = 0", "r.status = 'ACTIVE'", "NOT EXISTS")
+                .doesNotContain("UPDATE sys_role_permission", "DELETE FROM");
     }
 }

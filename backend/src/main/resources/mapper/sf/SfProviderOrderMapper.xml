@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.sf.mapper.SfProviderOrderMapper">
+  <resultMap id="context" type="com.shipflow.sf.mapper.SfProviderOrderMapper$Context">
+    <constructor>
+      <arg column="provider_id" javaType="java.lang.Long"/>
+      <arg column="provider_order_id" javaType="java.lang.Long"/>
+      <arg column="order_id" javaType="java.lang.Long"/>
+      <arg column="order_status" javaType="java.lang.String"/>
+      <arg column="lifecycle_status" javaType="java.lang.String"/>
+      <arg column="order_no" javaType="java.lang.String"/>
+      <arg column="external_order_no" javaType="java.lang.String"/>
+      <arg column="tracking_no" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="addressPayload" type="com.shipflow.sf.mapper.SfProviderOrderMapper$AddressPayload">
+    <constructor>
+      <arg column="contact_name" javaType="java.lang.String"/>
+      <arg column="phone" javaType="java.lang.String"/>
+      <arg column="company_name" javaType="java.lang.String"/>
+      <arg column="email" javaType="java.lang.String"/>
+      <arg column="country_code" javaType="java.lang.String"/>
+      <arg column="state_province" javaType="java.lang.String"/>
+      <arg column="city" javaType="java.lang.String"/>
+      <arg column="district" javaType="java.lang.String"/>
+      <arg column="address_line1" javaType="java.lang.String"/>
+      <arg column="address_line2" javaType="java.lang.String"/>
+      <arg column="postal_code" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="itemPayload" type="com.shipflow.sf.mapper.SfProviderOrderMapper$ItemPayload">
+    <constructor>
+      <arg column="product_name" javaType="java.lang.String"/>
+      <arg column="product_name_en" javaType="java.lang.String"/>
+      <arg column="quantity" javaType="java.lang.Integer"/>
+      <arg column="unit_price" javaType="java.math.BigDecimal"/>
+      <arg column="currency" javaType="java.lang.String"/>
+      <arg column="declared_value" javaType="java.math.BigDecimal"/>
+      <arg column="sku" javaType="java.lang.String"/>
+      <arg column="origin_country" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+
+  <select id="findOrder" resultMap="context">
+    SELECT c.provider_id, NULL AS provider_order_id, o.id AS order_id,
+           o.current_status AS order_status, NULL AS lifecycle_status,
+           o.order_no, NULL AS external_order_no, NULL AS tracking_no
+    FROM shipment_order o
+    JOIN logistics_channel c ON c.id=o.channel_id AND c.deleted=0 AND c.status='ACTIVE'
+    WHERE o.tenant_id=#{tenantId} AND o.id=#{orderId}
+  </select>
+  <select id="hasMeasurement" resultType="boolean">
+    SELECT EXISTS (
+      SELECT 1
+      FROM shipment_package sp
+      JOIN warehouse_measurement wm ON wm.tenant_id=sp.tenant_id AND wm.shipment_package_id=sp.id
+      WHERE sp.tenant_id=#{tenantId} AND sp.shipment_order_id=#{orderId}
+    )
+  </select>
+  <select id="findContext" resultMap="context">
+    SELECT c.provider_id, p.id AS provider_order_id, o.id AS order_id,
+           o.current_status AS order_status, p.lifecycle_status,
+           o.order_no, p.external_order_no, p.tracking_no
+    FROM shipment_order o
+    JOIN logistics_channel c ON c.id=o.channel_id AND c.deleted=0
+    JOIN provider_order p ON p.tenant_id=o.tenant_id AND p.shipment_order_id=o.id AND p.provider_id=c.provider_id
+    WHERE o.tenant_id=#{tenantId} AND o.id=#{orderId}
+  </select>
+  <select id="findByRequestId" resultMap="context">
+    SELECT p.provider_id, p.id AS provider_order_id, o.id AS order_id,
+           o.current_status AS order_status, p.lifecycle_status,
+           o.order_no, p.external_order_no, p.tracking_no
+    FROM provider_order p
+    JOIN shipment_order o ON o.id=p.shipment_order_id AND o.tenant_id=p.tenant_id
+    WHERE p.tenant_id=#{tenantId} AND p.request_id=#{requestId}
+  </select>
+  <select id="findAddress" resultMap="addressPayload">
+    SELECT contact_name, phone, company_name, email, country_code, state_province,
+           city, district, address_line1, address_line2, postal_code
+    FROM shipment_address
+    WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} AND address_type=#{addressType}
+  </select>
+  <select id="findItems" resultMap="itemPayload">
+    SELECT si.product_name, si.product_name_en, si.quantity, si.unit_price, si.currency,
+           si.declared_value, si.sku, si.origin_country
+    FROM shipment_item si
+    JOIN shipment_package sp ON sp.id=si.shipment_package_id AND sp.tenant_id=si.tenant_id
+    WHERE si.tenant_id=#{tenantId} AND sp.shipment_order_id=#{orderId}
+    ORDER BY si.item_no ASC
+  </select>
+
+  <insert id="insertProcessing">
+    INSERT INTO provider_order (tenant_id, shipment_order_id, provider_id, request_id, service_code, lifecycle_status,
+                                test_flag, test_retention_until_utc)
+    VALUES (#{tenantId}, #{orderId}, #{providerId}, #{requestId}, #{serviceCode}, 'PROCESSING',
+            #{testFlag}, #{testRetentionUntilUtc})
+  </insert>
+  <update id="markProcessing">
+    UPDATE provider_order SET request_id=#{requestId}, service_code=#{serviceCode}, lifecycle_status='PROCESSING',
+      last_error_code=NULL, last_error_summary=NULL,
+      test_flag=CASE WHEN #{testFlag} THEN TRUE ELSE test_flag END,
+      test_retention_until_utc=CASE WHEN #{testFlag} AND test_retention_until_utc IS NULL
+                                    THEN #{testRetentionUntilUtc} ELSE test_retention_until_utc END,
+      updated_at=CURRENT_TIMESTAMP(3)
+    WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} AND lifecycle_status NOT IN ('PROCESSING','CANCELLED')
+  </update>
+  <update id="markSuccess">
+    UPDATE provider_order SET lifecycle_status=#{lifecycleStatus}, external_order_no=COALESCE(#{externalOrderNo}, external_order_no),
+      tracking_no=COALESCE(#{trackingNo}, tracking_no), provider_status=#{providerStatus},
+      last_error_code=NULL, last_error_summary=NULL, updated_at=CURRENT_TIMESTAMP(3)
+    WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} AND request_id=#{requestId} AND lifecycle_status='PROCESSING'
+  </update>
+  <update id="markFailure">
+    UPDATE provider_order SET lifecycle_status='FAILED', last_error_code=#{errorCode}, last_error_summary=#{errorSummary},
+      retry_count=retry_count+1, updated_at=CURRENT_TIMESTAMP(3)
+    WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} AND request_id=#{requestId} AND lifecycle_status='PROCESSING'
+  </update>
+  <insert id="upsertLabel">
+    INSERT INTO shipment_label (tenant_id, shipment_order_id, provider_order_id, request_id, label_reference, invoice_reference, label_status, error_code, error_summary)
+    VALUES (#{tenantId}, #{orderId}, #{providerOrderId}, #{requestId}, #{labelReference}, #{invoiceReference}, #{status}, #{errorCode}, #{errorSummary})
+    ON DUPLICATE KEY UPDATE request_id=VALUES(request_id), label_reference=VALUES(label_reference), invoice_reference=VALUES(invoice_reference), label_status=VALUES(label_status),
+      error_code=VALUES(error_code), error_summary=VALUES(error_summary), updated_at=CURRENT_TIMESTAMP(3)
+  </insert>
+  <insert id="upsertCustomsDocument">
+    INSERT INTO customs_document (tenant_id, shipment_order_id, provider_order_id, request_id, document_type, document_reference, document_status, error_code, error_summary)
+    VALUES (#{tenantId}, #{orderId}, #{providerOrderId}, #{requestId}, #{documentType}, #{reference}, #{status}, #{errorCode}, #{errorSummary})
+    ON DUPLICATE KEY UPDATE document_reference=VALUES(document_reference), document_status=VALUES(document_status),
+      error_code=VALUES(error_code), error_summary=VALUES(error_summary), updated_at=CURRENT_TIMESTAMP(3)
+  </insert>
+</mapper>

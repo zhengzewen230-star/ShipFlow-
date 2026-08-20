@@ -28,9 +28,17 @@ import com.shipflow.quote.mapper.QuotePricingMapper;
 import com.shipflow.quote.mapper.QuoteAuditMapper;
 import com.shipflow.order.mapper.ShipmentOrderMapper;
 import com.shipflow.order.mapper.ShipmentOrderIdempotencyMapper;
+import com.shipflow.order.mapper.PriceConfirmationMapper;
+import com.shipflow.order.mapper.PriceConfirmationIdempotencyMapper;
+import com.shipflow.store.mapper.StoreScopeMapper;
+import com.shipflow.store.mapper.StoreResourceMapper;
 import com.shipflow.warehouse.mapper.WarehouseMapper;
+import com.shipflow.warehouse.mapper.WarehouseOverviewMapper;
+import com.shipflow.warehouse.mapper.WarehouseWorkMapper;
+import com.shipflow.sf.mapper.SfProviderOrderMapper;
 import com.shipflow.tracking.mapper.TrackingQueryMapper;
 import com.shipflow.tracking.mapper.TrackingCallbackMapper;
+import com.shipflow.tracking.mapper.ShipmentTrackingMapper;
 import com.shipflow.exceptioncase.mapper.ExceptionClaimMapper;
 import com.shipflow.billing.mapper.BillingMapper;
 import com.shipflow.audit.mapper.AuditQueryMapper;
@@ -94,9 +102,17 @@ class AuthBeanRegistrationTest {
         @Bean QuoteAuditMapper quoteAuditMapper() { return mock(QuoteAuditMapper.class); }
         @Bean ShipmentOrderMapper shipmentOrderMapper() { return mock(ShipmentOrderMapper.class); }
         @Bean ShipmentOrderIdempotencyMapper shipmentOrderIdempotencyMapper() { return mock(ShipmentOrderIdempotencyMapper.class); }
+        @Bean PriceConfirmationMapper priceConfirmationMapper() { return mock(PriceConfirmationMapper.class); }
+        @Bean PriceConfirmationIdempotencyMapper priceConfirmationIdempotencyMapper() { return mock(PriceConfirmationIdempotencyMapper.class); }
+        @Bean StoreScopeMapper storeScopeMapper() { return mock(StoreScopeMapper.class); }
+        @Bean StoreResourceMapper storeResourceMapper() { return mock(StoreResourceMapper.class); }
         @Bean WarehouseMapper warehouseMapper() { return mock(WarehouseMapper.class); }
+        @Bean WarehouseOverviewMapper warehouseOverviewMapper() { return mock(WarehouseOverviewMapper.class); }
+        @Bean WarehouseWorkMapper warehouseWorkMapper() { return mock(WarehouseWorkMapper.class); }
+        @Bean SfProviderOrderMapper sfProviderOrderMapper() { return mock(SfProviderOrderMapper.class); }
         @Bean TrackingQueryMapper trackingQueryMapper() { return mock(TrackingQueryMapper.class); }
         @Bean TrackingCallbackMapper trackingCallbackMapper() { return mock(TrackingCallbackMapper.class); }
+        @Bean ShipmentTrackingMapper shipmentTrackingMapper() { return mock(ShipmentTrackingMapper.class); }
         @Bean ExceptionClaimMapper exceptionClaimMapper() { return mock(ExceptionClaimMapper.class); }
         @Bean BillingMapper billingMapper() { return mock(BillingMapper.class); }
         @Bean AuditQueryMapper auditQueryMapper() { return mock(AuditQueryMapper.class); }

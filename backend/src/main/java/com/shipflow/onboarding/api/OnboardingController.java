@@ -33,6 +33,15 @@ public class OnboardingController {
     }
     @GetMapping("/platform/onboarding-applications")
     public ResponseEntity<ApiResponse<OnboardingPage>> list(@RequestParam(required=false) String status,@RequestParam(defaultValue="1") int page,@RequestParam(defaultValue="20") int pageSize) { return ResponseEntity.ok(ApiResponse.success(service.list(status,page,pageSize))); }
+    @GetMapping("/platform/guest-estimate-leads")
+    public ResponseEntity<ApiResponse<GuestEstimateLeadPage>> listEstimateLeads(@RequestParam(required=false) String status, @RequestParam(required=false) String keyword,
+            @RequestParam(required=false) java.time.OffsetDateTime from, @RequestParam(required=false) java.time.OffsetDateTime to,
+            @RequestParam(defaultValue="1") int page, @RequestParam(defaultValue="20") int pageSize) { return ResponseEntity.ok(ApiResponse.success(service.listEstimateLeads(status, keyword, from, to, page, pageSize))); }
+    @GetMapping("/platform/guest-estimate-leads/{leadId}")
+    public ResponseEntity<ApiResponse<GuestEstimateLead>> getEstimateLead(@PathVariable Long leadId) { return ResponseEntity.ok(ApiResponse.success(service.getEstimateLead(leadId))); }
+    @PatchMapping("/platform/guest-estimate-leads/{leadId}/status")
+    public ResponseEntity<ApiResponse<GuestEstimateLead>> updateEstimateLeadStatus(@PathVariable Long leadId, @Valid @RequestBody UpdateGuestEstimateLeadStatusRequest request,
+            @RequestHeader(value="X-Request-Id", required=false) String requestId, @AuthenticationPrincipal Jwt jwt) { return ResponseEntity.ok(ApiResponse.success(service.updateEstimateLeadStatus(leadId, request, userId(jwt), requestId))); }
     @GetMapping("/platform/onboarding-applications/{applicationId}")
     public ResponseEntity<ApiResponse<OnboardingApplication>> get(@PathVariable Long applicationId) { return ResponseEntity.ok(ApiResponse.success(service.get(applicationId))); }
     @PostMapping("/platform/onboarding-applications/{applicationId}/approve")

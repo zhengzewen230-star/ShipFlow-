@@ -11,6 +11,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import com.shipflow.store.mapper.StoreMapper;
 import com.shipflow.store.mapper.StoreIdempotencyMapper;
 import com.shipflow.store.mapper.StoreAuditMapper;
+import com.shipflow.store.mapper.StoreScopeMapper;
+import com.shipflow.store.mapper.StoreResourceMapper;
 import com.shipflow.user.mapper.UserMapper;
 import com.shipflow.user.mapper.UserIdempotencyMapper;
 import com.shipflow.user.mapper.UserAuditMapper;
@@ -30,13 +32,18 @@ import com.shipflow.quote.mapper.QuotePricingMapper;
 import com.shipflow.quote.mapper.QuoteAuditMapper;
 import com.shipflow.order.mapper.ShipmentOrderMapper;
 import com.shipflow.order.mapper.ShipmentOrderIdempotencyMapper;
+import com.shipflow.order.mapper.PriceConfirmationMapper;
+import com.shipflow.order.mapper.PriceConfirmationIdempotencyMapper;
 import com.shipflow.warehouse.mapper.WarehouseMapper;
+import com.shipflow.warehouse.mapper.WarehouseOverviewMapper;
 import com.shipflow.tracking.mapper.TrackingQueryMapper;
 import com.shipflow.tracking.mapper.TrackingCallbackMapper;
+import com.shipflow.tracking.mapper.ShipmentTrackingMapper;
 import com.shipflow.exceptioncase.mapper.ExceptionClaimMapper;
 import com.shipflow.billing.mapper.BillingMapper;
 import com.shipflow.audit.mapper.AuditQueryMapper;
 import com.shipflow.operations.mapper.OperationsMapper;
+import com.shipflow.sf.mapper.SfProviderOrderMapper;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -54,6 +61,8 @@ class BackendFoundationTest {
     @MockBean StoreMapper storeMapper;
     @MockBean StoreIdempotencyMapper storeIdempotencyMapper;
     @MockBean StoreAuditMapper storeAuditMapper;
+    @MockBean StoreScopeMapper storeScopeMapper;
+    @MockBean StoreResourceMapper storeResourceMapper;
     @MockBean UserMapper userMapper;
     @MockBean UserIdempotencyMapper userIdempotencyMapper;
     @MockBean UserAuditMapper userAuditMapper;
@@ -73,13 +82,18 @@ class BackendFoundationTest {
     @MockBean QuoteAuditMapper quoteAuditMapper;
     @MockBean ShipmentOrderMapper shipmentOrderMapper;
     @MockBean ShipmentOrderIdempotencyMapper shipmentOrderIdempotencyMapper;
+    @MockBean PriceConfirmationMapper priceConfirmationMapper;
+    @MockBean PriceConfirmationIdempotencyMapper priceConfirmationIdempotencyMapper;
     @MockBean WarehouseMapper warehouseMapper;
+    @MockBean WarehouseOverviewMapper warehouseOverviewMapper;
     @MockBean TrackingQueryMapper trackingQueryMapper;
     @MockBean TrackingCallbackMapper trackingCallbackMapper;
+    @MockBean ShipmentTrackingMapper shipmentTrackingMapper;
     @MockBean ExceptionClaimMapper exceptionClaimMapper;
     @MockBean BillingMapper billingMapper;
     @MockBean AuditQueryMapper auditQueryMapper;
     @MockBean OperationsMapper operationsMapper;
+    @MockBean SfProviderOrderMapper sfProviderOrderMapper;
 
     @Autowired
     private MockMvc mockMvc;

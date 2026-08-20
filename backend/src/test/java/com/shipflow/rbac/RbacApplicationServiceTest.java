@@ -3,6 +3,7 @@ package com.shipflow.rbac;
 import com.shipflow.rbac.application.RbacApplicationService;
 import com.shipflow.rbac.api.model.RolePermissionBindingRequest;
 import com.shipflow.rbac.domain.model.Role;
+import com.shipflow.rbac.domain.model.Permission;
 import com.shipflow.rbac.mapper.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -45,5 +46,36 @@ class RbacApplicationServiceTest {
         RoleMapper r=mock(RoleMapper.class); when(r.find(1L,9L)).thenReturn(null);
         RbacApplicationService s=new RbacApplicationService(r,mock(PermissionMapper.class),mock(RbacAuditMapper.class),Clock.systemUTC());
         assertThatThrownBy(()->s.replace(1L,9L,new RolePermissionBindingRequest(List.of(2L),0L),7L,"r")).hasMessage("COMMON-1006");
+    }
+
+    @Test void tenantRoleCannotBindPlatformOrCallbackPermission(){
+        RoleMapper roles = mock(RoleMapper.class);
+        PermissionMapper permissions = mock(PermissionMapper.class);
+        Role role = new Role(9L, 1L, "MERCHANT_ADMIN", "Merchant Admin", "TENANT", "ACTIVE", 0L,
+                java.time.LocalDateTime.now(), java.time.LocalDateTime.now());
+        when(roles.find(1L, 9L)).thenReturn(role);
+        when(permissions.list()).thenReturn(List.of(
+                new Permission(1L, "tenant:create", "Create tenant", "platform only"),
+                new Permission(2L, "tracking:callback", "Tracking callback", "server only")));
+
+        RbacApplicationService service = new RbacApplicationService(
+                roles, permissions, mock(RbacAuditMapper.class), Clock.systemUTC());
+
+        assertThatThrownBy(() -> service.replace(1L, 9L,
+                new RolePermissionBindingRequest(List.of(1L, 2L), 0L), 7L, "request-1"))
+                .hasMessage("COMMON-1004");
+        verify(roles, never()).updatePermissions(anyLong(), anyLong(), anyLong());
+    }
+
+    @Test void permissionDictionaryExposesOnlyTenantAssignablePermissions(){
+        PermissionMapper permissions = mock(PermissionMapper.class);
+        when(permissions.list()).thenReturn(List.of(
+                new Permission(1L, "quote:create", "Create quotes", "tenant"),
+                new Permission(2L, "tenant:manage", "Manage tenants", "platform"),
+                new Permission(3L, "tracking:callback", "Tracking callback", "server only")));
+        RbacApplicationService service = new RbacApplicationService(
+                mock(RoleMapper.class), permissions, mock(RbacAuditMapper.class), Clock.systemUTC());
+
+        assertThat(service.permissions()).extracting(Permission::permissionCode).containsExactly("quote:create");
     }
 }

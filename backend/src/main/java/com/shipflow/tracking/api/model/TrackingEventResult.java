@@ -8,4 +8,8 @@ public record TrackingEventResult(String eventId, String status, String errorCod
     public static TrackingEventResult duplicate(String eventId) {
         return new TrackingEventResult(eventId, "DUPLICATE", null, null);
     }
+
+    public static TrackingEventResult retained(String eventId, String code, String message) {
+        return new TrackingEventResult(eventId, "RETAINED", code, message);
+    }
 }

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 414 414" role="img" aria-labelledby="title">
+  <title id="title">ShipFlow</title>
+  <path fill="#21105f" d="M22 31h40c82 0 149 67 149 149v40H22z"/>
+  <path fill="#8fc9f2" d="M396 31c0 105-85 190-190 190h-72v-41c0-82 67-149 149-149z"/>
+  <path fill="#b9a0ff" d="M22 220h189v41c0 82-67 149-149 149H22z"/>
+  <path fill="#315bd0" d="M134 289v-33c0-57 46-104 103-104h100v34c0 66-54 118-120 118h-83z"/>
+  <path fill="#5b73d2" fill-opacity=".52" d="M134 220h77v-40c0-34-12-65-32-89 33 28 54 70 54 117v13h-99z"/>
+  <path fill="#5445c9" fill-opacity=".55" d="M134 220h77v41c0 18-3 35-9 51-20-16-40-23-68-23z"/>
+</svg>

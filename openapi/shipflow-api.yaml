@@ -73,6 +73,14 @@ paths:
       description: PLATFORM scope plus tenant:manage only; tenants cannot read leads or applications.
       parameters: [{ name: status, in: query, schema: { type: string, enum: [PENDING, APPROVED, REJECTED] } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
       responses: { '200': { description: Application page, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOnboardingPage' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /platform/onboarding-applications/{applicationId}:
+    get:
+      tags: [Onboarding]
+      summary: Get an onboarding application
+      operationId: getOnboardingApplication
+      description: PLATFORM scope plus tenant:manage only. Contact data is returned only to authorised platform reviewers.
+      parameters: [{ name: applicationId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }]
+      responses: { '200': { description: Onboarding application, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOnboardingApplication' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /platform/onboarding-applications/{applicationId}/approve:
     post:
       tags: [Onboarding]
@@ -90,6 +98,31 @@ paths:
       parameters: [{ name: applicationId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/XsrfHeader' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RejectOnboardingApplicationRequest' } } } }
       responses: { '200': { description: Application rejected, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOnboardingApplication' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /platform/guest-estimate-leads:
+    get:
+      tags: [Onboarding]
+      summary: List guest estimate leads for platform reviewers
+      operationId: listGuestEstimateLeads
+      description: PLATFORM scope plus tenant:manage only. Leads are platform-owned, never tenant quotes or orders.
+      parameters: [{ name: status, in: query, schema: { type: string, enum: [RECEIVED, CONTACTING, QUALIFIED, CLOSED] } }, { name: keyword, in: query, schema: { type: string, maxLength: 128 } }, { name: from, in: query, schema: { type: string, format: date-time } }, { name: to, in: query, schema: { type: string, format: date-time } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Guest estimate lead page, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessGuestEstimateLeadPage' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /platform/guest-estimate-leads/{leadId}:
+    get:
+      tags: [Onboarding]
+      summary: Get a guest estimate lead
+      operationId: getGuestEstimateLead
+      description: PLATFORM scope plus tenant:manage only.
+      parameters: [{ name: leadId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }]
+      responses: { '200': { description: Guest estimate lead, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessGuestEstimateLead' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /platform/guest-estimate-leads/{leadId}/status:
+    patch:
+      tags: [Onboarding]
+      summary: Update guest estimate lead handling status
+      operationId: updateGuestEstimateLeadStatus
+      description: PLATFORM scope plus tenant:manage only. Uses optimistic version control and writes a platform audit event.
+      parameters: [{ name: leadId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/XsrfHeader' }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateGuestEstimateLeadStatusRequest' } } } }
+      responses: { '200': { description: Updated lead, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessGuestEstimateLead' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
   /auth/csrf:
     get:
       tags: [Auth]
@@ -347,14 +380,28 @@ paths:
       summary: 查询当前租户店铺
       operationId: listStores
       parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: storeCode
+          in: query
+          schema: { type: string, maxLength: 64 }
+        - name: storeName
+          in: query
+          schema: { type: string, maxLength: 128 }
         - name: status
           in: query
           schema: { $ref: '#/components/schemas/ActiveStatus' }
         - name: platformCode
           in: query
           schema: { type: string, maxLength: 64 }
+        - name: sortBy
+          in: query
+          schema: { type: string, enum: [storeCode, storeName, platformCode, status, updatedAt], default: updatedAt }
+        - name: sortDirection
+          in: query
+          schema: { type: string, enum: [ASC, DESC], default: DESC }
       responses:
-        '200': { description: 当前租户店铺列表, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessStoreList' } } } }
+        '200': { description: 当前租户店铺分页列表, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessStorePage' } } } }
         '401': { $ref: '#/components/responses/AuthError' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
@@ -363,9 +410,10 @@ paths:
       tags: [Store]
       summary: 查询当前租户店铺详情
       operationId: getStore
-      parameters: [ { $ref: '#/components/parameters/StoreId' } ]
+      parameters:
+        - $ref: '#/components/parameters/StoreId'
       responses:
-        '200': { description: 店铺详情, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessStore' } } } }
+        '200': { description: 店铺详情（平台账号脱敏，含历史订单数量和审计摘要）, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessStoreDetail' } } } }
         '401': { $ref: '#/components/responses/AuthError' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -387,12 +435,68 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /stores/{storeId}/default-address:
+    get:
+      tags: [Store]
+      summary: 查询店铺默认发货地址
+      operationId: getStoreDefaultAddress
+      parameters: [{ $ref: '#/components/parameters/StoreId' }]
+      responses:
+        '200': { description: 默认地址或未配置, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessStoreAddress' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Store]
+      summary: 更新店铺默认发货地址
+      operationId: updateStoreDefaultAddress
+      parameters: [{ $ref: '#/components/parameters/StoreId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateStoreAddressRequest' } } } }
+      responses:
+        '200': { description: 默认地址已更新, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessStoreAddress' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /stores/{storeId}/logistics-channels:
+    get:
+      tags: [Store]
+      summary: 查询店铺已绑定物流渠道
+      operationId: listStoreLogisticsChannels
+      parameters: [{ $ref: '#/components/parameters/StoreId' }]
+      responses:
+        '200': { description: 店铺渠道列表, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessStoreChannels' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /stores/{storeId}/default-logistics-channel:
+    put:
+      tags: [Store]
+      summary: 设置店铺默认物流渠道
+      operationId: setStoreDefaultLogisticsChannel
+      parameters: [{ $ref: '#/components/parameters/StoreId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SetDefaultStoreChannelRequest' } } } }
+      responses:
+        '200': { description: 默认渠道已更新, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessStoreChannels' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
   /stores/{storeId}/status:
     post:
       tags: [Store]
       summary: 启用或停用当前租户店铺
       operationId: changeStoreStatus
-      parameters: [ { $ref: '#/components/parameters/StoreId' } ]
+      parameters:
+        - $ref: '#/components/parameters/StoreId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/StatusChangeRequest' } } }
@@ -698,21 +802,32 @@ paths:
   /logistics/channels:
     get:
       tags: [LogisticsMaster]
-      summary: 租户分页查询可用公共渠道
+      summary: 租户分页查询公开渠道目录
       operationId: listAvailableLogisticsChannels
-      parameters: [{ name: countryCode, in: query, schema: { type: string, pattern: '^[A-Z]{2}$' } }]
+      parameters:
+        - { name: channelCode, in: query, schema: { type: string, maxLength: 64 } }
+        - { name: channelName, in: query, schema: { type: string, maxLength: 128 } }
+        - { name: serviceCountry, in: query, schema: { type: string, pattern: '^[A-Z]{2}$' } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ActiveStatus' } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: sortField, in: query, schema: { type: string, enum: [channelCode, channelName, providerName, status, effectiveFrom, updatedAt], default: updatedAt } }
+        - { name: sortDirection, in: query, schema: { type: string, enum: [ASC, DESC], default: DESC } }
       responses:
-        '200': { description: 启用渠道分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessLogisticsChannelPage' } } } }
+        '200': { description: 公开渠道分页，不含价格阶梯、成本或供应商配置, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessPublicLogisticsChannelPage' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/AuthError' }
         '403': { $ref: '#/components/responses/Forbidden' }
   /logistics/channels/{channelId}:
     get:
       tags: [LogisticsMaster]
-      summary: 租户查询可用公共渠道详情
+      summary: 租户查询公开渠道详情
       operationId: getAvailableLogisticsChannel
       parameters: [{ $ref: '#/components/parameters/ChannelId' }]
       responses:
-        '200': { description: 启用渠道详情, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessLogisticsChannel' } } } }
+        '200': { description: 公开渠道详情，不含价格阶梯、成本或供应商配置, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessPublicLogisticsChannel' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /logistics/channels/{channelId}/service-countries:
     get:
@@ -726,28 +841,48 @@ paths:
         '401': { $ref: '#/components/responses/AuthError' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-  /logistics/channels/{channelId}/price-rule:
-    get:
-      tags: [LogisticsMaster]
-      summary: 租户查询当前生效价格规则
-      operationId: getEffectivePublishedPriceRule
-      parameters: [{ $ref: '#/components/parameters/ChannelId' }]
-      responses:
-        '200': { description: 当前生效已发布规则, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessPriceRule' } } } }
-        '404': { $ref: '#/components/responses/NotFound' }
-
   /quotes:
     get:
       tags: [Quotes]
       summary: 分页查询当前租户报价历史
       operationId: listQuotes
       parameters:
+        - name: quoteNo
+          in: query
+          schema: { type: string, maxLength: 64 }
         - name: storeId
           in: query
           schema: { $ref: '#/components/schemas/Id' }
+        - name: destinationCountry
+          in: query
+          schema: { type: string, pattern: '^[A-Z]{2}$' }
         - name: channelId
           in: query
           schema: { $ref: '#/components/schemas/Id' }
+        - name: destinationCountry
+          in: query
+          schema: { type: string, pattern: '^[A-Z]{2}$' }
+        - name: status
+          in: query
+          schema: { type: string, enum: [VALID, EXPIRED, CANCELLED] }
+        - name: createdFrom
+          in: query
+          schema: { type: string, format: date-time }
+        - name: createdTo
+          in: query
+          schema: { type: string, format: date-time }
+        - name: validFrom
+          in: query
+          schema: { type: string, format: date-time }
+        - name: validTo
+          in: query
+          schema: { type: string, format: date-time }
+        - name: sortField
+          in: query
+          schema: { type: string, enum: [createdAt, quoteNo, validTo, amount, status], default: createdAt }
+        - name: sortDirection
+          in: query
+          schema: { type: string, enum: [ASC, DESC], default: DESC }
         - name: status
           in: query
           schema: { type: string, enum: [VALID, EXPIRED, CANCELLED] }
@@ -854,9 +989,24 @@ paths:
         - name: status
           in: query
           schema: { $ref: '#/components/schemas/OrderStatus' }
+        - name: workbenchFilter
+          in: query
+          description: 仅工作台使用；按当前调用方可见店铺过滤。
+          schema: { type: string, enum: [PENDING_FEE_CONFIRMATION, MISSING_ADDRESS] }
         - name: storeId
           in: query
           schema: { $ref: '#/components/schemas/Id' }
+        - { name: orderNo, in: query, schema: { type: string, maxLength: 64 } }
+        - { name: destinationCountry, in: query, schema: { type: string, pattern: '^[A-Z]{2}$' } }
+        - { name: destination, in: query, description: destinationCountry 的兼容别名, schema: { type: string, pattern: '^[A-Z]{2}$' } }
+        - { name: channelId, in: query, schema: { $ref: '#/components/schemas/Id' } }
+        - { name: logisticsChannelId, in: query, description: channelId 的兼容别名, schema: { $ref: '#/components/schemas/Id' } }
+        - { name: trackingNo, in: query, schema: { type: string, maxLength: 128 } }
+        - { name: sfTrackingNo, in: query, description: trackingNo 的兼容别名, schema: { type: string, maxLength: 128 } }
+        - { name: createdFrom, in: query, schema: { $ref: '#/components/schemas/UtcDateTime' } }
+        - { name: createdTo, in: query, schema: { $ref: '#/components/schemas/UtcDateTime' } }
+        - { name: sortBy, in: query, schema: { type: string, enum: [createdAt, orderNo, status, destinationCountry, channelId, estimatedFee], default: createdAt } }
+        - { name: sortDirection, in: query, schema: { type: string, enum: [ASC, DESC], default: DESC } }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
       responses:
@@ -875,6 +1025,27 @@ paths:
           $ref: '#/components/responses/AuthError'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /orders/export:
+    get:
+      tags: [Orders]
+      summary: 导出当前调用方可见订单
+      operationId: exportShipmentOrders
+      parameters:
+        - { name: ids, in: query, schema: { type: array, items: { $ref: '#/components/schemas/Id' }, maxItems: 1000 } }
+        - { name: orderNo, in: query, schema: { type: string, maxLength: 64 } }
+        - { name: storeId, in: query, schema: { $ref: '#/components/schemas/Id' } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/OrderStatus' } }
+        - { name: destinationCountry, in: query, schema: { type: string, pattern: '^[A-Z]{2}$' } }
+        - { name: channelId, in: query, schema: { $ref: '#/components/schemas/Id' } }
+        - { name: trackingNo, in: query, schema: { type: string, maxLength: 128 } }
+        - { name: createdFrom, in: query, schema: { $ref: '#/components/schemas/UtcDateTime' } }
+        - { name: createdTo, in: query, schema: { $ref: '#/components/schemas/UtcDateTime' } }
+      responses:
+        '200': { description: UTF-8 BOM CSV, content: { text/csv: { schema: { type: string, format: binary } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /orders/{orderId}:
     get:
@@ -939,6 +1110,7 @@ paths:
         DRAFT 不允许直接执行入库操作。
       parameters:
         - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequestId'
       requestBody:
         required: true
@@ -972,7 +1144,7 @@ paths:
       tags: [Orders]
       summary: 取消草稿或待入库订单
       operationId: cancelOrder
-      parameters: [{ $ref: '#/components/parameters/OrderId' }, { $ref: '#/components/parameters/RequestId' }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OrderActionRequest' } } } }
       responses:
         '200': { description: 已取消订单, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessShipmentOrder' } } } }
@@ -1009,7 +1181,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSuccessOrder'
+                $ref: '#/components/schemas/ApiSuccessWarehouseResult'
         '401':
           $ref: '#/components/responses/AuthError'
         '403':
@@ -1049,7 +1221,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSuccessMeasurementResult'
+                $ref: '#/components/schemas/ApiSuccessWarehouseResult'
         '401':
           $ref: '#/components/responses/AuthError'
         '403':
@@ -1062,12 +1234,39 @@ paths:
           $ref: '#/components/responses/WarehouseError'
 
   /orders/{orderId}/price-confirmation:
+    get:
+      tags: [Orders]
+      summary: 查询订单费用确认状态
+      operationId: getPriceConfirmation
+      description: |
+        返回订单费用调整、申请状态和 UTC ISO-8601 时间字段。服务端按 tenant_id、store_id、角色和资源归属过滤。
+        数据库存储时间统一为 UTC；前端展示和业务“今日”统计统一转换为 Asia/Shanghai。
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: 费用确认状态
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessPriceConfirmation'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+
+        '404':
+          $ref: '#/components/responses/NotFound'
     post:
       tags: [Orders]
       summary: 确认复称后的新费用
       operationId: confirmPrice
       description: |
-        商家管理员或商家操作员确认费用上涨后，订单进入 READY_FOR_OUTBOUND。
+        财务人员最终确认费用，租户管理员可作为备用审批人；商家业务员只能提交申请，不能最终确认。
         客户端不能决定最终费用，服务端必须校验 feeAdjustmentId 属于当前订单和租户、类型为 INCREASE、尚未确认，
         expectedFee 等于 adjustment.after_amount，且订单当前状态为 PENDING_PRICE_CONFIRMATION。
       parameters:
@@ -1089,7 +1288,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSuccessOrder'
+                $ref: '#/components/schemas/ApiSuccessPriceConfirmation'
+        '401':
+          $ref: '#/components/responses/AuthError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/OrderRuleError'
+  /orders/{orderId}/price-confirmation-requests:
+    post:
+      tags: [Orders]
+      summary: 提交费用确认申请
+      operationId: submitPriceConfirmationRequest
+      description: 商家业务员只能在被授权店铺内提交申请；申请不改变订单状态，订单仍为 PENDING_PRICE_CONFIRMATION。
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PriceConfirmationRequest'
+      responses:
+        '200':
+          description: 费用确认申请已提交
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessPriceConfirmation'
         '401':
           $ref: '#/components/responses/AuthError'
         '403':
@@ -1128,7 +1363,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSuccessOutbound'
+                $ref: '#/components/schemas/ApiSuccessWarehouseResult'
         '401':
           $ref: '#/components/responses/AuthError'
         '403':
@@ -1242,6 +1477,46 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /orders/{orderNo}/tracking:
+    get:
+      tags: [Tracking]
+      summary: 按订单号或顺丰运单号查询全链路轨迹
+      operationId: getShipmentTrackingTimeline
+      description: 返回订单创建、仓内作业、顺丰回调及沙箱推演节点，按发生时间倒序排列。
+      parameters:
+        - name: orderNo
+          in: path
+          required: true
+          schema: { type: string, maxLength: 128 }
+          description: 业务订单号或顺丰运单号
+      responses:
+        '200': { description: 全链路轨迹时间轴, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessShipmentTrackingTimeline' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tracking-events:
+    get:
+      tags: [Tracking]
+      summary: 按订单、运单、状态和事件时间查询可见轨迹
+      operationId: listTrackingEvents
+      parameters:
+        - { name: orderNo, in: query, schema: { type: string, maxLength: 64 } }
+        - { name: trackingNo, in: query, schema: { type: string, maxLength: 128 } }
+        - { name: sfTrackingNo, in: query, description: trackingNo 的兼容别名, schema: { type: string, maxLength: 128 } }
+        - { name: status, in: query, schema: { type: string, maxLength: 64 } }
+        - { name: statusCode, in: query, description: status 的兼容别名, schema: { type: string, maxLength: 64 } }
+        - { name: from, in: query, schema: { $ref: '#/components/schemas/UtcDateTime' } }
+        - { name: to, in: query, schema: { $ref: '#/components/schemas/UtcDateTime' } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: sortDirection, in: query, schema: { type: string, enum: [ASC, DESC], default: DESC } }
+      responses:
+        '200': { description: 已脱敏轨迹事件分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessTrackingEventListPage' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/TrackingError' }
+
   /billing/import-batches:
     post:
       tags: [Billing]
@@ -1249,7 +1524,7 @@ paths:
       operationId: importBillingCsv
       description: |
         第一版只接受统一 CSV 模板。模板必须包含 provider_bill_detail_no。
-        系统使用文件摘要和明细业务唯一键防止重复导入。
+        系统同时使用文件内容 SHA-256 摘要和 Idempotency-Key 防止重复导入：相同租户、物流商和文件内容即使更换幂等键也不会再次导入；同一幂等键只能绑定同一物流商和文件内容，不同请求体复用幂等键返回 409。文件名不参与重复判断。数据库时间按 UTC 存储，时间字段按 UTC ISO-8601 返回。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequestId'
@@ -1404,7 +1679,7 @@ paths:
       tags: [Exceptions]
       summary: 查询当前租户异常单
       operationId: listExceptionCases
-      parameters: [{ name: orderId, in: query, schema: { $ref: '#/components/schemas/Id' } }, { name: status, in: query, schema: { type: string, enum: [OPEN, PROCESSING, RESOLVED, CLOSED] } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      parameters: [{ name: orderId, in: query, schema: { $ref: '#/components/schemas/Id' } }, { name: status, in: query, schema: { type: string, enum: [OPEN, PROCESSING, WAITING_PROVIDER_FEEDBACK, RESOLVED, PENDING_FINANCE_CONFIRMATION, CLOSED] } }, { name: workbenchFilter, in: query, description: 仅工作台使用；按调用方店铺范围过滤。, schema: { type: string, enum: [PENDING_FOLLOW_UP] } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
       responses: { '200': { description: 异常单分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionCasePage' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /exceptions/{exceptionId}:
     get:
@@ -1434,10 +1709,45 @@ paths:
       tags: [Exceptions]
       summary: 解决或关闭异常单
       operationId: transitionExceptionCase
-      description: 仅允许 PROCESSING 到 RESOLVED、RESOLVED 到 CLOSED。
+      description: 仅允许按异常状态机前向推进；数据库时间按 UTC 存储，接口时间为 UTC ISO-8601，前端展示转换为 Asia/Shanghai。
       parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/RequestId' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExceptionStatusRequest' } } } }
       responses: { '200': { description: 状态推进成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionCase' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /exceptions/{exceptionId}/handling-records:
+    get:
+      tags: [Exceptions]
+      summary: 查询异常处理记录
+      operationId: listExceptionHandlingRecords
+      parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }]
+      responses: { '200': { description: 处理记录列表, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ExceptionHandlingRecordView' } } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    post:
+      tags: [Exceptions]
+      summary: 追加异常处理记录
+      operationId: createExceptionHandlingRecord
+      parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateHandlingRecordRequest' } } } }
+      responses: { '201': { description: 记录创建成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionHandlingRecord' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /exceptions/{exceptionId}/evidence:
+    get:
+      tags: [Exceptions]
+      summary: 查询异常证据附件元数据
+      operationId: listExceptionEvidence
+      parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }]
+      responses: { '200': { description: 证据附件元数据列表, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ExceptionEvidenceView' } } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    post:
+      tags: [Exceptions]
+      summary: 上传异常证据附件
+      operationId: uploadExceptionEvidence
+      parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } } }
+      responses: { '201': { description: 上传成功或内容哈希去重, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionEvidence' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /exceptions/{exceptionId}/evidence/{attachmentId}/content:
+    get:
+      tags: [Exceptions]
+      summary: 下载异常证据附件内容
+      operationId: downloadExceptionEvidence
+      parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { name: attachmentId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }]
+      responses: { '200': { description: 附件二进制内容, content: { application/octet-stream: { schema: { type: string, format: binary } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /exceptions/{exceptionId}/claim:
     post:
       tags: [Exceptions]
@@ -1481,6 +1791,100 @@ paths:
       summary: 查询当前租户跨域待办汇总
       operationId: getOperationsTodos
       responses: { '200': { description: 价格、对账、异常和索赔待办数量, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOperationsTodos' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /operations/workbench:
+    get:
+      tags: [Operations]
+      summary: 查询商家业务员运营概览工作台快照
+      operationId: getOperationsWorkbench
+      description: |
+        只读概览快照。tenant_id 与 user_id 由 JWT 认证上下文取得，storeId 只能缩小后端重新计算的可见店铺范围。
+        商家业务员仅能查看 ACTIVE 授权店铺，租户管理员及既有租户运营角色仅能查看本租户 ACTIVE 店铺。
+        数据库时间按 UTC 存储和查询；TODAY/LAST_7_DAYS/LAST_30_DAYS 先按 Asia/Shanghai 计算自然日，再返回实际 UTC 窗口。
+        refreshedAt、timeRange.from/to、订单和风险时间均为 UTC ISO-8601；金额使用 BigDecimal 两位小数语义，重量使用 kg。
+      parameters:
+        - name: timeRange
+          in: query
+          schema: { type: string, enum: [TODAY, LAST_7_DAYS, LAST_30_DAYS, CUSTOM], default: TODAY }
+        - name: from
+          in: query
+          description: 仅 CUSTOM 使用，必须带 UTC offset 或 Z。
+          schema: { $ref: '#/components/schemas/UtcDateTime' }
+        - name: to
+          in: query
+          description: 仅 CUSTOM 使用，必须晚于 from，必须带 UTC offset 或 Z。
+          schema: { $ref: '#/components/schemas/UtcDateTime' }
+        - name: storeId
+          in: query
+          description: 可选店铺范围收窄条件，后端会再次校验租户、角色和 ACTIVE 授权归属。
+          schema: { type: integer, format: int64, minimum: 1 }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: sortBy
+          in: query
+          schema: { type: string, enum: [updatedAt, createdAt], default: updatedAt }
+        - name: sortDirection
+          in: query
+          schema: { type: string, enum: [ASC, DESC], default: DESC }
+        - name: recentLimit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+        - name: riskLimit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+      responses:
+        '200': { description: 与同一租户/店铺授权范围和时间窗口一致的工作台快照, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOperationsWorkbench' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/OrderRuleError' }
+  /warehouse/overview:
+    get:
+      tags: [Warehouse]
+      summary: 查询当前租户仓库工作概览
+      operationId: getWarehouseOverview
+      description: 仅返回当前租户仓库操作员授权范围内的订单、轨迹异常和当日仓库操作统计。
+      responses:
+        '200': { description: 仓库工作概览, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessWarehouseOverview' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /warehouse/orders:
+    get:
+      tags: [Warehouse]
+      summary: 查询当前租户仓库作业列表
+      operationId: listWarehouseWork
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: { type: string }
+        - name: orderNo
+          in: query
+          required: false
+          schema: { type: string, maxLength: 64 }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200': { description: 仓库作业分页列表, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessWarehouseWorkPage' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /warehouse/orders/{orderId}:
+    get:
+      tags: [Warehouse]
+      summary: 查询仓库作业详情
+      operationId: getWarehouseWork
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      responses:
+        '200': { description: 仓库作业详情, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessWarehouseWorkItem' } } } }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /claims/{claimId}/close:
     post:
@@ -1490,6 +1894,35 @@ paths:
       parameters: [{ name: claimId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/RequestId' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ClaimActionRequest' } } } }
       responses: { '200': { description: 关闭成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+
+  /orders/{orderId}/sf-international/{operation}:
+    post:
+      tags: [Warehouse]
+      summary: Execute an approved SF International provider operation through ShipFlow
+      operationId: executeSfInternationalOperation
+      description: |
+        The browser calls ShipFlow only. The backend validates tenant scope and warehouse:manage.
+        CREATE_ORDER builds customerCode, customerOrderNo, senderInfo, receiverInfo and cargoDetails from the tenant order. UPLOAD_CERTIFY accepts the documented certification fields in msgData.
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - name: operation
+          in: path
+          required: true
+          schema: { type: string, enum: [CREATE_ORDER, PRINT_ORDER, QUERY_ORDER, CANCEL_ORDER, UPLOAD_CERTIFY] }
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/XsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SfOperationRequest' }
+      responses:
+        '200': { description: Provider operation accepted, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessSfOperation' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
 components:
   x-onboarding-schemas:
@@ -1771,6 +2204,15 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiError'
+    ServiceUnavailable:
+      description: 供应商服务暂时不可用或顺丰沙箱未完成配置。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
     Forbidden:
       description: 权限不足或跨租户访问。
       headers:
@@ -1852,8 +2294,17 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiError'
+    UnprocessableEntity:
+      description: 业务规则或资源状态校验失败。
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
     BillConflict:
-      description: 账单文件或账单明细重复。
+      description: 账单文件内容、物流商、幂等键或账单明细重复/冲突。
       headers:
         X-Trace-Id:
           $ref: '#/components/headers/TraceId'
@@ -1881,7 +2332,13 @@ components:
             $ref: '#/components/schemas/ApiError'
   schemas:
     CreateGuestEstimateRequest: { type: object, required: [originCountry, destinationCountry, transportMode, cargoType, cargoName, weight, volume, contactName, businessEmail, contactPhone], properties: { originCountry: { type: string, pattern: '^[A-Z]{2}$' }, destinationCountry: { type: string, pattern: '^[A-Z]{2}$' }, transportMode: { type: string, enum: [OCEAN, AIR, ROAD, RAIL, COURIER] }, cargoType: { type: string, enum: [GENERAL, BATTERY, SENSITIVE, LIQUID_POWDER, FRAGILE, OVERSIZED, OTHER] }, cargoName: { type: string, minLength: 2, maxLength: 80 }, weight: { type: number, format: decimal, minimum: 0.001 }, volume: { type: number, format: decimal, minimum: 0.000001 }, contactName: { type: string, maxLength: 128 }, businessEmail: { type: string, format: email, maxLength: 254 }, contactPhone: { type: string, maxLength: 64 } } }
+    SfOperationRequest: { type: object, properties: { msgData: { type: string, nullable: true, description: Optional stable JSON for documented operation-specific fields; CREATE_ORDER is assembled from the tenant order. } } }
+    SfOperationResponse: { type: object, required: [operation, serviceCode, requestId, status], properties: { operation: { type: string }, serviceCode: { type: string }, requestId: { type: string }, status: { type: string }, errorCode: { type: string, nullable: true }, errorMessage: { type: string, nullable: true }, externalOrderNo: { type: string, nullable: true }, trackingNo: { type: string, nullable: true }, labelUrl: { type: string, format: uri, nullable: true }, invoiceUrl: { type: string, format: uri, nullable: true } } }
+    ApiSuccessSfOperation: { allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/SfOperationResponse' } } }] }
     GuestEstimateResponse: { type: object, required: [referenceNo, status, formalQuote, notice, submittedAt], properties: { referenceNo: { type: string }, status: { type: string, enum: [RECEIVED] }, formalQuote: { type: boolean, enum: [false] }, notice: { type: string }, submittedAt: { type: string, format: date-time } } }
+    GuestEstimateLead: { type: object, required: [id, referenceNo, originCountry, destinationCountry, transportMode, cargoType, cargoName, weight, volume, contactName, businessEmail, contactPhone, status, version, createdAt, updatedAt], properties: { id: { $ref: '#/components/schemas/Id' }, referenceNo: { type: string }, originCountry: { type: string }, destinationCountry: { type: string }, transportMode: { type: string, enum: [OCEAN, AIR, ROAD, RAIL, COURIER] }, cargoType: { type: string, enum: [GENERAL, BATTERY, SENSITIVE, LIQUID_POWDER, FRAGILE, OVERSIZED, OTHER] }, cargoName: { type: string }, weight: { type: number, format: decimal }, volume: { type: number, format: decimal }, contactName: { type: string }, businessEmail: { type: string, format: email }, contactPhone: { type: string }, status: { type: string, enum: [RECEIVED, CONTACTING, QUALIFIED, CLOSED] }, handlingRemark: { type: string, nullable: true }, handledByUserId: { $ref: '#/components/schemas/Id', nullable: true }, handledAt: { type: string, format: date-time, nullable: true }, version: { type: integer, format: int64 }, createdAt: { type: string, format: date-time }, updatedAt: { type: string, format: date-time } } }
+    GuestEstimateLeadPage: { allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/GuestEstimateLead' } } } }] }
+    UpdateGuestEstimateLeadStatusRequest: { type: object, required: [status, version], properties: { status: { type: string, enum: [CONTACTING, QUALIFIED, CLOSED] }, handlingRemark: { type: string, maxLength: 500, nullable: true }, version: { type: integer, format: int64, minimum: 0 } } }
     CreateOnboardingApplicationRequest: { type: object, required: [companyName, contactName, businessEmail, contactPhone, countryCode], properties: { companyName: { type: string, maxLength: 128 }, contactName: { type: string, maxLength: 128 }, businessEmail: { type: string, format: email, maxLength: 254 }, contactPhone: { type: string, maxLength: 64 }, countryCode: { type: string, pattern: '^[A-Z]{2}$' } } }
     OnboardingApplication: { type: object, properties: { id: { $ref: '#/components/schemas/Id' }, applicationNo: { type: string }, companyName: { type: string }, contactName: { type: string }, businessEmail: { type: string, format: email }, contactPhone: { type: string }, countryCode: { type: string }, status: { type: string, enum: [PENDING, APPROVED, REJECTED] }, reviewRemark: { type: string, nullable: true }, tenantId: { $ref: '#/components/schemas/Id', nullable: true }, initialUserId: { $ref: '#/components/schemas/Id', nullable: true }, version: { type: integer, format: int64 }, createdAt: { type: string, format: date-time, nullable: true }, reviewedAt: { type: string, format: date-time, nullable: true } } }
     OnboardingPage: { allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/OnboardingApplication' } } } }] }
@@ -1891,6 +2348,8 @@ components:
     ActivationResponse: { type: object, properties: { tenantCode: { type: string }, username: { type: string }, status: { type: string, enum: [ACTIVE] } } }
     OnboardingApproval: { type: object, properties: { application: { $ref: '#/components/schemas/OnboardingApplication' }, invitationToken: { type: string, writeOnly: true } } }
     ApiSuccessGuestEstimate: { allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/GuestEstimateResponse' } } }] }
+    ApiSuccessGuestEstimateLead: { allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/GuestEstimateLead' } } }] }
+    ApiSuccessGuestEstimateLeadPage: { allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/GuestEstimateLeadPage' } } }] }
     ApiSuccessOnboardingApplication: { allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OnboardingApplication' } } }] }
     ApiSuccessOnboardingPage: { allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OnboardingPage' } } }] }
     ApiSuccessActivation: { allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/ActivationResponse' } } }] }
@@ -1973,7 +2432,7 @@ components:
           $ref: '#/components/schemas/Id'
     CurrentUserView:
       type: object
-      required: [userId, username, scope]
+      required: [userId, username, scope, roles, permissions]
       properties:
         userId:
           $ref: '#/components/schemas/Id'
@@ -1986,6 +2445,11 @@ components:
           enum: [PLATFORM, TENANT]
         tenantId:
           $ref: '#/components/schemas/Id'
+        roles:
+          type: array
+          description: 当前有效作用域内实际绑定的角色编码。
+          items:
+            type: string
         permissions:
           type: array
           items:
@@ -2084,6 +2548,7 @@ components:
         status:
           type: string
           enum: [VALID, EXPIRED, CANCELLED]
+          description: 运行时有效状态；当未取消报价的 validTo 已到时，返回 EXPIRED。
         version:
           type: integer
           format: int64
@@ -2350,6 +2815,50 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/Order'
+    PriceConfirmationView:
+      type: object
+      required: [id, orderNo, quoteId, storeId, currentStatus, estimatedFee, currentFee, currency, version, feeAdjustmentId, adjustmentType, beforeAmount, afterAmount, differenceAmount, confirmationStatus]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        orderNo: { type: string }
+        quoteId: { $ref: '#/components/schemas/Id' }
+        storeId: { $ref: '#/components/schemas/Id' }
+        currentStatus: { $ref: '#/components/schemas/OrderStatus' }
+        estimatedFee: { $ref: '#/components/schemas/Money' }
+        currentFee: { $ref: '#/components/schemas/Money' }
+        confirmedFee:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          nullable: true
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        chargeableWeight: { $ref: '#/components/schemas/Weight' }
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        feeAdjustmentId: { $ref: '#/components/schemas/Id' }
+        adjustmentType: { type: string, enum: [INCREASE] }
+        beforeAmount: { $ref: '#/components/schemas/Money' }
+        afterAmount: { $ref: '#/components/schemas/Money' }
+        differenceAmount: { $ref: '#/components/schemas/Money' }
+        confirmationStatus:
+          type: string
+          enum: [PENDING_CONFIRMATION, REQUESTED, CONFIRMED]
+        requestedAt:
+          allOf:
+            - $ref: '#/components/schemas/UtcDateTime'
+          nullable: true
+        confirmedAt:
+          allOf:
+            - $ref: '#/components/schemas/UtcDateTime'
+          nullable: true
+    ApiSuccessPriceConfirmation:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PriceConfirmationView'
     VersionRequest:
       type: object
       required: [version]
@@ -2360,7 +2869,7 @@ components:
           minimum: 0
     MeasurementRequest:
       type: object
-      required: [actualWeight, actualLength, actualWidth, actualHeight, measuredAt, version]
+      required: [actualWeight, actualLength, actualWidth, actualHeight, version]
       properties:
         actualWeight:
           $ref: '#/components/schemas/Weight'
@@ -2370,36 +2879,10 @@ components:
           $ref: '#/components/schemas/Dimension'
         actualHeight:
           $ref: '#/components/schemas/Dimension'
-        measuredAt:
-          $ref: '#/components/schemas/UtcDateTime'
         version:
           type: integer
           format: int64
           minimum: 0
-    MeasurementResult:
-      type: object
-      required: [measurementId, actualChargeableWeight, feeChangeType, nextStatus]
-      properties:
-        measurementId:
-          $ref: '#/components/schemas/Id'
-        actualChargeableWeight:
-          $ref: '#/components/schemas/Weight'
-        previousFee:
-          $ref: '#/components/schemas/Money'
-        currentFee:
-          $ref: '#/components/schemas/Money'
-        feeChangeType:
-          type: string
-          enum: [UNCHANGED, DECREASE, INCREASE]
-        nextStatus:
-          $ref: '#/components/schemas/OrderStatus'
-    ApiSuccessMeasurementResult:
-      allOf:
-        - $ref: '#/components/schemas/ApiSuccess'
-        - type: object
-          properties:
-            data:
-              $ref: '#/components/schemas/MeasurementResult'
     PriceConfirmationRequest:
       type: object
       required: [feeAdjustmentId, expectedFee, version]
@@ -2416,37 +2899,39 @@ components:
           minimum: 0
     OutboundRequest:
       type: object
-      required: [trackingNo, outboundAt, version]
+      required: [trackingNo, version]
       properties:
         trackingNo:
           type: string
-        outboundAt:
-          $ref: '#/components/schemas/UtcDateTime'
-        handoverRemark:
+        remark:
           type: string
         version:
           type: integer
           format: int64
           minimum: 0
-    OutboundResult:
+    WarehouseResult:
       type: object
+      required: [orderId, status, chargeableWeight, currentFee, version]
       properties:
-        outboundRecordId:
-          $ref: '#/components/schemas/Id'
         orderId:
           $ref: '#/components/schemas/Id'
-        trackingNo:
+        status:
           type: string
-        currentStatus:
-          type: string
-          enum: [OUTBOUND]
-    ApiSuccessOutbound:
+        chargeableWeight:
+          $ref: '#/components/schemas/Weight'
+        currentFee:
+          $ref: '#/components/schemas/Money'
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+    ApiSuccessWarehouseResult:
       allOf:
         - $ref: '#/components/schemas/ApiSuccess'
         - type: object
           properties:
             data:
-              $ref: '#/components/schemas/OutboundResult'
+              $ref: '#/components/schemas/WarehouseResult'
     TrackingEventInput:
       type: object
       required: [trackingNo, eventId, eventCode, eventTime, rawPayload]
@@ -2567,6 +3052,26 @@ components:
         latestEvent:
           allOf: [{ $ref: '#/components/schemas/ShipmentTrackingEvent' }]
           nullable: true
+    ShipmentTrackingTimelineEvent:
+      type: object
+      required: [id, orderId, orderNo, statusCode, title, source, occurredAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        orderId: { $ref: '#/components/schemas/Id' }
+        orderNo: { type: string }
+        waybillNo: { type: string, nullable: true }
+        statusCode: { type: string }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        location: { type: string, nullable: true }
+        source: { type: string, enum: [INTERNAL, SF_EXPRESS] }
+        occurredAt: { $ref: '#/components/schemas/UtcDateTime' }
+    ApiSuccessShipmentTrackingTimeline:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data: { type: array, items: { $ref: '#/components/schemas/ShipmentTrackingTimelineEvent' } }
     ApiSuccessShipmentTrackingList:
       allOf:
         - $ref: '#/components/schemas/ApiSuccess'
@@ -2579,6 +3084,28 @@ components:
         - type: object
           properties:
             data: { $ref: '#/components/schemas/ShipmentTrackingStatus' }
+    TrackingEventListItem:
+      type: object
+      required: [id, orderId, orderNo, occurredAt, eventCode, source, processStatus, exception]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        orderId: { $ref: '#/components/schemas/Id' }
+        orderNo: { type: string }
+        trackingNo: { type: string, nullable: true }
+        occurredAt: { $ref: '#/components/schemas/UtcDateTime' }
+        location: { type: string, nullable: true }
+        eventCode: { type: string }
+        eventDescription: { type: string, nullable: true }
+        source: { type: string, enum: [SF_EXPRESS, INTERNAL, OTHER] }
+        processStatus: { type: string, enum: [PROCESSED, RETRY, REJECTED, RETAINED] }
+        exception: { type: boolean }
+        exceptionCode: { type: string, nullable: true }
+        exceptionId: { $ref: '#/components/schemas/Id', nullable: true }
+        requestId: { type: string, nullable: true }
+    TrackingEventListPage:
+      allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/TrackingEventListItem' } } } }]
+    ApiSuccessTrackingEventListPage:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/TrackingEventListPage' } } }]
     BillBatch:
       type: object
       properties:
@@ -2756,11 +3283,69 @@ components:
         - $ref: '#/components/schemas/ApiSuccess'
         - type: object
           properties: { data: { $ref: '#/components/schemas/Store' } }
+    StoreAuditSummary:
+      type: object
+      required: [actionType, resultStatus]
+      properties:
+        actionType: { type: string, maxLength: 64 }
+        resultStatus: { type: string, enum: [SUCCESS, FAILURE, REJECTED] }
+        occurredAt: { $ref: '#/components/schemas/UtcDateTime' }
+    StoreDetail:
+      type: object
+      required: [id, tenantId, storeCode, storeName, platformCode, platformAccountMasked, status, version, historicalOrderCount, auditSummary, unavailableFields, configurationVersion]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        tenantId: { $ref: '#/components/schemas/Id' }
+        storeCode: { type: string, maxLength: 64 }
+        storeName: { type: string, maxLength: 128 }
+        platformCode: { type: string, maxLength: 64 }
+        platformAccountMasked: { type: string, maxLength: 128, description: 服务端脱敏后的平台账号，不得返回原始账号 }
+        countryRegion: { type: string, nullable: true, description: ACTIVE 默认地址的 ISO 国家编码，未配置时为空 }
+        defaultShippingAddress: { type: string, nullable: true, description: 脱敏后的默认发货地址摘要，未配置时为空 }
+        defaultLogisticsChannel: { type: string, nullable: true, description: 默认渠道编码和名称摘要，未配置时为空 }
+        status: { $ref: '#/components/schemas/ActiveStatus' }
+        version: { type: integer, format: int64, minimum: 0 }
+        createdAt: { allOf: [{ $ref: '#/components/schemas/UtcDateTime' }], nullable: true }
+        updatedAt: { allOf: [{ $ref: '#/components/schemas/UtcDateTime' }], nullable: true }
+        historicalOrderCount: { type: integer, format: int64, minimum: 0 }
+        auditSummary: { type: array, items: { $ref: '#/components/schemas/StoreAuditSummary' }, maxItems: 10 }
+        unavailableFields: { type: array, items: { type: string, enum: [countryRegion, defaultShippingAddress, defaultLogisticsChannel] } }
+        configurationVersion: { type: integer, format: int64, minimum: 0, description: 店铺地址/渠道配置的当前版本摘要 }
+    ApiSuccessStoreDetail:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/StoreDetail' } }
     ApiSuccessStoreList:
       allOf:
         - $ref: '#/components/schemas/ApiSuccess'
         - type: object
           properties: { data: { type: array, items: { $ref: '#/components/schemas/Store' } } }
+    StorePage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          properties: { items: { type: array, items: { $ref: '#/components/schemas/StoreListItem' } } }
+    StoreListItem:
+      type: object
+      required: [id, tenantId, storeCode, storeName, platformCode, status, version, updatedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        tenantId: { $ref: '#/components/schemas/Id' }
+        storeCode: { type: string, maxLength: 64 }
+        storeName: { type: string, maxLength: 128 }
+        platformCode: { type: string, maxLength: 64 }
+        countryRegion: { type: string, nullable: true }
+        defaultShippingAddress: { type: string, nullable: true, description: 未配置时为空，不返回敏感联系人信息 }
+        defaultLogisticsChannel: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/ActiveStatus' }
+        version: { type: integer, format: int64, minimum: 0 }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
+    ApiSuccessStorePage:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/StorePage' } }
     CreateStoreRequest:
       type: object
       required: [storeCode, storeName, platformCode, platformAccount]
@@ -2778,6 +3363,80 @@ components:
             storeName: { type: string, minLength: 1, maxLength: 128 }
             platformCode: { type: string, minLength: 1, maxLength: 64 }
             platformAccount: { type: string, minLength: 1, maxLength: 128 }
+    UpdateStoreAddressRequest:
+      type: object
+      required: [addressCode, contactName, phone, countryCode, city, addressLine1, postalCode, version]
+      properties:
+        addressCode: { type: string, minLength: 1, maxLength: 64 }
+        contactName: { type: string, minLength: 1, maxLength: 128 }
+        companyName: { type: string, maxLength: 128, nullable: true }
+        phone: { type: string, minLength: 1, maxLength: 64 }
+        email: { type: string, format: email, maxLength: 128, nullable: true }
+        countryCode: { $ref: '#/components/schemas/CountryCode' }
+        stateProvince: { type: string, maxLength: 128, nullable: true }
+        city: { type: string, minLength: 1, maxLength: 128 }
+        district: { type: string, maxLength: 128, nullable: true }
+        addressLine1: { type: string, minLength: 1, maxLength: 255 }
+        addressLine2: { type: string, maxLength: 255, nullable: true }
+        postalCode: { type: string, minLength: 1, maxLength: 32 }
+        version: { type: integer, format: int64, minimum: 0 }
+    SetDefaultStoreChannelRequest:
+      allOf:
+        - $ref: '#/components/schemas/VersionRequest'
+        - type: object
+          required: [channelId]
+          properties:
+            channelId: { $ref: '#/components/schemas/Id' }
+    StoreAddress:
+      type: object
+      required: [id, tenantId, storeId, addressCode, contactName, countryCode, city, addressLine1, postalCode, status, isDefault, version, createdAt, updatedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        tenantId: { $ref: '#/components/schemas/Id' }
+        storeId: { $ref: '#/components/schemas/Id' }
+        addressCode: { type: string }
+        contactName: { type: string }
+        companyName: { type: string, nullable: true }
+        phone: { type: string, description: 脱敏后的联系电话 }
+        email: { type: string, nullable: true, description: 脱敏后的邮箱 }
+        countryCode: { $ref: '#/components/schemas/CountryCode' }
+        stateProvince: { type: string, nullable: true }
+        city: { type: string }
+        district: { type: string, nullable: true }
+        addressLine1: { type: string }
+        addressLine2: { type: string, nullable: true }
+        postalCode: { type: string }
+        status: { $ref: '#/components/schemas/ActiveStatus' }
+        isDefault: { type: boolean }
+        version: { type: integer, format: int64, minimum: 0 }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
+    StoreChannel:
+      type: object
+      required: [id, tenantId, storeId, channelId, channelCode, channelName, providerName, status, isDefault, version, createdAt, updatedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        tenantId: { $ref: '#/components/schemas/Id' }
+        storeId: { $ref: '#/components/schemas/Id' }
+        channelId: { $ref: '#/components/schemas/Id' }
+        channelCode: { type: string }
+        channelName: { type: string }
+        providerName: { type: string }
+        status: { $ref: '#/components/schemas/ActiveStatus' }
+        isDefault: { type: boolean }
+        version: { type: integer, format: int64, minimum: 0 }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
+    ApiSuccessStoreAddress:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties: { data: { allOf: [{ $ref: '#/components/schemas/StoreAddress' }], nullable: true } }
+    ApiSuccessStoreChannels:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties: { data: { type: array, items: { $ref: '#/components/schemas/StoreChannel' } } }
     StatusChangeRequest:
       allOf:
         - $ref: '#/components/schemas/VersionRequest'
@@ -3031,6 +3690,28 @@ components:
       allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/LogisticsChannelPage' } } }]
     LogisticsChannelPage:
       allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/LogisticsChannel' } } } }]
+    PublicLogisticsChannel:
+      type: object
+      required: [id, providerName, channelCode, channelName, transportMode, serviceCountries, status, unavailableFields]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        providerName: { type: string, maxLength: 128 }
+        channelCode: { type: string, maxLength: 64 }
+        channelName: { type: string, maxLength: 128 }
+        transportMode: { type: string, enum: [OCEAN, AIR, ROAD, RAIL, COURIER] }
+        serviceCountries: { type: array, items: { type: string, pattern: '^[A-Z]{2}$' } }
+        priceRuleVersion: { type: integer, minimum: 1, nullable: true, description: 当前生效公开规则版本号，不含价格阶梯 }
+        effectiveFrom: { allOf: [{ $ref: '#/components/schemas/UtcDateTime' }], nullable: true }
+        effectiveTo: { allOf: [{ $ref: '#/components/schemas/UtcDateTime' }], nullable: true }
+        volumeDivisor: { type: number, format: decimal, nullable: true }
+        status: { $ref: '#/components/schemas/ActiveStatus' }
+        unavailableFields: { type: array, items: { type: string, enum: [supportedCargoAttributes, publicPriceDescription, priceRuleTiers, internalCost, supplierConfiguration] } }
+    PublicLogisticsChannelPage:
+      allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/PublicLogisticsChannel' } } } }]
+    ApiSuccessPublicLogisticsChannel:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/PublicLogisticsChannel' } } }]
+    ApiSuccessPublicLogisticsChannelPage:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/PublicLogisticsChannelPage' } } }]
     ApiSuccessPriceRule:
       allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/PriceRule' } } }]
     ApiSuccessPriceRuleList:
@@ -3045,6 +3726,184 @@ components:
       allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OperationsSummary' } } }]
     ApiSuccessOperationsTodos:
       allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OperationsTodos' } } }]
+    OperationsWorkbench:
+      type: object
+      required: [businessTimeZone, scope, timeRange, refreshedAt, metrics, todos, recentOrders, risks]
+      properties:
+        businessTimeZone: { type: string, enum: [Asia/Shanghai] }
+        scope: { $ref: '#/components/schemas/OperationsWorkbenchScope' }
+        timeRange: { $ref: '#/components/schemas/OperationsWorkbenchTimeRange' }
+        refreshedAt: { $ref: '#/components/schemas/UtcDateTime' }
+        metrics: { type: array, items: { $ref: '#/components/schemas/OperationsWorkbenchMetric' } }
+        todos: { type: array, items: { $ref: '#/components/schemas/OperationsWorkbenchTodo' } }
+        recentOrders: { type: array, items: { $ref: '#/components/schemas/OperationsWorkbenchRecentOrder' } }
+        risks: { type: array, items: { $ref: '#/components/schemas/OperationsWorkbenchRisk' } }
+    OperationsWorkbenchScope:
+      type: object
+      required: [tenantId, storeIds, scopeType]
+      properties:
+        tenantId: { type: integer, format: int64 }
+        storeIds: { type: array, items: { type: integer, format: int64 } }
+        scopeType: { type: string, enum: [ALL_TENANT_STORES, AUTHORIZED_STORES] }
+    OperationsWorkbenchTimeRange:
+      type: object
+      required: [preset, from, to]
+      properties:
+        preset: { type: string, enum: [TODAY, LAST_7_DAYS, LAST_30_DAYS, CUSTOM] }
+        from: { $ref: '#/components/schemas/UtcDateTime' }
+        to: { $ref: '#/components/schemas/UtcDateTime' }
+    OperationsWorkbenchTarget:
+      type: object
+      required: [route, query, resourceType]
+      properties:
+        route: { type: string }
+        query: { type: object, additionalProperties: true }
+        resourceType: { type: string }
+    OperationsWorkbenchBreakdown:
+      type: object
+      required: [key, label, count, target]
+      properties:
+        key: { type: string, enum: [PENDING_FEE_CONFIRMATION, BILL_IMPORT_ERRORS, RECONCILIATION_DIFFERENCE, PENDING_FINANCE_REVIEW] }
+        label: { type: string }
+        count: { type: integer, format: int64, minimum: 0 }
+        target: { $ref: '#/components/schemas/OperationsWorkbenchTarget' }
+    OperationsWorkbenchMetric:
+      type: object
+      required: [key, label, count, window, refreshedAt, target, breakdown]
+      properties:
+        key: { type: string, enum: [PENDING_ORDERS, PENDING_INBOUND, PENDING_MEASUREMENT, PENDING_LABEL, PENDING_OUTBOUND, IN_TRANSIT, TRACKING_EXCEPTION, PENDING_FINANCE] }
+        label: { type: string }
+        count: { type: integer, format: int64, minimum: 0 }
+        window: { $ref: '#/components/schemas/OperationsWorkbenchTimeRange' }
+        refreshedAt: { $ref: '#/components/schemas/UtcDateTime' }
+        target: { $ref: '#/components/schemas/OperationsWorkbenchTarget' }
+        breakdown: { type: array, items: { $ref: '#/components/schemas/OperationsWorkbenchBreakdown' } }
+    OperationsWorkbenchTodo:
+      type: object
+      required: [key, label, count, window, target]
+      properties:
+        key: { type: string, enum: [PENDING_FEE_CONFIRMATION, MISSING_ADDRESS, MISSING_CUSTOMS_DOCUMENT, PENDING_WAREHOUSE, PENDING_EXCEPTION_FOLLOW_UP, PENDING_RECONCILIATION] }
+        label: { type: string }
+        count: { type: integer, format: int64, minimum: 0 }
+        window: { $ref: '#/components/schemas/OperationsWorkbenchTimeRange' }
+        target: { $ref: '#/components/schemas/OperationsWorkbenchTarget' }
+    OperationsWorkbenchRecentOrder:
+      type: object
+      required: [orderId, orderNo, storeId, storeName, destination, orderStatus, chargeableWeight, estimatedFee, currency, updatedAt, nextAction, target]
+      properties:
+        orderId: { type: integer, format: int64 }
+        orderNo: { type: string }
+        storeId: { type: integer, format: int64 }
+        storeName: { type: string }
+        destination: { type: string }
+        orderStatus: { type: string }
+        labelStatus: { type: string, nullable: true, description: 面单/贴标状态；完成值统一为 LABEL_READY。 }
+        chargeableWeight: { type: number, format: decimal, minimum: 0, description: kg，BigDecimal。 }
+        estimatedFee: { type: number, format: decimal, minimum: 0, description: 当前费用投影，BigDecimal。 }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        sfTrackingNo: { type: string, nullable: true }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
+        nextAction: { type: string }
+        target: { $ref: '#/components/schemas/OperationsWorkbenchTarget' }
+    OperationsWorkbenchRisk:
+      type: object
+      required: [id, type, level, title, resourceType, resourceId, storeId, occurredAt, description, target]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [QUOTE_EXPIRING, ORDER_UNPROCESSED, SF_CALL_FAILED, TRACKING_EXCEPTION, RECONCILIATION_DIFFERENCE, CUSTOMS_DOCUMENT_MISSING] }
+        level: { type: string, enum: [LOW, MEDIUM, HIGH] }
+        title: { type: string }
+        resourceType: { type: string }
+        resourceId: { type: integer, format: int64 }
+        storeId: { type: integer, format: int64 }
+        occurredAt: { $ref: '#/components/schemas/UtcDateTime' }
+        description: { type: string }
+        target: { $ref: '#/components/schemas/OperationsWorkbenchTarget' }
+    ApiSuccessOperationsWorkbench:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OperationsWorkbench' } } }]
+    WarehouseOverview:
+      type: object
+      required: [pendingInbound, pendingMeasurement, pendingLabel, pendingHandover, pendingOutbound, inTransit, trackingExceptions, todayInbound, todayOutbound, recentOrders, recentTrackingExceptions]
+      properties:
+        pendingInbound: { type: integer, format: int64 }
+        pendingMeasurement: { type: integer, format: int64 }
+        pendingLabel: { type: integer, format: int64 }
+        pendingHandover: { type: integer, format: int64 }
+        pendingOutbound: { type: integer, format: int64 }
+        inTransit: { type: integer, format: int64 }
+        trackingExceptions: { type: integer, format: int64 }
+        todayInbound: { type: integer, format: int64 }
+        todayOutbound: { type: integer, format: int64 }
+        recentOrders:
+          type: array
+          items: { $ref: '#/components/schemas/WarehouseRecentOrder' }
+        recentTrackingExceptions:
+          type: array
+          items: { $ref: '#/components/schemas/WarehouseTrackingException' }
+    WarehouseRecentOrder:
+      type: object
+      required: [id, orderNo, status, createdAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        orderNo: { type: string }
+        trackingNo: { type: string, nullable: true }
+        status: { type: string }
+        destinationCountry: { type: string, nullable: true }
+        chargeableWeight: { type: number, format: decimal, nullable: true }
+        action: { type: string, nullable: true }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+    WarehouseTrackingException:
+      type: object
+      required: [id, orderId, exceptionNo, status, description, reportedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        orderId: { $ref: '#/components/schemas/Id' }
+        orderNo: { type: string, nullable: true }
+        trackingNo: { type: string, nullable: true }
+        exceptionNo: { type: string }
+        status: { type: string }
+        description: { type: string }
+        reportedAt: { $ref: '#/components/schemas/UtcDateTime' }
+    ApiSuccessWarehouseOverview:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/WarehouseOverview' } } }]
+    WarehouseWorkItem:
+      type: object
+      required: [id, businessOrderNo, tenantId, tenantName, destinationCountry, chargeableWeight, estimatedFee, currentFee, currency, feeDifference, feeAlert, warehouseStatus, logisticsStatus, version, createdAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        businessOrderNo: { type: string }
+        sfTrackingNo: { type: string, nullable: true }
+        tenantId: { $ref: '#/components/schemas/Id' }
+        tenantName: { type: string }
+        destinationCountry: { type: string }
+        declaredWeight: { type: number, format: decimal }
+        declaredLength: { type: number, format: decimal }
+        declaredWidth: { type: number, format: decimal }
+        declaredHeight: { type: number, format: decimal }
+        declaredVolumeWeight: { type: number, format: decimal }
+        actualWeight: { type: number, format: decimal, nullable: true }
+        actualLength: { type: number, format: decimal, nullable: true }
+        actualWidth: { type: number, format: decimal, nullable: true }
+        actualHeight: { type: number, format: decimal, nullable: true }
+        actualVolumeWeight: { type: number, format: decimal, nullable: true }
+        chargeableWeight: { type: number, format: decimal }
+        estimatedFee: { type: number, format: decimal }
+        currentFee: { type: number, format: decimal }
+        currency: { type: string }
+        feeDifference: { type: number, format: decimal }
+        feeAlert: { type: boolean }
+        warehouseStatus: { type: string }
+        logisticsStatus: { type: string }
+        version: { type: integer, format: int64 }
+        outboundAt: { $ref: '#/components/schemas/UtcDateTime', nullable: true }
+        outboundBy: { $ref: '#/components/schemas/Id', nullable: true }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+    WarehouseWorkPage:
+      allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/WarehouseWorkItem' } } } }]
+    ApiSuccessWarehouseWorkPage:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/WarehouseWorkPage' } } }]
+    ApiSuccessWarehouseWorkItem:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/WarehouseWorkItem' } } }]
     CreateExceptionRequest:
       type: object
       required: [exceptionType, description, reportedAt]
@@ -3055,18 +3914,52 @@ components:
         trackingEventId: { $ref: '#/components/schemas/Id', nullable: true, description: 必须属于路径订单及当前租户。 }
     AssignExceptionRequest:
       type: object
-      required: [assignedToUserId, version]
+      required: [assignedToUserId, responsibleParty, version]
       properties:
         assignedToUserId: { $ref: '#/components/schemas/Id' }
+        responsibleParty: { type: string, enum: [MERCHANT, PROVIDER, CUSTOMS, CUSTOMER, OTHER] }
         reason: { type: string, maxLength: 1000 }
         version: { type: integer, format: int64, minimum: 0 }
     ExceptionStatusRequest:
       type: object
       required: [status, reason, version]
       properties:
-        status: { type: string, enum: [RESOLVED, CLOSED] }
+        status: { type: string, enum: [PROCESSING, WAITING_PROVIDER_FEEDBACK, RESOLVED, PENDING_FINANCE_CONFIRMATION, CLOSED] }
         reason: { type: string, minLength: 1, maxLength: 1000 }
         version: { type: integer, format: int64, minimum: 0 }
+    CreateHandlingRecordRequest:
+      type: object
+      required: [recordType, content]
+      properties:
+        recordType: { type: string, enum: [CONTACT, FOLLOW_UP, PROVIDER_FEEDBACK, INTERNAL_NOTE, OTHER] }
+        content: { type: string, minLength: 1, maxLength: 4000 }
+    ExceptionHandlingRecordView:
+      type: object
+      required: [id, exceptionId, recordNo, handledByUserId, recordType, content, createdAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        exceptionId: { $ref: '#/components/schemas/Id' }
+        recordNo: { type: string }
+        handledByUserId: { $ref: '#/components/schemas/Id' }
+        recordType: { type: string, enum: [CONTACT, FOLLOW_UP, PROVIDER_FEEDBACK, INTERNAL_NOTE, OTHER] }
+        content: { type: string }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+    ExceptionEvidenceView:
+      type: object
+      required: [id, exceptionId, uploadedByUserId, originalFileName, contentType, fileSize, contentSha256, createdAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        exceptionId: { $ref: '#/components/schemas/Id' }
+        uploadedByUserId: { $ref: '#/components/schemas/Id' }
+        originalFileName: { type: string }
+        contentType: { type: string }
+        fileSize: { type: integer, format: int64, minimum: 1 }
+        contentSha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+    ApiSuccessExceptionHandlingRecord:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/ExceptionHandlingRecordView' } } }]
+    ApiSuccessExceptionEvidence:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/ExceptionEvidenceView' } } }]
     CreateClaimRequest:
       type: object
       required: [claimAmount, currency]
@@ -3110,10 +4003,12 @@ components:
         orderId: { $ref: '#/components/schemas/Id' }
         exceptionNo: { type: string }
         exceptionType: { type: string, enum: [ADDRESS, CUSTOMS, TRANSPORT, OTHER] }
-        status: { type: string, enum: [OPEN, PROCESSING, RESOLVED, CLOSED] }
+        status: { type: string, enum: [OPEN, PROCESSING, WAITING_PROVIDER_FEEDBACK, RESOLVED, PENDING_FINANCE_CONFIRMATION, CLOSED] }
         description: { type: string }
         reportedAt: { $ref: '#/components/schemas/UtcDateTime' }
         assignedToUserId: { $ref: '#/components/schemas/Id', nullable: true }
+        storeId: { $ref: '#/components/schemas/Id' }
+        responsibleParty: { type: string, enum: [MERCHANT, PROVIDER, CUSTOMS, CUSTOMER, OTHER], nullable: true }
         version: { type: integer, format: int64 }
         createdAt: { $ref: '#/components/schemas/UtcDateTime' }
         updatedAt: { $ref: '#/components/schemas/UtcDateTime' }

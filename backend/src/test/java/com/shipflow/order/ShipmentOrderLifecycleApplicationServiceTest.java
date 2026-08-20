@@ -8,6 +8,7 @@ import com.shipflow.order.application.ShipmentOrderLifecycleApplicationService;
 import com.shipflow.order.application.ShipmentOrderQueryApplicationService;
 import com.shipflow.order.domain.model.ShipmentOrder;
 import com.shipflow.order.mapper.ShipmentOrderMapper;
+import com.shipflow.store.mapper.StoreScopeMapper;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -26,7 +27,8 @@ import static org.mockito.Mockito.when;
 
 class ShipmentOrderLifecycleApplicationServiceTest {
     private final ShipmentOrderMapper mapper = mock(ShipmentOrderMapper.class);
-    private final ShipmentOrderQueryApplicationService query = new ShipmentOrderQueryApplicationService(mapper);
+    private final StoreScopeMapper storeScopeMapper = mock(StoreScopeMapper.class);
+    private final ShipmentOrderQueryApplicationService query = new ShipmentOrderQueryApplicationService(mapper, storeScopeMapper);
     private final ShipmentOrderLifecycleApplicationService service = new ShipmentOrderLifecycleApplicationService(
             mapper, query, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC));
 
@@ -87,7 +89,7 @@ class ShipmentOrderLifecycleApplicationServiceTest {
     private UpdateShipmentOrderRequest draftRequest(Long version) {
         return new UpdateShipmentOrderRequest(version, address("CN"), address("US"),
                 List.of(new CreateShipmentOrderRequest.Item("sku", "product", BigDecimal.ONE,
-                        BigDecimal.TEN, "USD", null, "CN")), "draft",
+                        BigDecimal.TEN, "USD", "CN")), "draft",
                 null, null, null, null, null, null, null, null, null, null, null, null);
     }
 

@@ -18,23 +18,45 @@
   </resultMap>
   <sql id="columns">id,tenant_id,quote_no,store_id,channel_id,price_rule_id,rule_version_no,declared_weight,declared_length,declared_width,declared_height,declared_volume_weight,declared_chargeable_weight,amount,currency,fee_detail,valid_from,valid_to,status,version,created_at,updated_at</sql>
   <select id="findById" resultMap="quoteMap">SELECT <include refid="columns"/> FROM quote WHERE id=#{quoteId} AND tenant_id=#{tenantId}</select>
+  <sql id="visibleQuote">
+    q.tenant_id=#{tenantId}
+    AND EXISTS (SELECT 1 FROM sys_user u WHERE u.id=#{userId} AND u.tenant_id=#{tenantId} AND u.status='ACTIVE' AND u.deleted=0)
+    AND (
+      EXISTS (SELECT 1 FROM sys_user_role ur JOIN sys_role r ON r.id=ur.role_id
+        WHERE ur.tenant_id=#{tenantId} AND ur.user_id=#{userId} AND r.tenant_id=#{tenantId}
+          AND r.role_scope='TENANT' AND r.status='ACTIVE' AND r.deleted=0
+          AND r.role_code IN ('MERCHANT_ADMIN','FINANCE_OPERATOR','WAREHOUSE_OPERATOR','CUSTOMER_SERVICE_OPERATOR'))
+      OR EXISTS (SELECT 1 FROM sys_user_store_scope uss JOIN sys_user_role ur ON ur.tenant_id=uss.tenant_id AND ur.user_id=uss.user_id JOIN sys_role r ON r.id=ur.role_id
+        WHERE uss.tenant_id=#{tenantId} AND uss.user_id=#{userId} AND uss.store_id=q.store_id AND uss.status='ACTIVE'
+          AND r.tenant_id=#{tenantId} AND r.role_code='MERCHANT_OPERATOR' AND r.role_scope='TENANT' AND r.status='ACTIVE' AND r.deleted=0)
+    )
+  </sql>
+  <select id="findByIdForUser" resultMap="quoteMap">SELECT <include refid="columns"/> FROM quote q WHERE q.id=#{quoteId} AND <include refid="visibleQuote"/></select>
   <select id="findByQuoteNo" resultMap="quoteMap">SELECT <include refid="columns"/> FROM quote WHERE tenant_id=#{tenantId} AND quote_no=#{quoteNo}</select>
   <sql id="queryFilters">
-    tenant_id=#{tenantId}
-    <if test="storeId != null">AND store_id=#{storeId}</if>
-    <if test="channelId != null">AND channel_id=#{channelId}</if>
-    <if test="status != null and status != ''">AND status=#{status}</if>
+    <include refid="visibleQuote"/>
+    <if test="quoteNo != null">AND q.quote_no LIKE CONCAT('%',#{quoteNo},'%')</if>
+    <if test="storeId != null">AND q.store_id=#{storeId}</if>
+    <if test="channelId != null">AND q.channel_id=#{channelId}</if>
+    <if test="destinationCountry != null">AND JSON_UNQUOTE(JSON_EXTRACT(q.fee_detail,'$.destinationCountry'))=#{destinationCountry}</if>
+    <if test="createdFrom != null">AND q.created_at &gt;= #{createdFrom}</if><if test="createdTo != null">AND q.created_at &lt;= #{createdTo}</if>
+    <if test="validFrom != null">AND q.valid_from &gt;= #{validFrom}</if><if test="validTo != null">AND q.valid_to &lt;= #{validTo}</if>
+    <if test="status == 'VALID'">AND q.status='VALID' AND q.valid_to &gt; #{now}</if>
+    <if test="status == 'EXPIRED'">AND (q.status='EXPIRED' OR (q.status='VALID' AND q.valid_to &lt;= #{now}))</if>
+    <if test="status != null and status != '' and status != 'VALID' and status != 'EXPIRED'">AND q.status=#{status}</if>
   </sql>
-  <select id="findPage" resultMap="quoteMap">
-    SELECT <include refid="columns"/> FROM quote
+  <select id="findPageForUser" resultMap="quoteMap">
+    SELECT q.<include refid="columns"/> FROM quote q
     WHERE <include refid="queryFilters"/>
-    ORDER BY created_at DESC, id DESC LIMIT #{offset},#{pageSize}
+    ORDER BY <choose><when test="sortField == 'quoteNo'">q.quote_no</when><when test="sortField == 'validTo'">q.valid_to</when><when test="sortField == 'amount'">q.amount</when><when test="sortField == 'status'">q.status</when><otherwise>q.created_at</otherwise></choose>
+    <choose><when test="sortDirection == 'ASC'">ASC</when><otherwise>DESC</otherwise></choose>,q.id DESC LIMIT #{offset},#{pageSize}
   </select>
-  <select id="count" resultType="long">
-    SELECT COUNT(1) FROM quote WHERE <include refid="queryFilters"/>
+  <select id="countForUser" resultType="long">
+    SELECT COUNT(1) FROM quote q WHERE <include refid="queryFilters"/>
   </select>
   <select id="hasShipmentOrder" resultType="boolean">
     SELECT EXISTS(SELECT 1 FROM shipment_order WHERE tenant_id=#{tenantId} AND quote_id=#{quoteId})
   </select>
+  <select id="isStoreActive" resultType="boolean">SELECT EXISTS(SELECT 1 FROM merchant_store WHERE tenant_id=#{tenantId} AND id=#{storeId} AND status='ACTIVE' AND deleted=0)</select>
   <insert id="insert">INSERT INTO quote (tenant_id,quote_no,store_id,channel_id,price_rule_id,rule_version_no,declared_weight,declared_length,declared_width,declared_height,declared_volume_weight,declared_chargeable_weight,amount,currency,fee_detail,valid_from,valid_to,status,version) VALUES (#{tenantId},#{quoteNo},#{storeId},#{channelId},#{priceRuleId},#{ruleVersionNo},#{declaredWeight},#{declaredLength},#{declaredWidth},#{declaredHeight},#{volumeWeight},#{chargeableWeight},#{amount},#{currency},#{feeDetail},#{validFrom},#{validTo},#{status},#{version})</insert>
 </mapper>

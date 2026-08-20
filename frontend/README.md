@@ -60,7 +60,7 @@ location / {
 - `/app/exceptions`、`/app/billing`、`/app/audit`：异常索赔、账单对账、审计查询入口。
 - 未知路由：独立 404 页面。
 
-完整的 82 个 operation 覆盖状态和契约缺口见 [`docs/openapi-coverage.md`](docs/openapi-coverage.md)。
+完整的 106 个 operation 覆盖状态和契约缺口见 [`docs/openapi-coverage.md`](docs/openapi-coverage.md)。
 
 ## 待补充的交互
 

@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ArrowRight, CheckCircle2, Globe2, ShieldCheck } from '@lucide/vue'
 import WorldMap from './WorldMap.vue'
+import { useAuthStore } from '@/stores/auth'
+import { defaultConsolePath } from '@/navigation/access'
 
 const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const auth = useAuthStore()
 </script>
 
 <template>
@@ -13,7 +16,8 @@ const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefe
         <span class="glass-hero__eyebrow">SHIPFLOW · CROSS-BORDER LOGISTICS</span>
         <h1 id="hero-title">让跨境发货，<em>更轻松也更安心</em></h1>
         <p>为跨境电商商户和团队梳理发货安排、运输进度与协作事项，让每一次履约都有更清晰的方向。</p>
-        <div class="glass-hero__actions"><RouterLink class="glass-btn glass-btn--primary" to="/quote">在线预估运费 <ArrowRight :size="17" /></RouterLink><RouterLink class="glass-btn glass-btn--secondary" to="/apply">获取正式报价</RouterLink><RouterLink class="glass-btn glass-btn--secondary" to="/login">登录控制台</RouterLink></div>
+        <div v-if="auth.initialized && !auth.isAuthenticated" class="glass-hero__actions"><RouterLink class="glass-btn glass-btn--primary" to="/quote">在线预估运费 <ArrowRight :size="17" /></RouterLink><RouterLink class="glass-btn glass-btn--secondary" to="/apply">获取正式报价</RouterLink><RouterLink class="glass-btn glass-btn--secondary" to="/login">登录控制台</RouterLink></div>
+        <div v-else-if="auth.isAuthenticated" class="glass-hero__actions"><RouterLink class="glass-btn glass-btn--primary" :to="defaultConsolePath(auth)">进入控制台 <ArrowRight :size="17" /></RouterLink></div>
         <div class="glass-hero__assurance"><span><CheckCircle2 :size="16" /> 面向企业团队</span><span><ShieldCheck :size="16" /> 清晰服务体验</span></div>
       </div>
       <div class="logistics-console" aria-label="全球服务覆盖示意面板">

@@ -39,7 +39,6 @@ allure-report/
 module2-acceptance-artifacts-*/
 
 # Environment files
-.env
 .env.*
 !.env.example
 

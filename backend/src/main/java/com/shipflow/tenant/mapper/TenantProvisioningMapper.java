@@ -13,6 +13,7 @@ public interface TenantProvisioningMapper {
                                   @Param("displayName") String displayName, @Param("passwordHash") String passwordHash,
                                   @Param("status") String status);
     int insertAdminRole(@Param("tenantId") Long tenantId);
+    int insertStandardTenantRoles(@Param("tenantId") Long tenantId);
     int insertNoPermissionRole(@Param("tenantId") Long tenantId);
     Long findRoleId(@Param("tenantId") Long tenantId, @Param("roleCode") String roleCode);
     int bindAdmin(@Param("tenantId") Long tenantId, @Param("userId") Long userId, @Param("roleId") Long roleId);

@@ -1,6 +1,6 @@
 # ShipFlow 前端 OpenAPI 覆盖清单
 
-契约基线：`openapi/shipflow-api.yaml`，共 83 个 `operationId`。状态含义：
+契约基线：`openapi/shipflow-api.yaml`，共 109 个 `operationId`。状态含义：
 
 - **页面/动作**：控制台或登录流程已经直接调用。
 - **已封装**：typed service 已实现，但当前页面还没有完整业务表单。
@@ -8,6 +8,16 @@
 
 | operationId | 前端页面/动作 | service | 状态 |
 |---|---|---|---|
+| createGuestEstimateRequest | 访客预估页提交运输需求 | `onboarding.ts` | 页面/动作 |
+| listGuestEstimateLeads | 平台访客预估线索列表、筛选和分页 | `onboarding.ts` | 页面/动作 |
+| getGuestEstimateLead | 平台访客预估线索详情 | `onboarding.ts` | 页面/动作 |
+| updateGuestEstimateLeadStatus | 平台访客预估线索状态处理 | `onboarding.ts` | 页面/动作 |
+| createOnboardingApplication | 商户入驻申请页提交 | `onboarding.ts` | 页面/动作 |
+| activateOnboardingAdministrator | 邀请激活流程 | `onboarding.ts` | 页面/动作 |
+| listOnboardingApplications | 平台商户入驻申请列表 | `onboarding.ts` | 页面/动作 |
+| getOnboardingApplication | 平台商户入驻申请详情 | `onboarding.ts` | 页面/动作 |
+| approveOnboardingApplication | 平台审核通过并生成一次性邀请 | `onboarding.ts` | 页面/动作 |
+| rejectOnboardingApplication | 平台驳回入驻申请 | `onboarding.ts` | 页面/动作 |
 | getCsrfToken | 所有写请求自动获取或复用 | `csrf.ts` | 页面/动作 |
 | login | 登录页 | `auth.ts` | 页面/动作 |
 | refreshToken | 会话恢复、401 单次刷新 | `auth.ts` | 页面/动作 |
@@ -23,6 +33,10 @@
 | getStore | 店铺详情 | `stores.ts` | 已封装 |
 | updateStore | 编辑店铺 | `stores.ts` | 已封装 |
 | changeStoreStatus | 启停店铺 | `stores.ts` | 已封装 |
+| getStoreDefaultAddress | 店铺默认发货地址 | `stores.ts` | 已封装 |
+| updateStoreDefaultAddress | 配置店铺默认发货地址 | `stores.ts` | 已封装 |
+| listStoreLogisticsChannels | 店铺可用物流渠道 | `stores.ts` | 已封装 |
+| setStoreDefaultLogisticsChannel | 配置店铺默认物流渠道 | `stores.ts` | 已封装 |
 | createUser | 用户管理新建 | `users.ts` | 页面/动作 |
 | listUsers | 用户管理列表 | `users.ts` | 页面/动作 |
 | getUser | 用户详情 | `users.ts` | 已封装 |
@@ -48,7 +62,6 @@
 | listAvailableLogisticsChannels | 租户可用渠道列表 | `logistics.ts` | 页面/动作 |
 | getAvailableLogisticsChannel | 可用渠道详情 | `logistics.ts` | 已封装 |
 | getAvailableChannelServiceCountries | 可服务国家 | `logistics.ts` | 已封装 |
-| getEffectivePublishedPriceRule | 生效价格规则 | `logistics.ts` | 已封装 |
 | listQuotes | 报价管理列表 | `quotes.ts` | 页面/动作 |
 | createQuote | 创建正式报价 | `quotes.ts` | 已封装 |
 | getQuote | 报价管理详情查询 | `quotes.ts` | 页面/动作 |
@@ -62,11 +75,18 @@
 | confirmInbound | 仓库确认入库 | `warehouse.ts` | 页面/动作 |
 | submitMeasurement | 仓库复称 | `warehouse.ts` | 页面/动作 |
 | confirmPrice | 商户确认新费用 | `warehouse.ts` | 已封装 |
+| getPriceConfirmation | 订单费用确认状态查询 | `orders.ts` | 页面/动作 |
+| submitPriceConfirmationRequest | 商户提交费用确认申请 | `orders.ts` | 页面/动作 |
 | confirmOutbound | 仓库确认出库 | `warehouse.ts` | 页面/动作 |
+| getWarehouseOverview | 控制台仓库概览 | `warehouse.ts` | 页面/动作 |
+| listWarehouseWork | 仓库作业分页、状态筛选和订单号查询 | `warehouse.ts` | `WarehouseWorkView.vue` |
+| getWarehouseWork | 仓库作业详情 | `warehouse.ts` | `WarehouseWorkView.vue` |
+| executeSfInternationalOperation | 顺丰五类受控操作 | `warehouse.ts` | `WarehouseWorkView.vue`；官方契约/配置缺失时后端拒绝 |
 | receiveTrackingEvents | 物流商 HMAC 回调 | 无浏览器 client | 不由浏览器调用 |
 | listTrackingEvents | 订单轨迹分页 | `tracking.ts` | 已封装 |
 | listShipmentOrderTracking | 订单轨迹查询 | `tracking.ts` | 页面/动作 |
 | getShipmentOrderTrackingStatus | 当前物流状态 | `tracking.ts` | 页面/动作 |
+| getShipmentTrackingTimeline | 订单号/运单号全链路轨迹 | `tracking.ts` | 页面/动作 |
 | importBillingCsv | CSV 账单导入 | `billing.ts` | 已封装 |
 | listBillImportBatches | 账单批次列表 | `billing.ts` | 页面/动作 |
 | getBillImportBatch | 账单批次详情 | `billing.ts` | 页面/动作 |
@@ -81,6 +101,11 @@
 | getPlatformTenantAuditLog | 平台审计详情 | `audit.ts` | 页面/动作 |
 | listExceptionCases | 异常单列表 | `exceptions.ts` | 页面/动作 |
 | getExceptionCase | 异常单详情 | `exceptions.ts` | 页面/动作 |
+| listExceptionHandlingRecords | 异常处理记录 | `exceptions.ts` | 已封装 |
+| createExceptionHandlingRecord | 新增异常处理记录 | `exceptions.ts` | 已封装 |
+| listExceptionEvidence | 异常证据元数据 | `exceptions.ts` | 已封装 |
+| uploadExceptionEvidence | 上传异常证据 | `exceptions.ts` | 已封装 |
+| downloadExceptionEvidence | 下载异常证据 | `exceptions.ts` | 已封装 |
 | createExceptionCase | 创建异常单 | `exceptions.ts` | 已封装 |
 | assignExceptionCase | 分派异常 | `exceptions.ts` | 已封装 |
 | transitionExceptionCase | 解决/关闭异常 | `exceptions.ts` | 已封装 |
@@ -91,6 +116,7 @@
 | closeClaim | 关闭索赔 | `exceptions.ts` | 已封装 |
 | getOperationsSummary | 控制台概览 | `operations.ts` | 页面/动作 |
 | getOperationsTodos | 控制台待办 | `operations.ts` | 页面/动作 |
+| getOperationsWorkbench | P3-04 前端运营概览工作台 | `operations.ts` | 页面/动作 |
 
 ## 契约收口说明
 
@@ -100,3 +126,12 @@
 4. 服务国家查询按实际 `ApiResponse<List<String>>` 建立 ISO 国家代码数组 schema。
 5. `ShipmentOrderResponse` 已正式返回 `version`，创建、列表、详情及订单写操作都会刷新前端内存中的版本；草稿更新、提交和取消均携带最近一次响应版本。
 6. `receiveTrackingEvents` 使用物流商 HMAC 签名，是 server-to-server 入口；浏览器不持有共享密钥，也不提供该 client。
+7. `GET /api/v1/platform/onboarding-applications/{applicationId}` 已补入 OpenAPI，并由平台入驻列表详情入口调用。
+8. `GET /api/v1/orders/{orderId}/tracking-events` 已由订单详情轨迹面板调用，返回分页 `TrackingEventView`，物流商 HMAC 回调仍不由浏览器调用。
+## P4-05 契约补充（2026-08-19）
+
+店铺资源契约新增 4 个 operation：`getStoreDefaultAddress`、`updateStoreDefaultAddress`、`listStoreLogisticsChannels`、`setStoreDefaultLogisticsChannel`。当前静态 OpenAPI operationId 总数为 109，唯一性检查通过。
+
+## 第五阶段 OpenAPI 收口（2026-08-19）
+
+此前按“历史 106 + 店铺资源 4”推导为 110 的清单包含已移除的 `getEffectivePublishedPriceRule`：`GET /api/v1/logistics/channels/{channelId}/price-rule`。该租户接口会返回完整 `PublishedPriceRule` 及费率阶梯，不符合第五阶段“商家只能读取公开渠道字段”的边界，已由公开渠道详情的规则版本、生效时间和材积重除数投影替代。该路径没有前端调用；完整价格规则仍仅在平台 `/api/v1/platform/logistics-channels/{channelId}/price-rules*` 和报价内部计算中使用。当前 109 是有意收口后的实际契约数，不以修改统计掩盖差异。

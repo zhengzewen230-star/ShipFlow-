@@ -99,21 +99,24 @@ class TrackingCallbackApplicationServiceTest {
     }
 
     @Test
-    void illegalMappingIsRetainedForRetryAndReturnsUnifiedError() throws Exception {
+    void illegalMappingIsRetainedWithoutOrderMutationAndReturnsProcessingResult() throws Exception {
         byte[] body = body("UNKNOWN", "{\"code\":\"x\"}");
         authorize();
         when(mapper.lockOrder(1L, "TRK-1")).thenReturn(new TrackingCallbackOrder(7L, 9L, "OUTBOUND"));
 
-        assertThatThrownBy(() -> service.receive("MOCK", timestamp(), signature(body), body, null))
-                .isInstanceOf(TrackingCallbackException.class)
-                .satisfies(error -> {
-                    assertThat(((TrackingCallbackException) error).code()).isEqualTo("TRACK-1002");
-                    assertThat(((TrackingCallbackException) error).status()).isEqualTo(422);
-                });
+        var result = service.receive("MOCK", timestamp(), signature(body), body, null);
+        assertThat(result.accepted()).isZero();
+        assertThat(result.events()).singleElement().satisfies(event -> {
+            assertThat(event.status()).isEqualTo("RETAINED");
+            assertThat(event.errorCode()).isEqualTo("TRACK-1002");
+            assertThat(event.message()).isEqualTo("UNSUPPORTED_EVENT_CODE");
+        });
         verify(mapper).insertEvent(eq(7L), eq(1L), eq(9L), any(), any(), eq("UNKNOWN"), any(), any(), any(),
                 any(), eq("RETRY"), eq("UNSUPPORTED_EVENT_CODE"));
         verify(mapper, never()).advanceOrder(any(), any(), any(), any());
         verify(mapper, never()).insertAudit(any(), any(), any(), any(), any(), any());
+        verify(mapper).insertRetainedAudit(eq(7L), eq(10L), eq(9L), isNull(), contains("UNKNOWN"),
+                eq("UNSUPPORTED_EVENT_CODE"), any());
     }
 
     @Test
