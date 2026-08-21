@@ -10,6 +10,8 @@
       <arg column="version" javaType="long"/><arg column="created_at" javaType="java.time.LocalDateTime"/>
       <arg column="updated_at" javaType="java.time.LocalDateTime"/>
       <arg column="assigned_to_user_id" javaType="java.lang.Long"/><arg column="responsible_party" javaType="java.lang.String"/>
+      <arg column="order_no" javaType="java.lang.String"/><arg column="store_name" javaType="java.lang.String"/>
+      <arg column="assigned_to_user_name" javaType="java.lang.String"/>
     </constructor>
   </resultMap>
   <resultMap id="claimMap" type="com.shipflow.exceptioncase.domain.ClaimRecord">
@@ -20,7 +22,18 @@
       <arg column="currency" javaType="string"/><arg column="submitted_at" javaType="java.time.LocalDateTime"/>
       <arg column="resolved_at" javaType="java.time.LocalDateTime"/><arg column="version" javaType="long"/>
       <arg column="created_at" javaType="java.time.LocalDateTime"/><arg column="updated_at" javaType="java.time.LocalDateTime"/>
+      <arg column="claim_reason" javaType="java.lang.String"/><arg column="resolved_amount" javaType="java.math.BigDecimal"/>
+      <arg column="result_reason" javaType="java.lang.String"/><arg column="finance_confirmed_by_user_id" javaType="java.lang.Long"/>
+      <arg column="finance_confirmed_by_user_name" javaType="java.lang.String"/><arg column="finance_confirmed_at" javaType="java.time.LocalDateTime"/>
     </constructor>
+  </resultMap>
+  <resultMap id="timelineMap" type="com.shipflow.exceptioncase.domain.ExceptionTimelineEvent">
+    <constructor><idArg column="id" javaType="long"/><arg column="event_type" javaType="string"/>
+      <arg column="title" javaType="string"/><arg column="description" javaType="string"/>
+      <arg column="operator_user_id" javaType="java.lang.Long"/><arg column="operator_name" javaType="string"/>
+      <arg column="source" javaType="string"/><arg column="occurred_at" javaType="java.time.LocalDateTime"/>
+      <arg column="status_before" javaType="string"/><arg column="status_after" javaType="string"/>
+      <arg column="related_id" javaType="java.lang.Long"/><arg column="request_id" javaType="string"/></constructor>
   </resultMap>
   <resultMap id="eligibilityMap" type="com.shipflow.exceptioncase.domain.ClaimEligibility">
     <constructor><idArg column="exception_id" javaType="long"/><arg column="exception_status" javaType="string"/>
@@ -44,8 +57,12 @@
   </resultMap>
 
   <sql id="exceptionColumns">e.id,e.tenant_id,e.shipment_order_id,o.store_id,e.exception_no,e.exception_type,e.status,e.description,e.reported_at,e.version,e.created_at,e.updated_at,
-    e.assigned_to_user_id,e.responsible_party</sql>
-  <sql id="claimColumns">c.id,c.tenant_id,c.exception_case_id,c.claim_no,c.status,c.claim_amount,c.currency,c.submitted_at,c.resolved_at,c.version,c.created_at,c.updated_at</sql>
+    e.assigned_to_user_id,e.responsible_party,o.order_no,s.store_name,assignee.display_name AS assigned_to_user_name</sql>
+  <sql id="exceptionJoins"> JOIN shipment_order o ON o.id=e.shipment_order_id AND o.tenant_id=e.tenant_id
+    JOIN merchant_store s ON s.id=o.store_id AND s.tenant_id=e.tenant_id
+    LEFT JOIN sys_user assignee ON assignee.id=e.assigned_to_user_id AND assignee.tenant_id=e.tenant_id</sql>
+  <sql id="claimColumns">c.id,c.tenant_id,c.exception_case_id,c.claim_no,c.status,c.claim_amount,c.currency,c.submitted_at,c.resolved_at,c.version,c.created_at,c.updated_at,
+    c.claim_reason,c.resolved_amount,c.result_reason,c.finance_confirmed_by_user_id,finance.display_name AS finance_confirmed_by_user_name,c.finance_confirmed_at</sql>
   <sql id="accessibleStorePredicate">
     EXISTS (SELECT 1 FROM merchant_store s JOIN sys_user u ON u.id=#{userId} AND u.tenant_id=#{tenantId} AND u.status='ACTIVE' AND u.deleted=0
       WHERE s.id=o.store_id AND s.tenant_id=#{tenantId} AND s.status='ACTIVE' AND s.deleted=0
@@ -66,24 +83,37 @@
   <select id="trackingEventExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM tracking_event WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} AND id=#{trackingEventId})</select>
   <select id="activeTenantUserExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM sys_user WHERE tenant_id=#{tenantId} AND id=#{userId} AND status='ACTIVE' AND deleted=0)</select>
   <select id="countExceptions" resultType="long">SELECT COUNT(*) FROM exception_case e JOIN shipment_order o ON o.id=e.shipment_order_id AND o.tenant_id=e.tenant_id WHERE e.tenant_id=#{tenantId}<if test="orderId != null"> AND e.shipment_order_id=#{orderId}</if><if test="status != null and status != ''"> AND e.status=#{status}</if></select>
-  <select id="findExceptions" resultMap="exceptionMap">SELECT <include refid="exceptionColumns"/> FROM exception_case e JOIN shipment_order o ON o.id=e.shipment_order_id AND o.tenant_id=e.tenant_id WHERE e.tenant_id=#{tenantId}<if test="orderId != null"> AND e.shipment_order_id=#{orderId}</if><if test="status != null and status != ''"> AND e.status=#{status}</if> ORDER BY e.reported_at DESC,e.id DESC LIMIT #{limit} OFFSET #{offset}</select>
+  <select id="findExceptions" resultMap="exceptionMap">SELECT <include refid="exceptionColumns"/> FROM exception_case e <include refid="exceptionJoins"/> WHERE e.tenant_id=#{tenantId}<if test="orderId != null"> AND e.shipment_order_id=#{orderId}</if><if test="status != null and status != ''"> AND e.status=#{status}</if> ORDER BY e.created_at DESC,e.id DESC LIMIT #{limit} OFFSET #{offset}</select>
   <sql id="accessibleWorkbenchFilter"><if test="workbenchFilter == 'PENDING_FOLLOW_UP'"> AND e.status IN ('OPEN','PROCESSING','WAITING_PROVIDER_FEEDBACK')</if></sql>
   <select id="countAccessibleExceptions" resultType="long">SELECT COUNT(*) FROM exception_case e JOIN shipment_order o ON o.id=e.shipment_order_id AND o.tenant_id=e.tenant_id WHERE e.tenant_id=#{tenantId} AND <include refid="accessibleStorePredicate"/><if test="orderId != null"> AND e.shipment_order_id=#{orderId}</if><if test="status != null and status != ''"> AND e.status=#{status}</if><include refid="accessibleWorkbenchFilter"/></select>
-  <select id="findAccessibleExceptions" resultMap="exceptionMap">SELECT <include refid="exceptionColumns"/> FROM exception_case e JOIN shipment_order o ON o.id=e.shipment_order_id AND o.tenant_id=e.tenant_id WHERE e.tenant_id=#{tenantId} AND <include refid="accessibleStorePredicate"/><if test="orderId != null"> AND e.shipment_order_id=#{orderId}</if><if test="status != null and status != ''"> AND e.status=#{status}</if><include refid="accessibleWorkbenchFilter"/> ORDER BY e.reported_at DESC,e.id DESC LIMIT #{limit} OFFSET #{offset}</select>
-  <select id="findException" resultMap="exceptionMap">SELECT <include refid="exceptionColumns"/> FROM exception_case e JOIN shipment_order o ON o.id=e.shipment_order_id AND o.tenant_id=e.tenant_id WHERE e.tenant_id=#{tenantId} AND e.id=#{exceptionId}</select>
-  <select id="findExceptionByNo" resultMap="exceptionMap">SELECT <include refid="exceptionColumns"/> FROM exception_case e JOIN shipment_order o ON o.id=e.shipment_order_id AND o.tenant_id=e.tenant_id WHERE e.tenant_id=#{tenantId} AND e.exception_no=#{exceptionNo}</select>
+  <select id="findAccessibleExceptions" resultMap="exceptionMap">SELECT <include refid="exceptionColumns"/> FROM exception_case e <include refid="exceptionJoins"/> WHERE e.tenant_id=#{tenantId} AND <include refid="accessibleStorePredicate"/><if test="orderId != null"> AND e.shipment_order_id=#{orderId}</if><if test="status != null and status != ''"> AND e.status=#{status}</if><include refid="accessibleWorkbenchFilter"/> ORDER BY e.created_at DESC,e.id DESC LIMIT #{limit} OFFSET #{offset}</select>
+  <sql id="filteredPredicates"><if test="orderId != null"> AND e.shipment_order_id=#{orderId}</if><if test="status != null and status != ''"> AND e.status=#{status}</if><if test="exceptionType != null"> AND e.exception_type=#{exceptionType}</if><if test="orderNo != null"> AND o.order_no=#{orderNo}</if><if test="storeId != null"> AND o.store_id=#{storeId}</if><if test="responsibleParty != null"> AND e.responsible_party=#{responsibleParty}</if><if test="createdFrom != null"> AND e.created_at &gt;=#{createdFrom}</if><if test="createdTo != null"> AND e.created_at &lt;=#{createdTo}</if><include refid="accessibleWorkbenchFilter"/></sql>
+  <select id="countAccessibleExceptionsFiltered" resultType="long">SELECT COUNT(*) FROM exception_case e <include refid="exceptionJoins"/> WHERE e.tenant_id=#{tenantId} AND <include refid="accessibleStorePredicate"/><include refid="filteredPredicates"/></select>
+  <select id="findAccessibleExceptionsFiltered" resultMap="exceptionMap">SELECT <include refid="exceptionColumns"/> FROM exception_case e <include refid="exceptionJoins"/> WHERE e.tenant_id=#{tenantId} AND <include refid="accessibleStorePredicate"/><include refid="filteredPredicates"/>
+    ORDER BY <choose><when test="sortKey == 'UPDATED_AT'">e.updated_at</when><when test="sortKey == 'STATUS'">e.status</when><when test="sortKey == 'EXCEPTION_TYPE'">e.exception_type</when><when test="sortKey == 'ORDER_NO'">o.order_no</when><otherwise>e.created_at</otherwise></choose>
+    <choose><when test="sortDirection == 'ASC'">ASC</when><otherwise>DESC</otherwise></choose>,e.id DESC LIMIT #{limit} OFFSET #{offset}</select>
+  <select id="findException" resultMap="exceptionMap">SELECT <include refid="exceptionColumns"/> FROM exception_case e <include refid="exceptionJoins"/> WHERE e.tenant_id=#{tenantId} AND e.id=#{exceptionId}</select>
+  <select id="findExceptionByNo" resultMap="exceptionMap">SELECT <include refid="exceptionColumns"/> FROM exception_case e <include refid="exceptionJoins"/> WHERE e.tenant_id=#{tenantId} AND e.exception_no=#{exceptionNo}</select>
   <insert id="insertException">INSERT INTO exception_case (tenant_id,shipment_order_id,exception_no,exception_type,status,description,reported_at,version) VALUES (#{tenantId},#{orderId},#{exceptionNo},#{exceptionType},'OPEN',#{description},#{reportedAt},0)</insert>
   <update id="transitionException">UPDATE exception_case SET status=#{toStatus},responsible_party=COALESCE(#{responsibleParty},responsible_party),version=version+1 WHERE tenant_id=#{tenantId} AND id=#{exceptionId} AND status=#{fromStatus} AND version=#{version}</update>
   <update id="assignException">UPDATE exception_case SET assigned_to_user_id=#{assignedToUserId},responsible_party=#{responsibleParty},
     status=CASE WHEN status='OPEN' THEN 'PROCESSING' ELSE status END,version=version+1
     WHERE tenant_id=#{tenantId} AND id=#{exceptionId} AND status &lt;&gt; 'CLOSED' AND version=#{version}</update>
+  <update id="touchException">UPDATE exception_case SET version=version+1 WHERE tenant_id=#{tenantId} AND id=#{exceptionId} AND status &lt;&gt; 'CLOSED' AND version=#{version}</update>
 
   <select id="findClaimEligibility" resultMap="eligibilityMap">SELECT e.id AS exception_id,e.status AS exception_status,o.current_status AS order_status,o.currency AS order_currency FROM exception_case e JOIN shipment_order o ON o.id=e.shipment_order_id AND o.tenant_id=e.tenant_id WHERE e.tenant_id=#{tenantId} AND e.id=#{exceptionId} FOR UPDATE</select>
-  <select id="findClaim" resultMap="claimMap">SELECT <include refid="claimColumns"/> FROM claim_record c WHERE c.tenant_id=#{tenantId} AND c.id=#{claimId}</select>
-  <select id="findClaimByException" resultMap="claimMap">SELECT <include refid="claimColumns"/> FROM claim_record c WHERE c.tenant_id=#{tenantId} AND c.exception_case_id=#{exceptionId}</select>
-  <select id="findClaimByNo" resultMap="claimMap">SELECT <include refid="claimColumns"/> FROM claim_record c WHERE c.tenant_id=#{tenantId} AND c.claim_no=#{claimNo}</select>
-  <insert id="insertClaim">INSERT INTO claim_record (tenant_id,exception_case_id,claim_no,status,claim_amount,currency,version) VALUES (#{tenantId},#{exceptionId},#{claimNo},'OPEN',#{amount},#{currency},0)</insert>
+  <select id="findClaim" resultMap="claimMap">SELECT <include refid="claimColumns"/> FROM claim_record c LEFT JOIN sys_user finance ON finance.id=c.finance_confirmed_by_user_id AND finance.tenant_id=c.tenant_id WHERE c.tenant_id=#{tenantId} AND c.id=#{claimId}</select>
+  <select id="findClaimByException" resultMap="claimMap">SELECT <include refid="claimColumns"/> FROM claim_record c LEFT JOIN sys_user finance ON finance.id=c.finance_confirmed_by_user_id AND finance.tenant_id=c.tenant_id WHERE c.tenant_id=#{tenantId} AND c.exception_case_id=#{exceptionId}</select>
+  <select id="findClaimByNo" resultMap="claimMap">SELECT <include refid="claimColumns"/> FROM claim_record c LEFT JOIN sys_user finance ON finance.id=c.finance_confirmed_by_user_id AND finance.tenant_id=c.tenant_id WHERE c.tenant_id=#{tenantId} AND c.claim_no=#{claimNo}</select>
+  <insert id="insertClaim">INSERT INTO claim_record (tenant_id,exception_case_id,claim_no,status,claim_amount,currency,claim_reason,version) VALUES (#{tenantId},#{exceptionId},#{claimNo},'OPEN',#{amount},#{currency},#{claimReason},0)</insert>
   <update id="transitionClaim">UPDATE claim_record SET status=#{toStatus},submitted_at=COALESCE(#{submittedAt},submitted_at),resolved_at=COALESCE(#{resolvedAt},resolved_at),version=version+1 WHERE tenant_id=#{tenantId} AND id=#{claimId} AND status=#{fromStatus} AND version=#{version}</update>
+  <update id="resolveClaim">UPDATE claim_record SET status=#{toStatus},resolved_amount=#{resolvedAmount},result_reason=#{resultReason},resolved_at=#{resolvedAt},version=version+1 WHERE tenant_id=#{tenantId} AND id=#{claimId} AND status=#{fromStatus} AND version=#{version}</update>
+  <update id="financeConfirmClaim">UPDATE claim_record SET finance_confirmed_by_user_id=#{operatorUserId},finance_confirmed_at=#{confirmedAt},version=version+1 WHERE tenant_id=#{tenantId} AND id=#{claimId} AND status IN ('APPROVED','PARTIALLY_APPROVED','REJECTED') AND finance_confirmed_at IS NULL AND version=#{version}</update>
+  <insert id="insertClaimEvidenceReference">INSERT INTO claim_evidence_reference (tenant_id,claim_record_id,evidence_attachment_id) VALUES (#{tenantId},#{claimId},#{attachmentId})</insert>
+  <select id="evidenceBelongsToException" resultType="boolean">SELECT EXISTS(SELECT 1 FROM exception_evidence_attachment WHERE tenant_id=#{tenantId} AND exception_case_id=#{exceptionId} AND id=#{attachmentId})</select>
+  <select id="findClaimEvidenceIds" resultType="long">SELECT evidence_attachment_id FROM claim_evidence_reference WHERE tenant_id=#{tenantId} AND claim_record_id=#{claimId} ORDER BY id</select>
+  <select id="exceptionResolutionReady" resultType="boolean">SELECT EXISTS(SELECT 1 FROM exception_case e JOIN claim_record c ON c.exception_case_id=e.id AND c.tenant_id=e.tenant_id WHERE e.tenant_id=#{tenantId} AND e.id=#{exceptionId} AND e.status='PENDING_FINANCE_CONFIRMATION' AND c.status IN ('APPROVED','PARTIALLY_APPROVED','REJECTED','CLOSED') AND c.resolved_at IS NOT NULL AND c.finance_confirmed_at IS NOT NULL AND EXISTS(SELECT 1 FROM exception_handling_record h WHERE h.tenant_id=e.tenant_id AND h.exception_case_id=e.id) AND EXISTS(SELECT 1 FROM exception_evidence_attachment a WHERE a.tenant_id=e.tenant_id AND a.exception_case_id=e.id))</select>
+  <select id="exceptionCloseReady" resultType="boolean">SELECT EXISTS(SELECT 1 FROM exception_case e LEFT JOIN claim_record c ON c.exception_case_id=e.id AND c.tenant_id=e.tenant_id WHERE e.tenant_id=#{tenantId} AND e.id=#{exceptionId} AND e.status='RESOLVED' AND (c.id IS NULL OR (c.finance_confirmed_at IS NOT NULL AND c.status='CLOSED')))</select>
 
   <select id="findHandlingRecords" resultMap="handlingMap">SELECT h.id,h.tenant_id,h.exception_case_id,h.record_no,h.handled_by_user_id,h.record_type,h.content,h.created_at
     FROM exception_handling_record h JOIN exception_case e ON e.id=h.exception_case_id AND e.tenant_id=h.tenant_id
@@ -113,4 +143,8 @@
   <insert id="insertIdempotency">INSERT INTO api_idempotency_record (scope_tenant_id,operation_id,idempotency_key,http_method,request_path,request_hash,processing_status,expires_at) VALUES (#{tenantId},#{operationId},#{idempotencyKey},'POST',#{requestPath},#{requestHash},'PROCESSING',#{expiresAt})</insert>
   <update id="completeIdempotency">UPDATE api_idempotency_record SET resource_type=#{resourceType},resource_id=#{resourceId},processing_status='SUCCEEDED',response_status=201 WHERE scope_tenant_id=#{tenantId} AND operation_id=#{operationId} AND idempotency_key=#{idempotencyKey}</update>
   <insert id="insertAudit">INSERT INTO audit_log (tenant_id,operator_user_id,action_type,resource_type,resource_id,request_id,result_status,reason,detail,occurred_at) VALUES (#{tenantId},#{operatorUserId},#{actionType},#{resourceType},#{resourceId},#{requestId},'SUCCESS',#{reason},CAST(#{detail} AS JSON),#{occurredAt})</insert>
+  <select id="findExceptionTimeline" resultMap="timelineMap">SELECT a.id,a.action_type AS event_type,REPLACE(a.action_type,'_',' ') AS title,a.reason AS description,a.operator_user_id,u.display_name AS operator_name,a.resource_type AS source,a.occurred_at,JSON_UNQUOTE(JSON_EXTRACT(a.detail,'$.fromStatus')) AS status_before,JSON_UNQUOTE(JSON_EXTRACT(a.detail,'$.toStatus')) AS status_after,a.resource_id AS related_id,a.request_id
+    FROM audit_log a LEFT JOIN sys_user u ON u.id=a.operator_user_id AND u.tenant_id=a.tenant_id
+    WHERE a.tenant_id=#{tenantId} AND ((a.resource_type='EXCEPTION_CASE' AND a.resource_id=#{exceptionId}) OR (a.resource_type='CLAIM_RECORD' AND EXISTS(SELECT 1 FROM claim_record c WHERE c.tenant_id=#{tenantId} AND c.exception_case_id=#{exceptionId} AND c.id=a.resource_id)) OR (a.resource_type='EXCEPTION_HANDLING_RECORD' AND EXISTS(SELECT 1 FROM exception_handling_record h WHERE h.tenant_id=#{tenantId} AND h.exception_case_id=#{exceptionId} AND h.id=a.resource_id)) OR (a.resource_type='EXCEPTION_EVIDENCE_ATTACHMENT' AND EXISTS(SELECT 1 FROM exception_evidence_attachment ev WHERE ev.tenant_id=#{tenantId} AND ev.exception_case_id=#{exceptionId} AND ev.id=a.resource_id)))
+    ORDER BY a.occurred_at ASC,a.id ASC</select>
 </mapper>

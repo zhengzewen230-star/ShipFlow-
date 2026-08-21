@@ -1679,7 +1679,20 @@ paths:
       tags: [Exceptions]
       summary: 查询当前租户异常单
       operationId: listExceptionCases
-      parameters: [{ name: orderId, in: query, schema: { $ref: '#/components/schemas/Id' } }, { name: status, in: query, schema: { type: string, enum: [OPEN, PROCESSING, WAITING_PROVIDER_FEEDBACK, RESOLVED, PENDING_FINANCE_CONFIRMATION, CLOSED] } }, { name: workbenchFilter, in: query, description: 仅工作台使用；按调用方店铺范围过滤。, schema: { type: string, enum: [PENDING_FOLLOW_UP] } }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      parameters:
+        - { name: orderId, in: query, schema: { $ref: '#/components/schemas/Id' } }
+        - { name: exceptionType, in: query, schema: { type: string, enum: [ADDRESS, CUSTOMS, TRANSPORT, OTHER] } }
+        - { name: status, in: query, schema: { type: string, enum: [OPEN, PROCESSING, WAITING_PROVIDER_FEEDBACK, PENDING_FINANCE_CONFIRMATION, RESOLVED, CLOSED] } }
+        - { name: orderNo, in: query, schema: { type: string, maxLength: 64 } }
+        - { name: storeId, in: query, schema: { $ref: '#/components/schemas/Id' } }
+        - { name: responsibleParty, in: query, schema: { type: string, enum: [MERCHANT, PROVIDER, CUSTOMS, CUSTOMER, OTHER] } }
+        - { name: createdFrom, in: query, schema: { $ref: '#/components/schemas/UtcDateTime' } }
+        - { name: createdTo, in: query, schema: { $ref: '#/components/schemas/UtcDateTime' } }
+        - { name: workbenchFilter, in: query, description: 仅工作台使用；按调用方店铺范围过滤。, schema: { type: string, enum: [PENDING_FOLLOW_UP] } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: sortBy, in: query, schema: { type: string, enum: [createdAt, updatedAt, status, exceptionType, orderNo], default: createdAt } }
+        - { name: sortDirection, in: query, schema: { type: string, enum: [ASC, DESC], default: DESC } }
       responses: { '200': { description: 异常单分页, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionCasePage' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /exceptions/{exceptionId}:
     get:
@@ -1687,7 +1700,7 @@ paths:
       summary: 查询当前租户异常单详情
       operationId: getExceptionCase
       parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }]
-      responses: { '200': { description: 异常单详情及索赔摘要, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionCase' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+      responses: { '200': { description: 订单、店铺、负责人、处理记录、证据、完整索赔、财务确认和统一 UTC 时间线聚合详情, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionCase' } } } }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /orders/{orderId}/exceptions:
     post:
       tags: [Exceptions]
@@ -1701,7 +1714,7 @@ paths:
       tags: [Exceptions]
       summary: 分派异常单并从 OPEN 进入 PROCESSING
       operationId: assignExceptionCase
-      parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/RequestId' }]
+      parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AssignExceptionRequest' } } } }
       responses: { '200': { description: 分派成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionCase' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
   /exceptions/{exceptionId}/status:
@@ -1710,9 +1723,9 @@ paths:
       summary: 解决或关闭异常单
       operationId: transitionExceptionCase
       description: 仅允许按异常状态机前向推进；数据库时间按 UTC 存储，接口时间为 UTC ISO-8601，前端展示转换为 Asia/Shanghai。
-      parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/RequestId' }]
+      parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExceptionStatusRequest' } } } }
-      responses: { '200': { description: 状态推进成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionCase' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { description: 状态推进成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionCase' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '422': { $ref: '#/components/responses/ExceptionClaimError' } }
   /exceptions/{exceptionId}/handling-records:
     get:
       tags: [Exceptions]
@@ -1739,8 +1752,8 @@ paths:
       summary: 上传异常证据附件
       operationId: uploadExceptionEvidence
       parameters: [{ name: exceptionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
-      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } } }
-      responses: { '201': { description: 上传成功或内容哈希去重, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionEvidence' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [file, version], properties: { file: { type: string, format: binary, description: PDF/JPEG/PNG/WebP/TXT，最大 10 MiB }, description: { type: string, maxLength: 1000 }, version: { type: integer, format: int64, minimum: 0 } } } } } }
+      responses: { '201': { description: 上传成功或 SHA-256 内容去重, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessExceptionEvidence' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '422': { $ref: '#/components/responses/ExceptionClaimError' } }
   /exceptions/{exceptionId}/evidence/{attachmentId}/content:
     get:
       tags: [Exceptions]
@@ -1768,7 +1781,7 @@ paths:
       tags: [Exceptions]
       summary: 提交索赔
       operationId: submitClaim
-      parameters: [{ name: claimId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/RequestId' }]
+      parameters: [{ name: claimId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ClaimActionRequest' } } } }
       responses: { '200': { description: 提交成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
   /claims/{claimId}/result:
@@ -1776,9 +1789,17 @@ paths:
       tags: [Exceptions]
       summary: 审核通过或驳回索赔
       operationId: resolveClaim
-      parameters: [{ name: claimId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/RequestId' }]
+      parameters: [{ name: claimId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ClaimResultRequest' } } } }
-      responses: { '200': { description: 审核完成, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { description: 审核完成, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '422': { $ref: '#/components/responses/ExceptionClaimError' } }
+  /claims/{claimId}/finance-confirmation:
+    post:
+      tags: [Exceptions]
+      summary: 财务确认索赔结果
+      operationId: financeConfirmClaim
+      parameters: [{ name: claimId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FinanceConfirmRequest' } } } }
+      responses: { '200': { description: 财务确认成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '422': { $ref: '#/components/responses/ExceptionClaimError' } }
   /operations/summary:
     get:
       tags: [Operations]
@@ -1891,9 +1912,9 @@ paths:
       tags: [Exceptions]
       summary: 关闭已审核索赔
       operationId: closeClaim
-      parameters: [{ name: claimId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/RequestId' }]
+      parameters: [{ name: claimId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ClaimActionRequest' } } } }
-      responses: { '200': { description: 关闭成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { description: 关闭成功, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessClaim' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '422': { $ref: '#/components/responses/ExceptionClaimError' } }
 
   /orders/{orderId}/sf-international/{operation}:
     post:
@@ -3929,10 +3950,11 @@ components:
         version: { type: integer, format: int64, minimum: 0 }
     CreateHandlingRecordRequest:
       type: object
-      required: [recordType, content]
+      required: [recordType, content, version]
       properties:
         recordType: { type: string, enum: [CONTACT, FOLLOW_UP, PROVIDER_FEEDBACK, INTERNAL_NOTE, OTHER] }
         content: { type: string, minLength: 1, maxLength: 4000 }
+        version: { type: integer, format: int64, minimum: 0 }
     ExceptionHandlingRecordView:
       type: object
       required: [id, exceptionId, recordNo, handledByUserId, recordType, content, createdAt]
@@ -3955,6 +3977,7 @@ components:
         contentType: { type: string }
         fileSize: { type: integer, format: int64, minimum: 1 }
         contentSha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        description: { type: string, maxLength: 1000, nullable: true }
         createdAt: { $ref: '#/components/schemas/UtcDateTime' }
     ApiSuccessExceptionHandlingRecord:
       allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/ExceptionHandlingRecordView' } } }]
@@ -3962,10 +3985,13 @@ components:
       allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/ExceptionEvidenceView' } } }]
     CreateClaimRequest:
       type: object
-      required: [claimAmount, currency]
+      required: [claimAmount, currency, claimReason, exceptionVersion, evidenceAttachmentIds]
       properties:
         claimAmount: { type: number, format: decimal, minimum: 0.01, multipleOf: 0.01 }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
+        claimReason: { type: string, minLength: 1, maxLength: 1000 }
+        exceptionVersion: { type: integer, format: int64, minimum: 0 }
+        evidenceAttachmentIds: { type: array, minItems: 1, uniqueItems: true, items: { $ref: '#/components/schemas/Id' } }
     ClaimActionRequest:
       type: object
       required: [version]
@@ -3976,9 +4002,16 @@ components:
       type: object
       required: [status, reason, resolvedAt, version]
       properties:
-        status: { type: string, enum: [APPROVED, REJECTED] }
+        status: { type: string, enum: [APPROVED, PARTIALLY_APPROVED, REJECTED] }
         reason: { type: string, minLength: 1, maxLength: 1000 }
         resolvedAt: { $ref: '#/components/schemas/UtcDateTime' }
+        approvedAmount: { type: number, format: decimal, minimum: 0, multipleOf: 0.01, nullable: true, description: 批准时等于申请金额；部分批准时必须大于 0 且小于申请金额；拒绝时为空或 0。 }
+        version: { type: integer, format: int64, minimum: 0 }
+    FinanceConfirmRequest:
+      type: object
+      required: [version]
+      properties:
+        reason: { type: string, maxLength: 1000 }
         version: { type: integer, format: int64, minimum: 0 }
     ClaimView:
       type: object
@@ -3987,9 +4020,16 @@ components:
         id: { $ref: '#/components/schemas/Id' }
         exceptionId: { $ref: '#/components/schemas/Id' }
         claimNo: { type: string }
-        status: { type: string, enum: [OPEN, SUBMITTED, APPROVED, REJECTED, CLOSED] }
+        status: { type: string, enum: [OPEN, SUBMITTED, APPROVED, PARTIALLY_APPROVED, REJECTED, CLOSED] }
         claimAmount: { type: number, format: decimal }
         currency: { type: string }
+        claimReason: { type: string, nullable: true }
+        resolvedAmount: { type: number, format: decimal, nullable: true }
+        resultReason: { type: string, nullable: true }
+        financeConfirmedByUserId: { $ref: '#/components/schemas/Id', nullable: true }
+        financeConfirmedByUserName: { type: string, nullable: true }
+        financeConfirmedAt: { $ref: '#/components/schemas/UtcDateTime', nullable: true }
+        evidenceAttachmentIds: { type: array, items: { $ref: '#/components/schemas/Id' } }
         submittedAt: { $ref: '#/components/schemas/UtcDateTime', nullable: true }
         resolvedAt: { $ref: '#/components/schemas/UtcDateTime', nullable: true }
         version: { type: integer, format: int64 }
@@ -4001,18 +4041,39 @@ components:
       properties:
         id: { $ref: '#/components/schemas/Id' }
         orderId: { $ref: '#/components/schemas/Id' }
+        orderNo: { type: string, nullable: true }
         exceptionNo: { type: string }
         exceptionType: { type: string, enum: [ADDRESS, CUSTOMS, TRANSPORT, OTHER] }
         status: { type: string, enum: [OPEN, PROCESSING, WAITING_PROVIDER_FEEDBACK, RESOLVED, PENDING_FINANCE_CONFIRMATION, CLOSED] }
         description: { type: string }
         reportedAt: { $ref: '#/components/schemas/UtcDateTime' }
         assignedToUserId: { $ref: '#/components/schemas/Id', nullable: true }
+        assignedToUserName: { type: string, nullable: true }
         storeId: { $ref: '#/components/schemas/Id' }
+        storeName: { type: string, nullable: true }
         responsibleParty: { type: string, enum: [MERCHANT, PROVIDER, CUSTOMS, CUSTOMER, OTHER], nullable: true }
         version: { type: integer, format: int64 }
         createdAt: { $ref: '#/components/schemas/UtcDateTime' }
         updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
         claim: { $ref: '#/components/schemas/ClaimView', nullable: true }
+        handlingRecords: { type: array, items: { $ref: '#/components/schemas/ExceptionHandlingRecordView' } }
+        evidenceAttachments: { type: array, items: { $ref: '#/components/schemas/ExceptionEvidenceView' } }
+        timeline: { type: array, items: { $ref: '#/components/schemas/ExceptionTimelineEventView' } }
+    ExceptionTimelineEventView:
+      type: object
+      required: [eventType, title, source, occurredAt]
+      properties:
+        eventType: { type: string }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        operatorUserId: { $ref: '#/components/schemas/Id', nullable: true }
+        operatorName: { type: string, nullable: true }
+        source: { type: string }
+        occurredAt: { $ref: '#/components/schemas/UtcDateTime' }
+        statusBefore: { type: string, nullable: true }
+        statusAfter: { type: string, nullable: true }
+        relatedId: { $ref: '#/components/schemas/Id', nullable: true }
+        requestId: { type: string, nullable: true, description: 请求 ID 或 Trace ID }
     ExceptionCasePage:
       allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/ExceptionCaseView' } } } }]
     ApiSuccessExceptionCase:

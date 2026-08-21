@@ -31,6 +31,22 @@ public interface ShipmentTrackingMapper {
                               @Param("location") String location,
                               @Param("occurredAt") LocalDateTime occurredAt);
 
+    /**
+     * Creates at most one scheduler-originated transport exception for an order.
+     * The deterministic exception number uses the existing tenant/exception
+     * unique key to make repeated scheduler runs safe across nodes.
+     */
+    int insertSimulationTransportException(@Param("tenantId") Long tenantId,
+                                           @Param("orderId") Long orderId,
+                                           @Param("exceptionNo") String exceptionNo,
+                                           @Param("description") String description,
+                                           @Param("reportedAt") LocalDateTime reportedAt);
+
+    int insertSimulationExceptionAudit(@Param("tenantId") Long tenantId,
+                                        @Param("exceptionNo") String exceptionNo,
+                                        @Param("description") String description,
+                                        @Param("occurredAt") LocalDateTime occurredAt);
+
     int transitionOrder(@Param("tenantId") Long tenantId,
                         @Param("orderId") Long orderId,
                         @Param("fromStatus") String fromStatus,

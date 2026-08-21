@@ -16,7 +16,7 @@ class QuoteMapperXmlTest {
                 .contains("id=#{quoteId} AND tenant_id=#{tenantId}")
                 .contains("tenant_id=#{tenantId}")
                 .contains("shipment_order WHERE tenant_id=#{tenantId} AND quote_id=#{quoteId}")
-                .contains("ORDER BY created_at DESC, id DESC")
+                .contains("q.created_at", "q.id DESC", "visibleQuote", "sys_user_store_scope")
                 .doesNotContain("SELECT *");
     }
 
@@ -27,7 +27,8 @@ class QuoteMapperXmlTest {
             new org.apache.ibatis.builder.xml.XMLMapperBuilder(input, configuration,
                     "mapper/quote/QuoteMapper.xml", configuration.getSqlFragments()).parse();
         }
-        assertThat(configuration.hasStatement("com.shipflow.quote.mapper.QuoteMapper.findPage")).isTrue();
+        assertThat(configuration.hasStatement("com.shipflow.quote.mapper.QuoteMapper.findPageForUser")).isTrue();
+        assertThat(configuration.hasStatement("com.shipflow.quote.mapper.QuoteMapper.countForUser")).isTrue();
         assertThat(configuration.hasStatement("com.shipflow.quote.mapper.QuoteMapper.hasShipmentOrder")).isTrue();
     }
 

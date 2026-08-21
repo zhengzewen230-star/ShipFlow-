@@ -114,6 +114,29 @@ h1, h2, h3, p { margin-top: 0; }
   .container { width: min(100% - 30px, 1180px); }.section { padding: 70px 0; }.navbar__toggle { display: grid; place-items: center; }.navbar__links { position: absolute; left: 0; right: 0; top: 72px; display: none; flex-direction: column; align-items: stretch; gap: .2rem; padding: 1rem; border-bottom: 1px solid var(--slate-200); background: white; box-shadow: var(--shadow-sm); }.navbar__links.is-open { display: flex; }.navbar__links a, .navbar__section-link { padding: .7rem; text-align: left; }.hero__grid { padding-block: 60px; }.hero h1 { font-size: 2.65rem; }.hero__actions { align-items: stretch; flex-direction: column; }.text-link { align-self: flex-start; }.quote-float { right: 0; }.trust-strip__grid { grid-template-columns: 1fr 1fr; gap: 1rem; }.trust-strip__grid div { border: 0; }.service-grid { grid-template-columns: 1fr; }.service-card p { min-height: auto; }.cta-section__inner { align-items: flex-start; flex-direction: column; }.site-footer__grid { grid-template-columns: 1fr; gap: 2rem; }.stepper { grid-template-columns: repeat(5, 30px); justify-content: space-between; }.stepper li b, .stepper li::after { display: none; }.quote-shell { padding: .5rem; }.guest-estimate-intro, .guest-estimate-form { padding: 1.5rem .25rem; }.guest-estimate-intro { padding: 1.75rem 1.3rem; }.quote-form__main { padding: 1.5rem .7rem; }.form-grid, .form-grid--four, .preference-grid { grid-template-columns: 1fr; }.form-grid__full { grid-column: auto; }.login-story { min-height: 360px; }.login-story__content { margin-top: 3rem; }.login-story .brand { margin-bottom: 2rem; }.login-story h1 { font-size: 2.4rem; }.login-panel { padding: 3rem 1.2rem; }.app-shell { grid-template-columns: 1fr; }.sidebar { display: none; }.app-topbar { padding: 0 1rem; }.app-menu { display: grid; }.app-search { display: none; }.app-content { padding: 1rem; }.page-heading { align-items: flex-start; flex-direction: column; }.metric-grid, .dashboard-grid { grid-template-columns: 1fr; }.not-found__graphic span { font-size: 3.5rem; }
 }
 
+/* Phase 9 dedicated exception and claim management workspace. */
+.exception-page { display: grid; gap: 1rem; }
+.exception-filter { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.exception-summary, .claim-panel, .timeline-panel { padding: 1.2rem; }
+.exception-summary .panel__heading { align-items: center; }
+.exception-actions, .exception-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.action-card { display: grid; align-content: start; gap: .75rem; padding: 1rem; }
+.action-card h2, .claim-panel h2, .timeline-panel h2, .exception-detail-grid h2 { margin: 0 0 .5rem; }
+.action-card label { display: grid; gap: .35rem; color: var(--navy-800); font-size: .75rem; font-weight: 700; }
+.action-card input, .action-card select, .action-card textarea, .claim-actions input, .claim-actions select { min-width: 0; min-height: 42px; padding: .6rem .7rem; border: 1px solid var(--slate-300); border-radius: .45rem; background: #fff; font: inherit; }
+.action-card textarea { min-height: 84px; resize: vertical; }
+.record-list { display: grid; gap: .65rem; margin: 0; padding: 0; list-style: none; }
+.record-list li { display: grid; gap: .25rem; padding: .75rem; border: 1px solid var(--slate-200); border-radius: .45rem; }
+.record-list span, .record-list small, .timeline p, .timeline small { overflow-wrap: anywhere; color: var(--slate-500); }
+.record-list small { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .68rem; }
+.claim-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; margin-top: 1rem; }
+.timeline { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.timeline li { display: grid; grid-template-columns: 155px 1fr; gap: 1rem; padding: .85rem 0; border-bottom: 1px solid var(--slate-200); }
+.timeline time { color: var(--slate-500); font-size: .72rem; }
+.timeline p { margin: .25rem 0; }
+@media (max-width: 1100px) { .exception-filter { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .exception-filter, .exception-actions, .exception-detail-grid { grid-template-columns: 1fr; }.timeline li { grid-template-columns: 1fr; gap: .3rem; } }
+
 /* ShipFlow home: isolated visual system for the public landing page. */
 .sf-home { overflow: clip; color: #c7d9e8; background: #061a2d; }
 .navbar--home { position: fixed; width: 100%; border-color: rgba(178,220,240,.12); background: rgba(4, 19, 34, .58); backdrop-filter: blur(18px); }

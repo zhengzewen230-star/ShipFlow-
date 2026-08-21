@@ -49,7 +49,7 @@
   <select id="findEventPage" resultMap="eventView">SELECT id,tracking_no,event_id,event_code,event_description,event_time,received_time,process_status FROM tracking_event WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} ORDER BY event_time ASC,id ASC LIMIT #{limit} OFFSET #{offset}</select>
 
   <sql id="unifiedEvents">
-    SELECT * FROM (
+    SELECT id,order_id,order_no,tracking_no,occurred_at,location,event_code,event_description,source,process_status,exception_code,exception_id,request_id FROM (
       SELECT te.id, te.shipment_order_id AS order_id, o.order_no, te.tracking_no,
              te.event_time AS occurred_at, NULL AS location, te.event_code, te.event_description,
              'SF_EXPRESS' AS source, te.process_status,

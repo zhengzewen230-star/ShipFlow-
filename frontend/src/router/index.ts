@@ -20,6 +20,7 @@ import PlatformOnboardingView from '@/views/PlatformOnboardingView.vue'
 import GuestEstimateLeadsView from '@/views/GuestEstimateLeadsView.vue'
 import WarehouseWorkView from '@/views/WarehouseWorkView.vue'
 import TrackingView from '@/views/TrackingView.vue'
+import ExceptionManagementView from '@/views/ExceptionManagementView.vue'
 import { isPublicRouteName, publicRouteRedirect } from '@/navigation/access'
 
 declare module 'vue-router' {
@@ -41,7 +42,7 @@ const moduleRoutes: RouteRecordRaw[] = [
   { path: 'orders', name: 'app-orders', component: WorkflowView, props: { domain: 'orders' }, meta: { scope: 'TENANT', permission: 'order:read' } },
   { path: 'warehouse', name: 'app-warehouse', component: WarehouseWorkView, meta: { scope: 'TENANT', permission: 'warehouse:manage' } },
   { path: 'tracking', name: 'app-tracking', component: TrackingView, meta: { scope: 'TENANT', permission: 'tracking:read' } },
-  { path: 'exceptions', name: 'app-exceptions', component: WorkflowView, props: { domain: 'exceptions' }, meta: { scope: 'TENANT', permission: 'exception:read' } },
+  { path: 'exceptions', name: 'app-exceptions', component: ExceptionManagementView, meta: { scope: 'TENANT', permission: 'exception:read' } },
   { path: 'billing', name: 'app-billing', component: FinanceView, meta: { scope: 'TENANT', anyPermissions: ['billing:read', 'finance:bill-import', 'finance:reconcile'] } },
   { path: 'audit', name: 'app-audit', component: WorkflowView, props: { domain: 'audit' }, meta: { permission: 'audit:read' } },
 ]

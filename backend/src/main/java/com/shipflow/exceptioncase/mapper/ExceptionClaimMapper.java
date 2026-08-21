@@ -31,6 +31,25 @@ public interface ExceptionClaimMapper {
     default List<ExceptionCase> findAccessibleExceptions(Long tenantId, Long userId, Long orderId, String status, int offset, int limit) {
         return findAccessibleExceptions(tenantId, userId, orderId, status, null, offset, limit);
     }
+    long countAccessibleExceptionsFiltered(@Param("tenantId") Long tenantId, @Param("userId") Long userId,
+                                           @Param("orderId") Long orderId, @Param("status") String status,
+                                           @Param("workbenchFilter") String workbenchFilter,
+                                           @Param("exceptionType") String exceptionType,
+                                           @Param("orderNo") String orderNo, @Param("storeId") Long storeId,
+                                           @Param("responsibleParty") String responsibleParty,
+                                           @Param("createdFrom") LocalDateTime createdFrom,
+                                           @Param("createdTo") LocalDateTime createdTo);
+    List<ExceptionCase> findAccessibleExceptionsFiltered(@Param("tenantId") Long tenantId, @Param("userId") Long userId,
+                                                         @Param("orderId") Long orderId, @Param("status") String status,
+                                                         @Param("workbenchFilter") String workbenchFilter,
+                                                         @Param("exceptionType") String exceptionType,
+                                                         @Param("orderNo") String orderNo, @Param("storeId") Long storeId,
+                                                         @Param("responsibleParty") String responsibleParty,
+                                                         @Param("createdFrom") LocalDateTime createdFrom,
+                                                         @Param("createdTo") LocalDateTime createdTo,
+                                                         @Param("sortKey") String sortKey,
+                                                         @Param("sortDirection") String sortDirection,
+                                                         @Param("offset") int offset, @Param("limit") int limit);
     ExceptionCase findException(@Param("tenantId") Long tenantId, @Param("exceptionId") Long exceptionId);
     ExceptionCase findExceptionByNo(@Param("tenantId") Long tenantId, @Param("exceptionNo") String exceptionNo);
     int insertException(@Param("tenantId") Long tenantId, @Param("orderId") Long orderId,
@@ -42,6 +61,8 @@ public interface ExceptionClaimMapper {
     int assignException(@Param("tenantId") Long tenantId, @Param("exceptionId") Long exceptionId,
                         @Param("version") Long version, @Param("assignedToUserId") Long assignedToUserId,
                         @Param("responsibleParty") String responsibleParty);
+    int touchException(@Param("tenantId") Long tenantId, @Param("exceptionId") Long exceptionId,
+                       @Param("version") Long version);
 
     ClaimEligibility findClaimEligibility(@Param("tenantId") Long tenantId,
                                           @Param("exceptionId") Long exceptionId);
@@ -51,11 +72,28 @@ public interface ExceptionClaimMapper {
     ClaimRecord findClaimByNo(@Param("tenantId") Long tenantId, @Param("claimNo") String claimNo);
     int insertClaim(@Param("tenantId") Long tenantId, @Param("exceptionId") Long exceptionId,
                     @Param("claimNo") String claimNo, @Param("amount") BigDecimal amount,
-                    @Param("currency") String currency);
+                    @Param("currency") String currency, @Param("claimReason") String claimReason);
+    default int insertClaim(Long tenantId, Long exceptionId, String claimNo, BigDecimal amount, String currency) {
+        return insertClaim(tenantId, exceptionId, claimNo, amount, currency, null);
+    }
     int transitionClaim(@Param("tenantId") Long tenantId, @Param("claimId") Long claimId,
                         @Param("fromStatus") String fromStatus, @Param("toStatus") String toStatus,
                         @Param("version") Long version, @Param("submittedAt") LocalDateTime submittedAt,
                         @Param("resolvedAt") LocalDateTime resolvedAt);
+    int resolveClaim(@Param("tenantId") Long tenantId, @Param("claimId") Long claimId,
+                     @Param("fromStatus") String fromStatus, @Param("toStatus") String toStatus,
+                     @Param("version") Long version, @Param("resolvedAmount") BigDecimal resolvedAmount,
+                     @Param("resultReason") String resultReason, @Param("resolvedAt") LocalDateTime resolvedAt);
+    int financeConfirmClaim(@Param("tenantId") Long tenantId, @Param("claimId") Long claimId,
+                            @Param("version") Long version, @Param("operatorUserId") Long operatorUserId,
+                            @Param("confirmedAt") LocalDateTime confirmedAt);
+    int insertClaimEvidenceReference(@Param("tenantId") Long tenantId, @Param("claimId") Long claimId,
+                                     @Param("attachmentId") Long attachmentId);
+    boolean evidenceBelongsToException(@Param("tenantId") Long tenantId, @Param("exceptionId") Long exceptionId,
+                                       @Param("attachmentId") Long attachmentId);
+    List<Long> findClaimEvidenceIds(@Param("tenantId") Long tenantId, @Param("claimId") Long claimId);
+    boolean exceptionResolutionReady(@Param("tenantId") Long tenantId, @Param("exceptionId") Long exceptionId);
+    boolean exceptionCloseReady(@Param("tenantId") Long tenantId, @Param("exceptionId") Long exceptionId);
 
     List<HandlingRecord> findHandlingRecords(@Param("tenantId") Long tenantId,
                                              @Param("userId") Long userId,
@@ -103,4 +141,6 @@ public interface ExceptionClaimMapper {
                     @Param("resourceId") Long resourceId, @Param("requestId") String requestId,
                     @Param("reason") String reason, @Param("detail") String detail,
                     @Param("occurredAt") LocalDateTime occurredAt);
+    List<ExceptionTimelineEvent> findExceptionTimeline(@Param("tenantId") Long tenantId,
+                                                       @Param("exceptionId") Long exceptionId);
 }

@@ -2,6 +2,7 @@ package com.shipflow.tracking.scheduler;
 
 import com.shipflow.sf.config.SfProperties;
 import com.shipflow.tracking.mapper.ShipmentTrackingMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.DoubleSupplier;
 
 @Component
 public class SfTrackingSimulationScheduler {
@@ -16,15 +19,27 @@ public class SfTrackingSimulationScheduler {
     private static final String CUSTOMS_CLEARED = "CUSTOMS_EXPORT_CLEARED";
     private static final String AIR_IN_TRANSIT = "AIR_IN_TRANSIT";
     private static final String DELIVERED = "DELIVERED";
+    private static final String TRANSPORT_EXCEPTION = "TRANSPORT_EXCEPTION";
+    private static final double TRANSPORT_EXCEPTION_PROBABILITY = 0.30d;
+    private static final String SIMULATED_EXCEPTION_DESCRIPTION =
+            "模拟物流轨迹检测到运输异常：物流商运输状态异常，等待人工处理。";
 
     private final ShipmentTrackingMapper mapper;
     private final SfProperties properties;
     private final Clock clock;
+    private final DoubleSupplier random;
 
+    @Autowired
     public SfTrackingSimulationScheduler(ShipmentTrackingMapper mapper, SfProperties properties, Clock clock) {
+        this(mapper, properties, clock, () -> ThreadLocalRandom.current().nextDouble());
+    }
+
+    public SfTrackingSimulationScheduler(ShipmentTrackingMapper mapper, SfProperties properties, Clock clock,
+                                         DoubleSupplier random) {
         this.mapper = mapper;
         this.properties = properties;
         this.clock = clock;
+        this.random = random;
     }
 
     @Scheduled(fixedRate = 25000)
@@ -45,6 +60,18 @@ public class SfTrackingSimulationScheduler {
             return;
         }
         LocalDateTime occurredAt = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+        if (random.getAsDouble() < TRANSPORT_EXCEPTION_PROBABILITY) {
+            String exceptionNo = "SIMEX-" + order.orderId();
+            if (mapper.insertSimulationTransportException(order.tenantId(), order.orderId(), exceptionNo,
+                    SIMULATED_EXCEPTION_DESCRIPTION, occurredAt) == 1) {
+                mapper.insertSimulationExceptionAudit(order.tenantId(), exceptionNo,
+                        SIMULATED_EXCEPTION_DESCRIPTION, occurredAt);
+                mapper.insertSimulationEvent(order.tenantId(), order.orderId(), order.orderNo(), order.waybillNo(),
+                        TRANSPORT_EXCEPTION, "运输异常（模拟）", SIMULATED_EXCEPTION_DESCRIPTION,
+                        next.location(order.destinationAddress()), occurredAt);
+            }
+            return;
+        }
         if (!next.targetStatus().equals(order.currentStatus())
                 && mapper.transitionOrder(order.tenantId(), order.orderId(), order.currentStatus(),
                 next.targetStatus(), order.version()) != 1) {
@@ -65,6 +92,7 @@ public class SfTrackingSimulationScheduler {
             case PICKED_UP -> Step.CUSTOMS_CLEARED;
             case CUSTOMS_CLEARED -> Step.AIR_IN_TRANSIT;
             case AIR_IN_TRANSIT -> Step.DELIVERED;
+            case TRANSPORT_EXCEPTION -> null;
             default -> "OUTBOUND".equals(currentStatus) ? Step.PICKED_UP : null;
         };
     }

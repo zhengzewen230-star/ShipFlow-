@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @RestController
@@ -22,11 +23,22 @@ public class ExceptionClaimController {
 
     @GetMapping("/exceptions")
     public ApiResponse<ExceptionCasePageResponse> list(@RequestParam(required = false) Long orderId,
-                                                       @RequestParam(required = false) String status, @RequestParam(required = false) String workbenchFilter,
+                                                       @RequestParam(required = false) String status,
+                                                       @RequestParam(required = false) String workbenchFilter,
+                                                       @RequestParam(required = false) String exceptionType,
+                                                       @RequestParam(required = false) String orderNo,
+                                                       @RequestParam(required = false) Long storeId,
+                                                       @RequestParam(required = false) String responsibleParty,
+                                                       @RequestParam(required = false) OffsetDateTime createdFrom,
+                                                       @RequestParam(required = false) OffsetDateTime createdTo,
                                                        @RequestParam(defaultValue = "1") int page,
                                                        @RequestParam(defaultValue = "20") int pageSize,
+                                                       @RequestParam(defaultValue = "createdAt") String sortBy,
+                                                       @RequestParam(defaultValue = "DESC") String sortDirection,
                                                        @AuthenticationPrincipal Jwt jwt) {
-        return ApiResponse.success(service.list(tenant(jwt), user(jwt), orderId, status, workbenchFilter, page, pageSize));
+        return ApiResponse.success(service.list(tenant(jwt), user(jwt), orderId, status, workbenchFilter,
+                exceptionType, orderNo, storeId, responsibleParty, createdFrom, createdTo,
+                page, pageSize, sortBy, sortDirection));
     }
 
     @GetMapping("/exceptions/{exceptionId}")
@@ -72,9 +84,10 @@ public class ExceptionClaimController {
 
     @PostMapping(value = "/exceptions/{exceptionId}/evidence", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<EvidenceAttachmentResponse>> uploadEvidence(@PathVariable Long exceptionId,
-            @RequestPart("file") MultipartFile file, @RequestPart(value = "description", required = false) String description, @RequestHeader("Idempotency-Key") String key,
+            @RequestPart("file") MultipartFile file, @RequestPart(value = "description", required = false) String description,
+            @RequestPart("version") Long version, @RequestHeader("Idempotency-Key") String key,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId, @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(service.uploadEvidence(tenant(jwt), user(jwt), exceptionId, file, description, key, requestId)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(service.uploadEvidence(tenant(jwt), user(jwt), exceptionId, file, description, version, key, requestId)));
     }
 
     @GetMapping("/exceptions/{exceptionId}/evidence/{attachmentId}/content")
@@ -104,20 +117,30 @@ public class ExceptionClaimController {
 
     @PostMapping("/claims/{claimId}/submit")
     public ApiResponse<ClaimResponse> submit(@PathVariable Long claimId, @Valid @RequestBody ClaimActionRequest request,
+            @RequestHeader("Idempotency-Key") String key,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId, @AuthenticationPrincipal Jwt jwt) {
-        return ApiResponse.success(service.submitClaim(tenant(jwt), user(jwt), claimId, request, requestId));
+        return ApiResponse.success(service.submitClaim(tenant(jwt), user(jwt), claimId, request, key, requestId));
     }
 
     @PostMapping("/claims/{claimId}/result")
     public ApiResponse<ClaimResponse> result(@PathVariable Long claimId, @Valid @RequestBody ClaimResultRequest request,
+            @RequestHeader("Idempotency-Key") String key,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId, @AuthenticationPrincipal Jwt jwt) {
-        return ApiResponse.success(service.resolveClaim(tenant(jwt), user(jwt), claimId, request, requestId));
+        return ApiResponse.success(service.resolveClaim(tenant(jwt), user(jwt), claimId, request, key, requestId));
+    }
+
+    @PostMapping("/claims/{claimId}/finance-confirmation")
+    public ApiResponse<ClaimResponse> financeConfirmation(@PathVariable Long claimId,
+            @Valid @RequestBody FinanceConfirmRequest request, @RequestHeader("Idempotency-Key") String key,
+            @RequestHeader(value = "X-Request-Id", required = false) String requestId, @AuthenticationPrincipal Jwt jwt) {
+        return ApiResponse.success(service.financeConfirmClaim(tenant(jwt), user(jwt), claimId, request, key, requestId));
     }
 
     @PostMapping("/claims/{claimId}/close")
     public ApiResponse<ClaimResponse> close(@PathVariable Long claimId, @Valid @RequestBody ClaimActionRequest request,
+            @RequestHeader("Idempotency-Key") String key,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId, @AuthenticationPrincipal Jwt jwt) {
-        return ApiResponse.success(service.closeClaim(tenant(jwt), user(jwt), claimId, request, requestId));
+        return ApiResponse.success(service.closeClaim(tenant(jwt), user(jwt), claimId, request, key, requestId));
     }
 
     private Long tenant(Jwt jwt) { try { return Long.valueOf(jwt.getClaimAsString("tenant_id")); } catch (Exception e) { throw new ExceptionClaimException("COMMON-1004", 403); } }

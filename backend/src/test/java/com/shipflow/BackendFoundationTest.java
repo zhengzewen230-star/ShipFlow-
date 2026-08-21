@@ -34,6 +34,7 @@ import com.shipflow.order.mapper.ShipmentOrderMapper;
 import com.shipflow.order.mapper.ShipmentOrderIdempotencyMapper;
 import com.shipflow.order.mapper.PriceConfirmationMapper;
 import com.shipflow.order.mapper.PriceConfirmationIdempotencyMapper;
+import com.shipflow.order.mapper.OrderActionIdempotencyMapper;
 import com.shipflow.warehouse.mapper.WarehouseMapper;
 import com.shipflow.warehouse.mapper.WarehouseOverviewMapper;
 import com.shipflow.tracking.mapper.TrackingQueryMapper;
@@ -84,6 +85,7 @@ class BackendFoundationTest {
     @MockBean ShipmentOrderIdempotencyMapper shipmentOrderIdempotencyMapper;
     @MockBean PriceConfirmationMapper priceConfirmationMapper;
     @MockBean PriceConfirmationIdempotencyMapper priceConfirmationIdempotencyMapper;
+    @MockBean OrderActionIdempotencyMapper orderActionIdempotencyMapper;
     @MockBean WarehouseMapper warehouseMapper;
     @MockBean WarehouseOverviewMapper warehouseOverviewMapper;
     @MockBean TrackingQueryMapper trackingQueryMapper;

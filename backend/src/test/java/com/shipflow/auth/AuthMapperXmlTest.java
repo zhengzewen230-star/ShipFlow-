@@ -37,6 +37,7 @@ import com.shipflow.order.mapper.ShipmentOrderMapper;
 import com.shipflow.order.mapper.ShipmentOrderIdempotencyMapper;
 import com.shipflow.order.mapper.PriceConfirmationMapper;
 import com.shipflow.order.mapper.PriceConfirmationIdempotencyMapper;
+import com.shipflow.order.mapper.OrderActionIdempotencyMapper;
 import com.shipflow.store.mapper.StoreScopeMapper;
 import com.shipflow.store.mapper.StoreResourceMapper;
 import com.shipflow.warehouse.mapper.WarehouseMapper;
@@ -134,6 +135,7 @@ class AuthMapperXmlTest {
         @Bean ShipmentOrderIdempotencyMapper shipmentOrderIdempotencyMapper() { return mock(ShipmentOrderIdempotencyMapper.class); }
         @Bean PriceConfirmationMapper priceConfirmationMapper() { return mock(PriceConfirmationMapper.class); }
         @Bean PriceConfirmationIdempotencyMapper priceConfirmationIdempotencyMapper() { return mock(PriceConfirmationIdempotencyMapper.class); }
+        @Bean OrderActionIdempotencyMapper orderActionIdempotencyMapper() { return mock(OrderActionIdempotencyMapper.class); }
         @Bean StoreScopeMapper storeScopeMapper() { return mock(StoreScopeMapper.class); }
         @Bean StoreResourceMapper storeResourceMapper() { return mock(StoreResourceMapper.class); }
         @Bean WarehouseMapper warehouseMapper() { return mock(WarehouseMapper.class); }

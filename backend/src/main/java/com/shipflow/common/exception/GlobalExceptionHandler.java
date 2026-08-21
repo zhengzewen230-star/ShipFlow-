@@ -8,6 +8,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -211,6 +212,13 @@ public class GlobalExceptionHandler {
             builder.allow(exception.getSupportedHttpMethods().toArray(new org.springframework.http.HttpMethod[0]));
         }
         return builder.body(new ApiErrorResponse("COMMON-1001", "Method not allowed"));
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingRequestHeader(MissingRequestHeaderException exception) {
+        return response(HttpStatus.BAD_REQUEST,
+                new ApiErrorResponse("COMMON-1001", "Missing required request header",
+                        Map.of("header", exception.getHeaderName())));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

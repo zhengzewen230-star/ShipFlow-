@@ -26,6 +26,8 @@ class ShipmentTrackingMapperXmlTest {
         assertThat(configuration.hasStatement(ShipmentTrackingMapper.class.getName() + ".findTimeline")).isTrue();
         assertThat(configuration.hasStatement(ShipmentTrackingMapper.class.getName() + ".findSandboxOrders")).isTrue();
         assertThat(configuration.hasStatement(ShipmentTrackingMapper.class.getName() + ".insertSimulationEvent")).isTrue();
+        assertThat(configuration.hasStatement(ShipmentTrackingMapper.class.getName() + ".insertSimulationTransportException")).isTrue();
+        assertThat(configuration.hasStatement(ShipmentTrackingMapper.class.getName() + ".insertSimulationExceptionAudit")).isTrue();
         assertThat(configuration.hasStatement(ShipmentTrackingMapper.class.getName() + ".transitionOrder")).isTrue();
         assertThat(Files.readString(Path.of("src/main/resources/mapper/tracking/ShipmentTrackingMapper.xml")))
                 .contains("o.store_id");

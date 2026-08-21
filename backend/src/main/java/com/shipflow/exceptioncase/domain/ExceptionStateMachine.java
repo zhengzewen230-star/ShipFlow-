@@ -7,7 +7,6 @@ public final class ExceptionStateMachine {
                 || ("PROCESSING".equals(currentStatus) && "WAITING_PROVIDER_FEEDBACK".equals(targetStatus))
                 || ("PROCESSING".equals(currentStatus) && "PENDING_FINANCE_CONFIRMATION".equals(targetStatus))
                 || ("WAITING_PROVIDER_FEEDBACK".equals(currentStatus) && "PROCESSING".equals(targetStatus))
-                || ("WAITING_PROVIDER_FEEDBACK".equals(currentStatus) && "PENDING_FINANCE_CONFIRMATION".equals(targetStatus))
                 || ("PENDING_FINANCE_CONFIRMATION".equals(currentStatus) && "RESOLVED".equals(targetStatus))
                 || ("RESOLVED".equals(currentStatus) && "CLOSED".equals(targetStatus));
     }

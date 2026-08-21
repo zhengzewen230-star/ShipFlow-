@@ -149,6 +149,25 @@
     ON DUPLICATE KEY UPDATE id=id
   </insert>
 
+  <insert id="insertSimulationTransportException">
+    INSERT INTO exception_case
+      (tenant_id, shipment_order_id, exception_no, exception_type, status, description, responsible_party, reported_at, version)
+    VALUES
+      (#{tenantId}, #{orderId}, #{exceptionNo}, 'TRANSPORT', 'OPEN', #{description}, 'PROVIDER', #{reportedAt}, 0)
+    ON DUPLICATE KEY UPDATE id=id
+  </insert>
+
+  <insert id="insertSimulationExceptionAudit">
+    INSERT INTO audit_log
+      (tenant_id, operator_user_id, action_type, resource_type, resource_id, request_id,
+       result_status, reason, detail, occurred_at)
+    SELECT #{tenantId}, NULL, 'EXCEPTION_SIMULATION_CREATE', 'EXCEPTION_CASE', ec.id,
+           'SF_TRACKING_SIMULATION', 'SUCCESS', #{description},
+           JSON_OBJECT('source', 'SF_TRACKING_SIMULATION', 'statusAfter', 'OPEN'), #{occurredAt}
+    FROM exception_case ec
+    WHERE ec.tenant_id=#{tenantId} AND ec.exception_no=#{exceptionNo}
+  </insert>
+
   <update id="transitionOrder">
     UPDATE shipment_order
     SET current_status=#{toStatus}, version=version+1
