@@ -1,0 +1,1 @@
+package com.shipflow.tracking.domain;import java.time.LocalDateTime;public record TrackingEvent(Long id,String trackingNo,String eventCode,String description,LocalDateTime eventTime,String processStatus){}

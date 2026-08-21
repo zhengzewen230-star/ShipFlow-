@@ -1,9 +1,7 @@
-USE shipflow;
-
 SET NAMES utf8mb4;
 
 -- 所有密码均为测试环境固定 BCrypt 示例值，不得用于生产环境。
-SET @test_bcrypt = '$2a$10$7EqJtq98hPqEX7fNZaFWoO5KZ6Qh9f3JmQm8r3lV6n6bJxq6o2m3K';
+SET @test_bcrypt = '$2a$10$SAdx34roAZNYsuH0jyCjeu0D3iF/nBikNAQfFNDpt.hErC8HJG/l.';
 
 INSERT INTO tenant (id, tenant_code, tenant_name, status)
 VALUES
@@ -21,7 +19,9 @@ VALUES
     (7, 'finance:bill-import', '导入账单', '导入统一CSV账单'),
     (8, 'finance:reconcile', '费用对账', '处理费用对账'),
     (9, 'tracking:callback', '处理轨迹回调', '处理物流商轨迹回调'),
-    (10, 'audit:read', '查看审计日志', '查看审计日志');
+    (10, 'audit:read', '查看审计日志', '查看审计日志'),
+    (11, 'order:price-request', '申请费用确认', '商家业务员提交订单费用确认申请'),
+    (12, 'order:price-confirm', '确认订单费用', '财务人员或租户管理员最终确认订单费用');
 
 INSERT INTO sys_user (id, tenant_id, username, display_name, password_hash, status)
 VALUES
@@ -73,7 +73,12 @@ VALUES
     (7, 3), (7, 4),
     (8, 4), (8, 5), (8, 6),
     (9, 7), (9, 8), (9, 10),
-    (10, 9);
+    (10, 9),
+    (2, 12),
+    (4, 11),
+    (6, 12),
+    (7, 11),
+    (9, 12);
 
 INSERT INTO merchant_store (id, tenant_id, store_code, store_name, platform_code, platform_account, status)
 VALUES
@@ -82,17 +87,22 @@ VALUES
     (3, 2, 'STORE_JP_001', '商家二日本店', 'MARKETPLACE_B', 'merchant-two-jp', 'ACTIVE'),
     (4, 2, 'STORE_EU_001', '商家二欧洲店', 'MARKETPLACE_B', 'merchant-two-eu', 'ACTIVE');
 
+INSERT INTO sys_user_store_scope (tenant_id, user_id, store_id, status)
+VALUES
+    (1, 4, 1, 'ACTIVE'),
+    (2, 7, 3, 'ACTIVE');
+
 INSERT INTO logistics_provider (id, provider_code, provider_name, status)
 VALUES
     (1, 'PROVIDER_ALPHA', 'Alpha国际物流', 'ACTIVE'),
     (2, 'PROVIDER_BETA', 'Beta跨境物流', 'ACTIVE');
 
-INSERT INTO logistics_channel (id, provider_id, channel_code, channel_name, service_area, status)
+INSERT INTO logistics_channel (id, provider_id, channel_code, channel_name, transport_mode, service_area, status)
 VALUES
-    (1, 1, 'ALPHA_JP_STANDARD', 'Alpha日本标准渠道', '中国-日本', 'ACTIVE'),
-    (2, 1, 'ALPHA_US_STANDARD', 'Alpha美国标准渠道', '中国-美国', 'ACTIVE'),
-    (3, 2, 'BETA_EU_STANDARD', 'Beta欧洲标准渠道', '中国-欧洲', 'ACTIVE'),
-    (4, 2, 'BETA_US_AIR', 'Beta美国空运渠道', '中国-美国', 'ACTIVE');
+    (1, 1, 'ALPHA_JP_STANDARD', 'Alpha日本标准渠道', 'COURIER', '中国-日本', 'ACTIVE'),
+    (2, 1, 'ALPHA_US_STANDARD', 'Alpha美国标准渠道', 'COURIER', '中国-美国', 'ACTIVE'),
+    (3, 2, 'BETA_EU_STANDARD', 'Beta欧洲标准渠道', 'ROAD', '中国-欧洲', 'ACTIVE'),
+    (4, 2, 'BETA_US_AIR', 'Beta美国空运渠道', 'AIR', '中国-美国', 'ACTIVE');
 
 INSERT INTO logistics_channel_service_country (id, channel_id, country_code)
 VALUES

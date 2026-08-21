@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.store.mapper.StoreMapper">
+  <resultMap id="m" type="com.shipflow.store.domain.model.Store">
+    <constructor>
+      <idArg column="id" javaType="java.lang.Long"/><arg column="tenant_id" javaType="java.lang.Long"/>
+      <arg column="store_code" javaType="string"/><arg column="store_name" javaType="string"/>
+      <arg column="platform_code" javaType="string"/><arg column="platform_account" javaType="string"/>
+      <arg column="status" javaType="string"/><arg column="version" javaType="_long"/>
+      <arg column="created_at" javaType="java.time.LocalDateTime"/><arg column="updated_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="listItem" type="com.shipflow.store.api.model.StoreListItem">
+    <constructor>
+      <idArg column="id" javaType="java.lang.Long"/><arg column="tenant_id" javaType="java.lang.Long"/>
+      <arg column="store_code" javaType="string"/><arg column="store_name" javaType="string"/>
+      <arg column="platform_code" javaType="string"/><arg column="country_region" javaType="string"/>
+      <arg column="default_shipping_address" javaType="string"/><arg column="default_logistics_channel" javaType="string"/>
+      <arg column="status" javaType="string"/><arg column="version" javaType="_long"/><arg column="updated_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+  <sql id="c">id,tenant_id,store_code,store_name,platform_code,platform_account,status,version,created_at,updated_at</sql>
+  <sql id="visibleStore">
+    s.tenant_id=#{tenantId} AND s.deleted=0
+    AND EXISTS (SELECT 1 FROM sys_user u WHERE u.id=#{userId} AND u.tenant_id=#{tenantId} AND u.status='ACTIVE' AND u.deleted=0)
+    AND (
+      EXISTS (SELECT 1 FROM sys_user_role ur JOIN sys_role r ON r.id=ur.role_id
+        WHERE ur.tenant_id=#{tenantId} AND ur.user_id=#{userId} AND r.tenant_id=#{tenantId}
+          AND r.role_scope='TENANT' AND r.status='ACTIVE' AND r.deleted=0
+          AND r.role_code IN ('MERCHANT_ADMIN','FINANCE_OPERATOR','WAREHOUSE_OPERATOR','CUSTOMER_SERVICE_OPERATOR'))
+      OR (
+        EXISTS (SELECT 1 FROM sys_user_role ur JOIN sys_role r ON r.id=ur.role_id
+          WHERE ur.tenant_id=#{tenantId} AND ur.user_id=#{userId} AND r.tenant_id=#{tenantId}
+            AND r.role_code='MERCHANT_OPERATOR' AND r.role_scope='TENANT' AND r.status='ACTIVE' AND r.deleted=0)
+        AND EXISTS (SELECT 1 FROM sys_user_store_scope uss
+          WHERE uss.tenant_id=#{tenantId} AND uss.user_id=#{userId} AND uss.store_id=s.id AND uss.status='ACTIVE')
+      )
+    )
+  </sql>
+  <select id="findById" resultMap="m">SELECT <include refid="c"/> FROM merchant_store WHERE id=#{storeId} AND tenant_id=#{tenantId} AND deleted=0</select>
+  <select id="findByIdForUser" resultMap="m">SELECT <include refid="c"/> FROM merchant_store s WHERE s.id=#{storeId} AND <include refid="visibleStore"/></select>
+  <select id="findByCode" resultMap="m">SELECT <include refid="c"/> FROM merchant_store WHERE tenant_id=#{tenantId} AND store_code=#{storeCode} AND deleted=0</select>
+  <select id="findByAccount" resultMap="m">SELECT <include refid="c"/> FROM merchant_store WHERE tenant_id=#{tenantId} AND platform_code=#{platformCode} AND platform_account=#{platformAccount} AND deleted=0</select>
+  <select id="page" resultMap="m">SELECT <include refid="c"/> FROM merchant_store WHERE tenant_id=#{tenantId} AND deleted=0 AND (#{status} IS NULL OR status=#{status}) AND (#{platformCode} IS NULL OR platform_code=#{platformCode}) ORDER BY id LIMIT #{offset},#{pageSize}</select>
+  <select id="pageForUser" resultMap="listItem">
+    SELECT s.id,s.tenant_id,s.store_code,s.store_name,s.platform_code,
+      (SELECT a.country_code FROM merchant_store_address a WHERE a.tenant_id=s.tenant_id AND a.store_id=s.id AND a.status='ACTIVE' AND a.is_default=1 ORDER BY a.id DESC LIMIT 1) country_region,
+      (SELECT CONCAT(a.city,' / ',a.address_line1) FROM merchant_store_address a WHERE a.tenant_id=s.tenant_id AND a.store_id=s.id AND a.status='ACTIVE' AND a.is_default=1 ORDER BY a.id DESC LIMIT 1) default_shipping_address,
+      (SELECT CONCAT(c.channel_code,' / ',c.channel_name) FROM merchant_store_channel sc JOIN logistics_channel c ON c.id=sc.channel_id WHERE sc.tenant_id=s.tenant_id AND sc.store_id=s.id AND sc.status='ACTIVE' AND sc.is_default=1 ORDER BY sc.id DESC LIMIT 1) default_logistics_channel,
+      s.status,s.version,s.updated_at
+    FROM merchant_store s WHERE <include refid="visibleStore"/>
+    <if test="storeCode != null"> AND s.store_code LIKE CONCAT('%',#{storeCode},'%')</if>
+    <if test="storeName != null"> AND s.store_name LIKE CONCAT('%',#{storeName},'%')</if>
+    <if test="platformCode != null"> AND s.platform_code=#{platformCode}</if>
+    <if test="status != null"> AND s.status=#{status}</if>
+    ORDER BY
+    <choose><when test="sortBy == 'storeCode'">s.store_code</when><when test="sortBy == 'storeName'">s.store_name</when><when test="sortBy == 'platformCode'">s.platform_code</when><when test="sortBy == 'status'">s.status</when><when test="sortBy == 'updatedAt'">s.updated_at</when><otherwise>s.id</otherwise></choose>
+    <choose><when test="sortDirection == 'ASC'">ASC</when><otherwise>DESC</otherwise></choose>,s.id DESC LIMIT #{offset},#{pageSize}</select>
+  <select id="count" resultType="long">SELECT COUNT(id) FROM merchant_store WHERE tenant_id=#{tenantId} AND deleted=0 AND (#{status} IS NULL OR status=#{status}) AND (#{platformCode} IS NULL OR platform_code=#{platformCode})</select>
+  <select id="countForUser" resultType="long">SELECT COUNT(s.id) FROM merchant_store s WHERE <include refid="visibleStore"/>
+    <if test="storeCode != null"> AND s.store_code LIKE CONCAT('%',#{storeCode},'%')</if>
+    <if test="storeName != null"> AND s.store_name LIKE CONCAT('%',#{storeName},'%')</if>
+    <if test="platformCode != null"> AND s.platform_code=#{platformCode}</if>
+    <if test="status != null"> AND s.status=#{status}</if></select>
+  <select id="countHistoricalOrders" resultType="long">SELECT COUNT(*) FROM shipment_order WHERE tenant_id=#{tenantId} AND store_id=#{storeId}</select>
+  <insert id="insert">INSERT INTO merchant_store (tenant_id,store_code,store_name,platform_code,platform_account,status,deleted,version) VALUES (#{tenantId},#{storeCode},#{storeName},#{platformCode},#{platformAccount},'ACTIVE',0,0)</insert>
+  <update id="update">UPDATE merchant_store SET store_name=#{storeName},platform_code=#{platformCode},platform_account=#{platformAccount},version=version+1 WHERE id=#{storeId} AND tenant_id=#{tenantId} AND deleted=0 AND version=#{version}</update>
+  <update id="updateStatus">UPDATE merchant_store SET status=#{status},version=version+1 WHERE id=#{storeId} AND tenant_id=#{tenantId} AND deleted=0 AND version=#{version}</update>
+</mapper>

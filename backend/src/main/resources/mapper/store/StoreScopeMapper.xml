@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.store.mapper.StoreScopeMapper">
+  <select id="canAccessStore" resultType="boolean">
+    SELECT CASE WHEN EXISTS (
+      SELECT 1
+      FROM merchant_store s
+      JOIN sys_user u ON u.id = #{userId}
+        AND u.tenant_id = #{tenantId} AND u.status = 'ACTIVE' AND u.deleted = 0
+      WHERE s.id = #{storeId}
+        AND s.tenant_id = #{tenantId}
+        AND s.status IN ('ACTIVE', 'DISABLED')
+        AND s.deleted = 0
+        AND (
+          EXISTS (
+            SELECT 1
+            FROM sys_user_role ur
+            JOIN sys_role r ON r.id = ur.role_id
+            WHERE ur.tenant_id = #{tenantId}
+              AND ur.user_id = #{userId}
+              AND r.tenant_id = #{tenantId}
+              AND r.role_scope = 'TENANT'
+              AND r.status = 'ACTIVE'
+              AND r.deleted = 0
+              AND r.role_code IN ('MERCHANT_ADMIN', 'FINANCE_OPERATOR', 'WAREHOUSE_OPERATOR', 'CUSTOMER_SERVICE_OPERATOR')
+          )
+          OR (
+            EXISTS (
+              SELECT 1
+              FROM sys_user_role ur
+              JOIN sys_role r ON r.id = ur.role_id
+              WHERE ur.tenant_id = #{tenantId}
+                AND ur.user_id = #{userId}
+                AND r.tenant_id = #{tenantId}
+                AND r.role_code = 'MERCHANT_OPERATOR'
+                AND r.role_scope = 'TENANT'
+                AND r.status = 'ACTIVE'
+                AND r.deleted = 0
+            )
+            AND EXISTS (
+              SELECT 1
+              FROM sys_user_store_scope uss
+              WHERE uss.tenant_id = #{tenantId}
+                AND uss.user_id = #{userId}
+                AND uss.store_id = s.id
+                AND uss.status = 'ACTIVE'
+            )
+          )
+        )
+    ) THEN TRUE ELSE FALSE END
+  </select>
+  <select id="canRequestPriceConfirmation" resultType="boolean">
+    SELECT CASE WHEN EXISTS (
+      SELECT 1
+      FROM merchant_store s
+      JOIN sys_user u ON u.id = #{userId}
+        AND u.tenant_id = #{tenantId} AND u.status = 'ACTIVE' AND u.deleted = 0
+      JOIN sys_user_role ur ON ur.tenant_id = #{tenantId} AND ur.user_id = #{userId}
+      JOIN sys_role r ON r.id = ur.role_id
+        AND r.tenant_id = #{tenantId} AND r.role_code = 'MERCHANT_OPERATOR'
+        AND r.role_scope = 'TENANT' AND r.status = 'ACTIVE' AND r.deleted = 0
+      JOIN sys_user_store_scope uss ON uss.tenant_id = #{tenantId}
+        AND uss.user_id = #{userId} AND uss.store_id = s.id AND uss.status = 'ACTIVE'
+      WHERE s.id = #{storeId} AND s.tenant_id = #{tenantId}
+        AND s.status = 'ACTIVE' AND s.deleted = 0
+    ) THEN TRUE ELSE FALSE END
+  </select>
+  <select id="canConfirmPrice" resultType="boolean">
+    SELECT CASE WHEN EXISTS (
+      SELECT 1
+      FROM merchant_store s
+      JOIN sys_user u ON u.id = #{userId}
+        AND u.tenant_id = #{tenantId} AND u.status = 'ACTIVE' AND u.deleted = 0
+      JOIN sys_user_role ur ON ur.tenant_id = #{tenantId} AND ur.user_id = #{userId}
+      JOIN sys_role r ON r.id = ur.role_id
+        AND r.tenant_id = #{tenantId} AND r.role_scope = 'TENANT'
+        AND r.role_code IN ('MERCHANT_ADMIN', 'FINANCE_OPERATOR')
+        AND r.status = 'ACTIVE' AND r.deleted = 0
+      WHERE s.id = #{storeId} AND s.tenant_id = #{tenantId}
+        AND s.status = 'ACTIVE' AND s.deleted = 0
+    ) THEN TRUE ELSE FALSE END
+  </select>
+  <select id="canManageStoreConfiguration" resultType="boolean">
+    SELECT CASE WHEN EXISTS (
+      SELECT 1 FROM merchant_store s
+      JOIN sys_user u ON u.id=#{userId} AND u.tenant_id=#{tenantId} AND u.status='ACTIVE' AND u.deleted=0
+      JOIN sys_user_role ur ON ur.tenant_id=#{tenantId} AND ur.user_id=#{userId}
+      JOIN sys_role r ON r.id=ur.role_id AND r.tenant_id=#{tenantId}
+        AND r.role_code='MERCHANT_ADMIN' AND r.role_scope='TENANT' AND r.status='ACTIVE' AND r.deleted=0
+      WHERE s.id=#{storeId} AND s.tenant_id=#{tenantId} AND s.status='ACTIVE' AND s.deleted=0
+    ) THEN TRUE ELSE FALSE END
+  </select>
+  <select id="canManageStoreStatus" resultType="boolean">
+    SELECT CASE WHEN EXISTS (
+      SELECT 1 FROM merchant_store s
+      JOIN sys_user u ON u.id=#{userId} AND u.tenant_id=#{tenantId} AND u.status='ACTIVE' AND u.deleted=0
+      JOIN sys_user_role ur ON ur.tenant_id=#{tenantId} AND ur.user_id=#{userId}
+      JOIN sys_role r ON r.id=ur.role_id AND r.tenant_id=#{tenantId}
+        AND r.role_code='MERCHANT_ADMIN' AND r.role_scope='TENANT' AND r.status='ACTIVE' AND r.deleted=0
+      WHERE s.id=#{storeId} AND s.tenant_id=#{tenantId}
+        AND s.status IN ('ACTIVE', 'DISABLED') AND s.deleted=0
+    ) THEN TRUE ELSE FALSE END
+  </select>
+</mapper>

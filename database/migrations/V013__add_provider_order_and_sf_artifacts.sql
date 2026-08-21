@@ -1,0 +1,72 @@
+-- Not executed in this change. Requires review and a controlled Flyway run.
+-- Stores non-sensitive supplier state; provider request/response bodies are never persisted.
+CREATE TABLE provider_order (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    tenant_id BIGINT NOT NULL,
+    shipment_order_id BIGINT NOT NULL,
+    provider_id BIGINT NOT NULL,
+    request_id VARCHAR(128) NOT NULL,
+    service_code VARCHAR(64) NOT NULL,
+    external_order_no VARCHAR(128) NULL,
+    tracking_no VARCHAR(128) NULL,
+    provider_status VARCHAR(64) NULL,
+    lifecycle_status VARCHAR(32) NOT NULL,
+    last_error_code VARCHAR(64) NULL,
+    last_error_summary VARCHAR(255) NULL,
+    retry_count INT NOT NULL DEFAULT 0,
+    version BIGINT NOT NULL DEFAULT 0,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_provider_order_tenant_order (tenant_id, shipment_order_id, provider_id),
+    UNIQUE KEY uk_provider_order_request (provider_id, request_id),
+    KEY idx_provider_order_tenant_status (tenant_id, lifecycle_status, updated_at),
+    CONSTRAINT fk_provider_order_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    CONSTRAINT fk_provider_order_shipment FOREIGN KEY (shipment_order_id) REFERENCES shipment_order (id),
+    CONSTRAINT fk_provider_order_provider FOREIGN KEY (provider_id) REFERENCES logistics_provider (id),
+    CONSTRAINT chk_provider_order_status CHECK (lifecycle_status IN ('PROCESSING', 'CREATED', 'LABEL_READY', 'CANCELLED', 'FAILED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='第三方物流订单非敏感状态';
+
+CREATE TABLE shipment_label (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    tenant_id BIGINT NOT NULL,
+    shipment_order_id BIGINT NOT NULL,
+    provider_order_id BIGINT NOT NULL,
+    request_id VARCHAR(128) NOT NULL,
+    label_reference VARCHAR(255) NULL,
+    label_status VARCHAR(32) NOT NULL,
+    error_code VARCHAR(64) NULL,
+    error_summary VARCHAR(255) NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_label_provider_order (provider_order_id),
+    UNIQUE KEY uk_label_request (provider_order_id, request_id),
+    KEY idx_label_tenant_order (tenant_id, shipment_order_id),
+    CONSTRAINT fk_label_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    CONSTRAINT fk_label_order FOREIGN KEY (shipment_order_id) REFERENCES shipment_order (id),
+    CONSTRAINT fk_label_provider_order FOREIGN KEY (provider_order_id) REFERENCES provider_order (id),
+    CONSTRAINT chk_label_status CHECK (label_status IN ('PROCESSING', 'READY', 'FAILED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='发货面单引用和状态';
+
+CREATE TABLE customs_document (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    tenant_id BIGINT NOT NULL,
+    shipment_order_id BIGINT NOT NULL,
+    provider_order_id BIGINT NOT NULL,
+    request_id VARCHAR(128) NOT NULL,
+    document_type VARCHAR(64) NOT NULL,
+    document_reference VARCHAR(255) NULL,
+    document_status VARCHAR(32) NOT NULL,
+    error_code VARCHAR(64) NULL,
+    error_summary VARCHAR(255) NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_customs_document_request (provider_order_id, request_id, document_type),
+    KEY idx_customs_tenant_order (tenant_id, shipment_order_id),
+    CONSTRAINT fk_customs_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    CONSTRAINT fk_customs_order FOREIGN KEY (shipment_order_id) REFERENCES shipment_order (id),
+    CONSTRAINT fk_customs_provider_order FOREIGN KEY (provider_order_id) REFERENCES provider_order (id),
+    CONSTRAINT chk_customs_status CHECK (document_status IN ('PROCESSING', 'UPLOADED', 'FAILED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='清关资料上传引用和状态';

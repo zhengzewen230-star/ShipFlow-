@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.tracking.mapper.ShipmentTrackingMapper">
+  <resultMap id="trackingOrder" type="com.shipflow.tracking.domain.ShipmentTrackingOrder">
+    <constructor>
+      <idArg column="id" javaType="java.lang.Long"/>
+      <arg column="order_no" javaType="java.lang.String"/>
+      <arg column="waybill_no" javaType="java.lang.String"/>
+      <arg column="store_id" javaType="java.lang.Long"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="trackingEvent" type="com.shipflow.tracking.domain.ShipmentTrackingEvent">
+    <constructor>
+      <idArg column="id" javaType="java.lang.Long"/>
+      <arg column="order_id" javaType="java.lang.Long"/>
+      <arg column="order_no" javaType="java.lang.String"/>
+      <arg column="waybill_no" javaType="java.lang.String"/>
+      <arg column="status_code" javaType="java.lang.String"/>
+      <arg column="title" javaType="java.lang.String"/>
+      <arg column="description" javaType="java.lang.String"/>
+      <arg column="location" javaType="java.lang.String"/>
+      <arg column="source" javaType="java.lang.String"/>
+      <arg column="occurred_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="sandboxOrder" type="com.shipflow.tracking.mapper.ShipmentTrackingMapper$SandboxOrder">
+    <constructor>
+      <arg column="tenant_id" javaType="java.lang.Long"/>
+      <arg column="order_id" javaType="java.lang.Long"/>
+      <arg column="order_no" javaType="java.lang.String"/>
+      <arg column="waybill_no" javaType="java.lang.String"/>
+      <arg column="current_status" javaType="java.lang.String"/>
+      <arg column="version" javaType="java.lang.Long"/>
+      <arg column="destination_address" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+
+  <select id="findOrderByReference" resultMap="trackingOrder">
+    SELECT o.id, o.order_no,
+           COALESCE(obr.tracking_no, po.tracking_no) AS waybill_no
+           ,o.store_id
+    FROM shipment_order o
+    LEFT JOIN warehouse_outbound_record obr
+      ON obr.tenant_id=o.tenant_id AND obr.shipment_order_id=o.id
+    LEFT JOIN provider_order po
+      ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+    WHERE o.tenant_id=#{tenantId}
+      AND (o.order_no=#{reference} OR obr.tracking_no=#{reference} OR po.tracking_no=#{reference})
+    ORDER BY o.id DESC
+    LIMIT 1
+  </select>
+
+  <select id="findTimeline" resultMap="trackingEvent">
+    SELECT id, order_id, order_no, waybill_no, status_code, title, description, location, source, occurred_at
+    FROM (
+      SELECT -o.id AS id, o.id AS order_id, o.order_no,
+             COALESCE(obr.tracking_no, po.tracking_no) AS waybill_no,
+             'ORDER_CREATED' AS status_code, '订单已创建' AS title,
+             '物流订单创建完成' AS description, NULL AS location, 'INTERNAL' AS source,
+             o.created_at AS occurred_at
+      FROM shipment_order o
+      LEFT JOIN warehouse_outbound_record obr
+        ON obr.tenant_id=o.tenant_id AND obr.shipment_order_id=o.id
+      LEFT JOIN provider_order po
+        ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+      WHERE o.tenant_id=#{tenantId} AND o.id=#{orderId}
+      UNION ALL
+      SELECT -a.id, o.id, o.order_no, COALESCE(obr.tracking_no, po.tracking_no),
+             'WAREHOUSE_INBOUND', '货物已入库', '仓库已确认收货', NULL, 'INTERNAL', a.occurred_at
+      FROM audit_log a
+      JOIN shipment_order o ON o.tenant_id=a.tenant_id AND o.id=a.resource_id
+      LEFT JOIN warehouse_outbound_record obr
+        ON obr.tenant_id=o.tenant_id AND obr.shipment_order_id=o.id
+      LEFT JOIN provider_order po
+        ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+      WHERE a.tenant_id=#{tenantId} AND a.resource_type='SHIPMENT_ORDER'
+        AND a.resource_id=#{orderId} AND a.action_type='INBOUND' AND a.result_status='SUCCESS'
+      UNION ALL
+      SELECT -wm.id, o.id, o.order_no, COALESCE(obr.tracking_no, po.tracking_no),
+             'WAREHOUSE_REWEIGH', '货物已复称', '仓库复称完成，计费重量已确认', NULL, 'INTERNAL', wm.measured_at
+      FROM warehouse_measurement wm
+      JOIN shipment_package sp ON sp.tenant_id=wm.tenant_id AND sp.id=wm.shipment_package_id
+      JOIN shipment_order o ON o.tenant_id=sp.tenant_id AND o.id=sp.shipment_order_id
+      LEFT JOIN warehouse_outbound_record obr
+        ON obr.tenant_id=o.tenant_id AND obr.shipment_order_id=o.id
+      LEFT JOIN provider_order po
+        ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+      WHERE wm.tenant_id=#{tenantId} AND o.id=#{orderId}
+      UNION ALL
+      SELECT -obr.id, o.id, o.order_no, obr.tracking_no,
+             'WAREHOUSE_OUTBOUND_HANDOVER', '已出库交接', '仓库已完成出库并交接物流商', NULL, 'INTERNAL', obr.outbound_at
+      FROM warehouse_outbound_record obr
+      JOIN shipment_order o ON o.tenant_id=obr.tenant_id AND o.id=obr.shipment_order_id
+      WHERE obr.tenant_id=#{tenantId} AND obr.shipment_order_id=#{orderId}
+      UNION ALL
+      SELECT e.id, o.id, o.order_no, COALESCE(e.waybill_no, obr.tracking_no, po.tracking_no),
+             e.status_code, e.title, e.description, e.location, e.source, e.occurred_at
+      FROM shipment_tracking_event e
+      JOIN shipment_order o ON o.tenant_id=e.tenant_id AND o.id=e.order_id
+      LEFT JOIN warehouse_outbound_record obr
+        ON obr.tenant_id=o.tenant_id AND obr.shipment_order_id=o.id
+      LEFT JOIN provider_order po
+        ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+      WHERE e.tenant_id=#{tenantId} AND e.order_id=#{orderId}
+      UNION ALL
+      SELECT te.id, o.id, o.order_no, te.tracking_no,
+             te.event_code, te.event_code, te.event_description, NULL, 'SF_EXPRESS', te.event_time
+      FROM tracking_event te
+      JOIN shipment_order o ON o.tenant_id=te.tenant_id AND o.id=te.shipment_order_id
+      WHERE te.tenant_id=#{tenantId} AND te.shipment_order_id=#{orderId}
+    ) timeline
+    ORDER BY occurred_at DESC, id DESC
+  </select>
+
+  <select id="findSandboxOrders" resultMap="sandboxOrder">
+    SELECT DISTINCT o.tenant_id, o.id AS order_id, o.order_no,
+           COALESCE(obr.tracking_no, po.tracking_no) AS waybill_no,
+           o.current_status, o.version,
+           COALESCE(NULLIF(CONCAT_WS(', ', receiver.city, receiver.address_line1), ''), '目的地收件地址') AS destination_address
+    FROM shipment_order o
+    LEFT JOIN provider_order po
+      ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+    LEFT JOIN warehouse_outbound_record obr
+      ON obr.tenant_id=o.tenant_id AND obr.shipment_order_id=o.id
+    LEFT JOIN shipment_address receiver
+      ON receiver.tenant_id=o.tenant_id AND receiver.shipment_order_id=o.id AND receiver.address_type='RECEIVER'
+    WHERE o.current_status IN ('OUTBOUND', 'IN_TRANSIT')
+      AND (o.order_no LIKE 'UAT-SF-%' OR po.test_flag=TRUE)
+  </select>
+
+  <select id="findLatestSimulationStatus" resultType="string">
+    SELECT status_code FROM (
+      SELECT status_code, occurred_at, id
+      FROM shipment_tracking_event
+      WHERE tenant_id=#{tenantId} AND order_id=#{orderId} AND source='SF_EXPRESS'
+      UNION ALL
+      SELECT event_code AS status_code, event_time AS occurred_at, id
+      FROM tracking_event
+      WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId}
+    ) latest
+    ORDER BY occurred_at DESC, id DESC LIMIT 1
+  </select>
+
+  <insert id="insertSimulationEvent">
+    INSERT INTO shipment_tracking_event
+      (tenant_id, order_id, order_no, waybill_no, status_code, title, description, location, source, occurred_at)
+    VALUES
+      (#{tenantId}, #{orderId}, #{orderNo}, #{waybillNo}, #{statusCode}, #{title}, #{description}, #{location}, 'SF_EXPRESS', #{occurredAt})
+    ON DUPLICATE KEY UPDATE id=id
+  </insert>
+
+  <insert id="insertSimulationTransportException">
+    INSERT INTO exception_case
+      (tenant_id, shipment_order_id, exception_no, exception_type, status, description, responsible_party, reported_at, version)
+    VALUES
+      (#{tenantId}, #{orderId}, #{exceptionNo}, 'TRANSPORT', 'OPEN', #{description}, 'PROVIDER', #{reportedAt}, 0)
+    ON DUPLICATE KEY UPDATE id=id
+  </insert>
+
+  <insert id="insertSimulationExceptionAudit">
+    INSERT INTO audit_log
+      (tenant_id, operator_user_id, action_type, resource_type, resource_id, request_id,
+       result_status, reason, detail, occurred_at)
+    SELECT #{tenantId}, NULL, 'EXCEPTION_SIMULATION_CREATE', 'EXCEPTION_CASE', ec.id,
+           'SF_TRACKING_SIMULATION', 'SUCCESS', #{description},
+           JSON_OBJECT('source', 'SF_TRACKING_SIMULATION', 'statusAfter', 'OPEN'), #{occurredAt}
+    FROM exception_case ec
+    WHERE ec.tenant_id=#{tenantId} AND ec.exception_no=#{exceptionNo}
+  </insert>
+
+  <update id="transitionOrder">
+    UPDATE shipment_order
+    SET current_status=#{toStatus}, version=version+1
+    WHERE tenant_id=#{tenantId} AND id=#{orderId}
+      AND current_status=#{fromStatus} AND version=#{version}
+  </update>
+</mapper>

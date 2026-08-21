@@ -1,0 +1,3 @@
+package com.shipflow.warehouse.domain;import java.math.*;
+/** Warehouse measurement calculation; kg/cm, rounding remains price-rule driven. */
+public final class WarehouseChargeableWeight {private WarehouseChargeableWeight(){} public static BigDecimal calculate(BigDecimal weight,BigDecimal length,BigDecimal width,BigDecimal height,BigDecimal divisor,BigDecimal increment){if(weight.signum()<=0||length.signum()<=0||width.signum()<=0||height.signum()<=0||divisor.signum()<=0||increment.signum()<=0)throw new IllegalArgumentException();BigDecimal volume=length.multiply(width).multiply(height).divide(divisor,3,RoundingMode.HALF_UP);return weight.max(volume).divide(increment,0,RoundingMode.CEILING).multiply(increment);}}

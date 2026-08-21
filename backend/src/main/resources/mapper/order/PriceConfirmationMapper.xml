@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.order.mapper.PriceConfirmationMapper">
+  <resultMap id="order" type="com.shipflow.order.mapper.PriceConfirmationMapper$OrderRecord">
+    <constructor>
+      <idArg column="id" javaType="long"/><arg column="tenant_id" javaType="long"/><arg column="order_no" javaType="string"/>
+      <arg column="store_id" javaType="long"/><arg column="quote_id" javaType="long"/><arg column="current_status" javaType="string"/>
+      <arg column="estimated_fee" javaType="java.math.BigDecimal"/><arg column="current_fee" javaType="java.math.BigDecimal"/>
+      <arg column="confirmed_fee" javaType="java.math.BigDecimal"/><arg column="currency" javaType="string"/>
+      <arg column="chargeable_weight" javaType="java.math.BigDecimal"/><arg column="version" javaType="long"/>
+      <arg column="created_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="adjustment" type="com.shipflow.order.mapper.PriceConfirmationMapper$AdjustmentRecord">
+    <constructor>
+      <idArg column="id" javaType="long"/><arg column="shipment_order_id" javaType="long"/><arg column="store_id" javaType="long"/>
+      <arg column="adjustment_type" javaType="string"/><arg column="before_amount" javaType="java.math.BigDecimal"/>
+      <arg column="after_amount" javaType="java.math.BigDecimal"/><arg column="difference_amount" javaType="java.math.BigDecimal"/>
+      <arg column="currency" javaType="string"/><arg column="confirmation_status" javaType="string"/>
+      <arg column="requested_at" javaType="java.time.LocalDateTime"/><arg column="confirmed_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+  <select id="findOrder" resultMap="order">SELECT id,tenant_id,order_no,store_id,quote_id,current_status,estimated_fee,current_fee,confirmed_fee,currency,chargeable_weight,version,created_at FROM shipment_order WHERE tenant_id=#{tenantId} AND id=#{orderId}</select>
+  <select id="findAdjustment" resultMap="adjustment">SELECT fa.id,fa.shipment_order_id,o.store_id,fa.adjustment_type,fa.before_amount,fa.after_amount,fa.difference_amount,fa.currency,fa.confirmation_status,fa.requested_at,fa.confirmed_at FROM fee_adjustment fa JOIN shipment_order o ON o.id=fa.shipment_order_id AND o.tenant_id=fa.tenant_id WHERE fa.tenant_id=#{tenantId} AND fa.shipment_order_id=#{orderId} AND fa.id=#{adjustmentId}</select>
+  <select id="findLatestAdjustment" resultMap="adjustment">SELECT fa.id,fa.shipment_order_id,o.store_id,fa.adjustment_type,fa.before_amount,fa.after_amount,fa.difference_amount,fa.currency,fa.confirmation_status,fa.requested_at,fa.confirmed_at FROM fee_adjustment fa JOIN shipment_order o ON o.id=fa.shipment_order_id AND o.tenant_id=fa.tenant_id WHERE fa.tenant_id=#{tenantId} AND fa.shipment_order_id=#{orderId} ORDER BY fa.id DESC LIMIT 1</select>
+  <update id="markRequested">UPDATE fee_adjustment SET confirmation_status='REQUESTED',requested_by=#{userId},requested_at=#{requestedAt} WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} AND id=#{adjustmentId} AND adjustment_type='INCREASE' AND confirmation_status='PENDING_CONFIRMATION' AND confirmed_by IS NULL</update>
+  <update id="confirmOrder">UPDATE shipment_order SET confirmed_fee=#{expectedFee},current_status='READY_FOR_OUTBOUND',version=version+1 WHERE tenant_id=#{tenantId} AND id=#{orderId} AND current_status='PENDING_PRICE_CONFIRMATION' AND current_fee=#{expectedFee} AND version=#{version}</update>
+  <update id="confirmAdjustment">UPDATE fee_adjustment SET confirmation_status='CONFIRMED',confirmed_by=#{userId},confirmed_at=#{confirmedAt} WHERE tenant_id=#{tenantId} AND shipment_order_id=#{orderId} AND id=#{adjustmentId} AND adjustment_type='INCREASE' AND after_amount=#{expectedFee} AND confirmed_by IS NULL AND confirmation_status IN ('PENDING_CONFIRMATION','REQUESTED')</update>
+  <insert id="audit">INSERT INTO audit_log (tenant_id,operator_user_id,action_type,resource_type,resource_id,request_id,result_status,reason,occurred_at) VALUES (#{tenantId},#{userId},#{action},'SHIPMENT_ORDER',#{orderId},#{requestId},#{result},#{reason},#{occurredAt})</insert>
+</mapper>

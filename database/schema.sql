@@ -8,13 +8,18 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS audit_log;
+DROP TABLE IF EXISTS merchant_store_channel;
+DROP TABLE IF EXISTS merchant_store_address;
 DROP TABLE IF EXISTS auth_refresh_session;
 DROP TABLE IF EXISTS api_idempotency_record;
 DROP TABLE IF EXISTS reconciliation_record;
 DROP TABLE IF EXISTS bill_detail;
 DROP TABLE IF EXISTS bill_import_batch;
 DROP TABLE IF EXISTS warehouse_outbound_record;
+DROP TABLE IF EXISTS claim_evidence_reference;
 DROP TABLE IF EXISTS claim_record;
+DROP TABLE IF EXISTS exception_evidence_attachment;
+DROP TABLE IF EXISTS exception_handling_record;
 DROP TABLE IF EXISTS exception_case;
 DROP TABLE IF EXISTS tracking_event;
 DROP TABLE IF EXISTS fee_adjustment;
@@ -200,7 +205,90 @@ CREATE TABLE merchant_store (
     KEY idx_store_tenant_status (tenant_id, status),
     CONSTRAINT fk_store_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
     CONSTRAINT chk_store_status CHECK (status IN ('ACTIVE', 'DISABLED'))
+
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='租户商家店铺';
+
+ALTER TABLE merchant_store ADD UNIQUE KEY uk_store_tenant_id (tenant_id, id);
+
+CREATE TABLE merchant_store_address (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '店铺地址配置主键',
+    tenant_id BIGINT NOT NULL COMMENT '租户ID',
+    store_id BIGINT NOT NULL COMMENT '店铺ID',
+    address_code VARCHAR(64) NOT NULL COMMENT '店铺内地址编码',
+    contact_name VARCHAR(128) NOT NULL COMMENT '联系人姓名',
+    company_name VARCHAR(128) NULL COMMENT '公司名称',
+    phone VARCHAR(64) NOT NULL COMMENT '联系电话',
+    email VARCHAR(128) NULL COMMENT '电子邮箱',
+    country_code CHAR(2) NOT NULL COMMENT 'ISO 3166-1 alpha-2国家编码',
+    state_province VARCHAR(128) NULL COMMENT '州/省',
+    city VARCHAR(128) NOT NULL COMMENT '城市',
+    district VARCHAR(128) NULL COMMENT '区县',
+    address_line1 VARCHAR(255) NOT NULL COMMENT '地址第一行',
+    address_line2 VARCHAR(255) NULL COMMENT '地址第二行',
+    postal_code VARCHAR(32) NOT NULL COMMENT '邮政编码',
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE' COMMENT '地址状态：ACTIVE、DISABLED',
+    is_default TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否默认发货地址',
+    default_store_key BIGINT GENERATED ALWAYS AS (CASE WHEN status = 'ACTIVE' AND is_default = 1 THEN store_id ELSE NULL END) STORED,
+    version BIGINT NOT NULL DEFAULT 0 COMMENT '技术乐观锁版本',
+    created_by BIGINT NULL COMMENT '创建人用户ID',
+    updated_by BIGINT NULL COMMENT '最后更新人用户ID',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，系统时区为UTC',
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间，系统时区为UTC',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_store_address_code (tenant_id, store_id, address_code),
+    UNIQUE KEY uk_store_default_address (tenant_id, default_store_key),
+    KEY idx_store_address_status (tenant_id, store_id, status),
+    CONSTRAINT fk_store_address_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    CONSTRAINT fk_store_address_store FOREIGN KEY (tenant_id, store_id) REFERENCES merchant_store (tenant_id, id),
+    CONSTRAINT fk_store_address_created_by FOREIGN KEY (created_by) REFERENCES sys_user (id),
+    CONSTRAINT fk_store_address_updated_by FOREIGN KEY (updated_by) REFERENCES sys_user (id),
+    CONSTRAINT chk_store_address_status CHECK (status IN ('ACTIVE', 'DISABLED')),
+    CONSTRAINT chk_store_address_default CHECK (is_default IN (0, 1)),
+    CONSTRAINT chk_store_address_country CHECK (country_code REGEXP '^[A-Z]{2}$')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='租户店铺默认发货地址配置';
+
+CREATE TABLE merchant_store_channel (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '店铺渠道关联主键',
+    tenant_id BIGINT NOT NULL COMMENT '租户ID',
+    store_id BIGINT NOT NULL COMMENT '店铺ID',
+    channel_id BIGINT NOT NULL COMMENT '平台公共物流渠道ID',
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE' COMMENT '关联状态：ACTIVE、DISABLED',
+    is_default TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否默认物流渠道',
+    default_store_key BIGINT GENERATED ALWAYS AS (CASE WHEN status = 'ACTIVE' AND is_default = 1 THEN store_id ELSE NULL END) STORED,
+    version BIGINT NOT NULL DEFAULT 0 COMMENT '技术乐观锁版本',
+    created_by BIGINT NULL COMMENT '创建人用户ID',
+    updated_by BIGINT NULL COMMENT '最后更新人用户ID',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，系统时区为UTC',
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间，系统时区为UTC',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_store_channel (tenant_id, store_id, channel_id),
+    UNIQUE KEY uk_store_default_channel (tenant_id, default_store_key),
+    KEY idx_store_channel_status (tenant_id, store_id, status),
+    CONSTRAINT fk_store_channel_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    CONSTRAINT fk_store_channel_store FOREIGN KEY (tenant_id, store_id) REFERENCES merchant_store (tenant_id, id),
+    CONSTRAINT fk_store_channel_created_by FOREIGN KEY (created_by) REFERENCES sys_user (id),
+    CONSTRAINT fk_store_channel_updated_by FOREIGN KEY (updated_by) REFERENCES sys_user (id),
+    CONSTRAINT chk_store_channel_status CHECK (status IN ('ACTIVE', 'DISABLED')),
+    CONSTRAINT chk_store_channel_default CHECK (is_default IN (0, 1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='租户店铺物流渠道关联';
+
+CREATE TABLE sys_user_store_scope (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '用户店铺授权主键',
+    tenant_id BIGINT NOT NULL COMMENT '租户ID',
+    user_id BIGINT NOT NULL COMMENT '业务员用户ID',
+    store_id BIGINT NOT NULL COMMENT '被授权店铺ID',
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE' COMMENT '授权状态：ACTIVE、DISABLED',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，系统时区为UTC',
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间，系统时区为UTC',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_user_store_scope (tenant_id, user_id, store_id),
+    KEY idx_user_store_scope_user (tenant_id, user_id, status),
+    KEY idx_user_store_scope_store (tenant_id, store_id, status),
+    CONSTRAINT fk_user_store_scope_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    CONSTRAINT fk_user_store_scope_user FOREIGN KEY (user_id) REFERENCES sys_user (id),
+    CONSTRAINT fk_user_store_scope_store FOREIGN KEY (store_id) REFERENCES merchant_store (id),
+    CONSTRAINT chk_user_store_scope_status CHECK (status IN ('ACTIVE', 'DISABLED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商家业务员店铺授权范围';
 
 CREATE TABLE logistics_provider (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '物流商主键',
@@ -222,6 +310,7 @@ CREATE TABLE logistics_channel (
     provider_id BIGINT NOT NULL COMMENT '物流商ID',
     channel_code VARCHAR(64) NOT NULL COMMENT '渠道编码',
     channel_name VARCHAR(128) NOT NULL COMMENT '渠道名称',
+    transport_mode VARCHAR(32) NOT NULL COMMENT '运输方式：OCEAN、AIR、ROAD、RAIL、COURIER',
     service_area VARCHAR(255) NOT NULL COMMENT '服务区域说明',
     status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE' COMMENT '渠道状态：ACTIVE、DISABLED',
     deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除标记：0未删除、1已删除',
@@ -232,8 +321,12 @@ CREATE TABLE logistics_channel (
     UNIQUE KEY uk_channel_provider_code (provider_id, channel_code),
     KEY idx_channel_status (status),
     CONSTRAINT fk_channel_provider FOREIGN KEY (provider_id) REFERENCES logistics_provider (id),
-    CONSTRAINT chk_channel_status CHECK (status IN ('ACTIVE', 'DISABLED'))
+    CONSTRAINT chk_channel_status CHECK (status IN ('ACTIVE', 'DISABLED')),
+    CONSTRAINT chk_channel_transport_mode CHECK (transport_mode IN ('OCEAN', 'AIR', 'ROAD', 'RAIL', 'COURIER'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='平台公共物流渠道';
+
+ALTER TABLE merchant_store_channel
+    ADD CONSTRAINT fk_store_channel_channel FOREIGN KEY (channel_id) REFERENCES logistics_channel (id);
 
 CREATE TABLE logistics_channel_service_country (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '渠道服务国家主键',
@@ -362,6 +455,8 @@ CREATE TABLE shipment_order (
     UNIQUE KEY uk_order_tenant_idempotency (tenant_id, idempotency_key),
     KEY idx_order_tenant_status_created (tenant_id, current_status, created_at),
     KEY idx_order_tenant_store (tenant_id, store_id, created_at),
+    KEY idx_order_tenant_no_created (tenant_id, order_no, created_at),
+    KEY idx_order_tenant_destination_created (tenant_id, destination_country, created_at),
     KEY idx_order_channel_status (channel_id, current_status),
     CONSTRAINT fk_order_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
     CONSTRAINT fk_order_store FOREIGN KEY (store_id) REFERENCES merchant_store (id),
@@ -448,6 +543,7 @@ CREATE TABLE warehouse_outbound_record (
     UNIQUE KEY uk_outbound_order (shipment_order_id),
     UNIQUE KEY uk_outbound_provider_tracking (provider_id, tracking_no),
     KEY idx_outbound_tenant_time (tenant_id, outbound_at),
+    KEY idx_outbound_tenant_tracking_order (tenant_id, tracking_no, shipment_order_id),
     CONSTRAINT fk_outbound_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
     CONSTRAINT fk_outbound_order FOREIGN KEY (shipment_order_id) REFERENCES shipment_order (id),
     CONSTRAINT fk_outbound_package FOREIGN KEY (shipment_package_id) REFERENCES shipment_package (id),
@@ -540,6 +636,9 @@ CREATE TABLE fee_adjustment (
     difference_amount DECIMAL(18,2) NOT NULL COMMENT '费用差额',
     currency CHAR(3) NOT NULL COMMENT '费用币种',
     reason VARCHAR(255) NOT NULL COMMENT '调整原因',
+    confirmation_status VARCHAR(32) NOT NULL DEFAULT 'PENDING_CONFIRMATION' COMMENT '确认状态：PENDING_CONFIRMATION、REQUESTED、CONFIRMED',
+    requested_by BIGINT NULL COMMENT '费用确认申请人用户ID',
+    requested_at DATETIME(3) NULL COMMENT '费用确认申请时间，系统时区为UTC',
     confirmed_by BIGINT NULL COMMENT '确认人员用户ID',
     confirmed_at DATETIME(3) NULL COMMENT '确认时间，系统时区为UTC',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，系统时区为UTC',
@@ -550,8 +649,10 @@ CREATE TABLE fee_adjustment (
     CONSTRAINT fk_adjustment_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
     CONSTRAINT fk_adjustment_order FOREIGN KEY (shipment_order_id) REFERENCES shipment_order (id),
     CONSTRAINT fk_adjustment_measurement FOREIGN KEY (warehouse_measurement_id) REFERENCES warehouse_measurement (id),
+    CONSTRAINT fk_adjustment_requested_by FOREIGN KEY (requested_by) REFERENCES sys_user (id),
     CONSTRAINT fk_adjustment_confirmed_by FOREIGN KEY (confirmed_by) REFERENCES sys_user (id),
     CONSTRAINT chk_adjustment_type CHECK (adjustment_type IN ('DECREASE', 'INCREASE', 'MANUAL')),
+    CONSTRAINT chk_adjustment_confirmation_status CHECK (confirmation_status IN ('PENDING_CONFIRMATION', 'REQUESTED', 'CONFIRMED')),
     CONSTRAINT chk_adjustment_amounts CHECK (before_amount >= 0 AND after_amount >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='订单费用调整记录';
 
@@ -587,8 +688,10 @@ CREATE TABLE exception_case (
     shipment_order_id BIGINT NOT NULL COMMENT '订单ID',
     exception_no VARCHAR(64) NOT NULL COMMENT '异常单号',
     exception_type VARCHAR(32) NOT NULL COMMENT '异常类型：ADDRESS、CUSTOMS、TRANSPORT、OTHER',
-    status VARCHAR(32) NOT NULL DEFAULT 'OPEN' COMMENT '异常状态：OPEN、PROCESSING、RESOLVED、CLOSED',
+    status VARCHAR(32) NOT NULL DEFAULT 'OPEN' COMMENT '异常状态：OPEN、PROCESSING、WAITING_PROVIDER_FEEDBACK、RESOLVED、PENDING_FINANCE_CONFIRMATION、CLOSED',
     description VARCHAR(1000) NOT NULL COMMENT '异常描述',
+    responsible_party VARCHAR(32) NULL COMMENT '责任方：MERCHANT、PROVIDER、CUSTOMS、CUSTOMER、OTHER',
+    assigned_to_user_id BIGINT NULL COMMENT '当前异常处理负责人用户 ID',
     reported_at DATETIME(3) NOT NULL COMMENT '异常发生或报告时间，系统时区为UTC',
     version BIGINT NOT NULL DEFAULT 0 COMMENT '技术乐观锁版本',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，系统时区为UTC',
@@ -596,11 +699,56 @@ CREATE TABLE exception_case (
     PRIMARY KEY (id),
     UNIQUE KEY uk_exception_tenant_no (tenant_id, exception_no),
     KEY idx_exception_tenant_status (tenant_id, status, reported_at),
+    KEY idx_exception_assignee_tenant_created (assigned_to_user_id, tenant_id, created_at, id),
+    KEY idx_exception_tenant_type_created (tenant_id, exception_type, created_at, id),
+    KEY idx_exception_tenant_responsible_created (tenant_id, responsible_party, created_at, id),
+    KEY idx_exception_tenant_order_created (tenant_id, shipment_order_id, created_at, id),
     CONSTRAINT fk_exception_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
     CONSTRAINT fk_exception_order FOREIGN KEY (shipment_order_id) REFERENCES shipment_order (id),
+    CONSTRAINT fk_exception_assigned_user FOREIGN KEY (assigned_to_user_id) REFERENCES sys_user (id),
     CONSTRAINT chk_exception_type CHECK (exception_type IN ('ADDRESS', 'CUSTOMS', 'TRANSPORT', 'OTHER')),
-    CONSTRAINT chk_exception_status CHECK (status IN ('OPEN', 'PROCESSING', 'RESOLVED', 'CLOSED'))
+    CONSTRAINT chk_exception_status CHECK (status IN ('OPEN', 'PROCESSING', 'WAITING_PROVIDER_FEEDBACK', 'RESOLVED', 'PENDING_FINANCE_CONFIRMATION', 'CLOSED')),
+    CONSTRAINT chk_exception_responsible_party CHECK (responsible_party IS NULL OR responsible_party IN ('MERCHANT', 'PROVIDER', 'CUSTOMS', 'CUSTOMER', 'OTHER'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='订单异常处理单';
+
+CREATE TABLE exception_handling_record (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '异常处理记录主键',
+    tenant_id BIGINT NOT NULL COMMENT '租户ID',
+    exception_case_id BIGINT NOT NULL COMMENT '异常单ID',
+    record_no VARCHAR(64) NOT NULL COMMENT '处理记录编号',
+    handled_by_user_id BIGINT NOT NULL COMMENT '处理人用户ID',
+    record_type VARCHAR(32) NOT NULL COMMENT '记录类型：CONTACT、FOLLOW_UP、PROVIDER_FEEDBACK、INTERNAL_NOTE、OTHER',
+    content VARCHAR(4000) NOT NULL COMMENT '处理内容',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，系统时区为UTC',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_exception_handling_tenant_no (tenant_id, record_no),
+    KEY idx_exception_handling_case_time (tenant_id, exception_case_id, created_at),
+    CONSTRAINT fk_exception_handling_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    CONSTRAINT fk_exception_handling_case FOREIGN KEY (exception_case_id) REFERENCES exception_case (id),
+    CONSTRAINT fk_exception_handling_user FOREIGN KEY (handled_by_user_id) REFERENCES sys_user (id),
+    CONSTRAINT chk_exception_handling_type CHECK (record_type IN ('CONTACT', 'FOLLOW_UP', 'PROVIDER_FEEDBACK', 'INTERNAL_NOTE', 'OTHER'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='异常处理追加记录';
+
+CREATE TABLE exception_evidence_attachment (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '异常证据附件主键',
+    tenant_id BIGINT NOT NULL COMMENT '租户ID',
+    exception_case_id BIGINT NOT NULL COMMENT '异常单ID',
+    uploaded_by_user_id BIGINT NOT NULL COMMENT '上传人用户ID',
+    original_file_name VARCHAR(255) NOT NULL COMMENT '原始文件名，仅用于展示',
+    content_type VARCHAR(128) NOT NULL COMMENT '媒体类型',
+    description VARCHAR(1000) NULL COMMENT '证据说明，仅返回元数据',
+    file_size BIGINT NOT NULL COMMENT '文件字节数',
+    content_sha256 CHAR(64) NOT NULL COMMENT '文件内容SHA-256',
+    content_blob LONGBLOB NOT NULL COMMENT '证据内容',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '上传时间，系统时区为UTC',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_exception_evidence_content (tenant_id, exception_case_id, content_sha256),
+    KEY idx_exception_evidence_case_time (tenant_id, exception_case_id, created_at),
+    CONSTRAINT fk_exception_evidence_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    CONSTRAINT fk_exception_evidence_case FOREIGN KEY (exception_case_id) REFERENCES exception_case (id),
+    CONSTRAINT fk_exception_evidence_user FOREIGN KEY (uploaded_by_user_id) REFERENCES sys_user (id),
+    CONSTRAINT chk_exception_evidence_size CHECK (file_size > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='异常证据附件';
 
 CREATE TABLE claim_record (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '索赔记录主键',
@@ -609,9 +757,14 @@ CREATE TABLE claim_record (
     claim_no VARCHAR(64) NOT NULL COMMENT '索赔单号',
     status VARCHAR(32) NOT NULL DEFAULT 'OPEN' COMMENT '索赔状态：OPEN、SUBMITTED、APPROVED、REJECTED、CLOSED',
     claim_amount DECIMAL(18,2) NOT NULL COMMENT '索赔金额',
+    resolved_amount DECIMAL(18,2) NULL COMMENT '审核或实际获批金额',
     currency CHAR(3) NOT NULL COMMENT '索赔币种',
+    claim_reason VARCHAR(1000) NULL COMMENT '索赔原因',
+    result_reason VARCHAR(1000) NULL COMMENT '索赔审核结果原因',
     submitted_at DATETIME(3) NULL COMMENT '提交时间，系统时区为UTC',
     resolved_at DATETIME(3) NULL COMMENT '处理完成时间，系统时区为UTC',
+    finance_confirmed_by_user_id BIGINT NULL COMMENT '财务确认操作人',
+    finance_confirmed_at DATETIME(3) NULL COMMENT '财务确认时间，UTC',
     version BIGINT NOT NULL DEFAULT 0 COMMENT '技术乐观锁版本',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，系统时区为UTC',
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间，系统时区为UTC',
@@ -619,11 +772,29 @@ CREATE TABLE claim_record (
     UNIQUE KEY uk_claim_tenant_no (tenant_id, claim_no),
     UNIQUE KEY uk_claim_exception (exception_case_id),
     KEY idx_claim_tenant_status (tenant_id, status),
+    KEY idx_claim_finance_confirmed_by (finance_confirmed_by_user_id),
     CONSTRAINT fk_claim_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
     CONSTRAINT fk_claim_exception FOREIGN KEY (exception_case_id) REFERENCES exception_case (id),
-    CONSTRAINT chk_claim_status CHECK (status IN ('OPEN', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CLOSED')),
-    CONSTRAINT chk_claim_amount CHECK (claim_amount >= 0)
+    CONSTRAINT fk_claim_finance_confirmed_user FOREIGN KEY (finance_confirmed_by_user_id) REFERENCES sys_user (id),
+    CONSTRAINT chk_claim_status CHECK (status IN ('OPEN', 'SUBMITTED', 'APPROVED', 'PARTIALLY_APPROVED', 'REJECTED', 'CLOSED')),
+    CONSTRAINT chk_claim_amount CHECK (claim_amount >= 0),
+    CONSTRAINT chk_claim_resolved_amount CHECK (resolved_amount IS NULL OR (resolved_amount >= 0 AND resolved_amount <= claim_amount))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='异常件索赔记录';
+
+CREATE TABLE claim_evidence_reference (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '索赔证据引用主键',
+    tenant_id BIGINT NOT NULL COMMENT '租户ID',
+    claim_record_id BIGINT NOT NULL COMMENT '索赔记录ID',
+    evidence_attachment_id BIGINT NOT NULL COMMENT '异常证据附件ID',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，系统时区为UTC',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_claim_evidence_reference (tenant_id, claim_record_id, evidence_attachment_id),
+    KEY idx_claim_evidence_claim_time (tenant_id, claim_record_id, created_at),
+    KEY idx_claim_evidence_attachment (evidence_attachment_id),
+    CONSTRAINT fk_claim_evidence_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    CONSTRAINT fk_claim_evidence_claim FOREIGN KEY (claim_record_id) REFERENCES claim_record (id),
+    CONSTRAINT fk_claim_evidence_attachment FOREIGN KEY (evidence_attachment_id) REFERENCES exception_evidence_attachment (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='索赔引用的异常证据附件';
 
 CREATE TABLE bill_import_batch (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '账单导入批次主键',

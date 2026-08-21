@@ -250,6 +250,44 @@ ROTATED Token 再次使用时严格撤销整个 `family_id`，记录不含 Token
 
 每个受保护请求都必须检查用户 `ACTIVE`、所属租户 `ACTIVE`、关联角色 `ACTIVE` 和当前权限。第一版不缓存权限，每个请求从数据库加载当前状态；实现时不能为每个角色或权限逐条查询：使用一次带 JOIN 的用户-角色-权限查询，或按用户批量加载后在请求内建立权限集合；同一请求不得产生逐角色、逐权限 N+1 查询。Redis 阶段再增加短 TTL 权限缓存。
 
+### 6.5 第二阶段冻结权限矩阵
+
+第二阶段覆盖平台租户、租户店铺、租户用户和角色权限管理。所有接口均要求登录；写接口还要求认证模块既有的 CSRF 双提交校验。权限由实时加载的 permission codes 判断，前端隐藏菜单不构成授权控制。
+
+| 接口组 | scope | 权限码 | PLATFORM_ADMIN | MERCHANT_ADMIN | MERCHANT_OPERATOR | WAREHOUSE_OPERATOR | FINANCE_OPERATOR | MOCK_LOGISTICS_SYSTEM |
+|---|---|---|---|---|---|---|---|---|
+| `POST /platform/tenants` | PLATFORM | `tenant:create` | 允许 | 403 | 403 | 403 | 403 | 403 |
+| `GET /platform/tenants`、`/{tenantId}` | PLATFORM | `tenant:read` | 允许 | 403 | 403 | 403 | 403 | 403 |
+| `PUT /platform/tenants/{tenantId}`、`/status` | PLATFORM | `tenant:manage` | 允许 | 403 | 403 | 403 | 403 | 403 |
+| `GET /stores`、`/stores/{storeId}` | TENANT | `store:read` | 不适用 | 允许 | 允许 | 403 | 403 | 403 |
+| `POST /stores`、`PUT /stores/{storeId}`、`/status` | TENANT | `store:manage` | 不适用 | 允许 | 403 | 403 | 403 | 403 |
+| `/users` 的查询、详情、创建、修改、状态、角色绑定 | TENANT | `user:manage` | 不适用 | 允许 | 403 | 403 | 403 | 403 |
+| `GET /roles`、`/roles/{roleId}` | TENANT | `role:read` | 不适用 | 允许 | 403 | 403 | 403 | 403 |
+| `GET /permissions` | TENANT | `permission:read` | 不适用 | 允许 | 403 | 403 | 403 | 403 |
+| `PUT /roles/{roleId}/permissions` | TENANT | `role:manage` | 不适用 | 允许 | 403 | 403 | 403 | 403 |
+
+“不适用”表示该角色没有租户上下文，不能通过该租户资源接口操作。跨租户店铺、用户、角色资源按 404 隐藏；已认证但访问平台路径或无当前动作权限时使用403。
+
+### 6.6 JWT、当前用户和角色数据边界
+
+现有 Access Token 只包含 `sub`、`scope` 和租户身份的 `tenant_id`，不含 roles 或 permissions。此约束保持：请求通过 JWT 解码后，调用 `LoginIdentityService.reloadByUserId(userId, tenantId)` 重新加载用户、租户、角色有效性和权限，作为授权输入。
+
+`CurrentUserResponse` 当前只返回 permissions，不返回 roles；第二阶段暂不改变已验收的 `/users/me` 响应。角色信息由 `GET /api/v1/roles` 和 `GET /api/v1/roles/{roleId}` 查询；后端授权绝不依赖 `/users/me` 的响应或前端缓存。
+
+### 6.7 第二阶段事务、租户一致性和审计
+
+- 所有租户 SQL 必须携带 `tenant_id` 并过滤 `deleted=0`。资源更新必须使用 `WHERE id=? AND tenant_id=? AND deleted=0 AND version=?`，成功时 `version=version+1`。平台 `tenant` 更新使用 `id=? AND deleted=0 AND version=?`。
+- 创建租户、初始管理员、初始租户管理员角色和用户角色关系必须在一个事务内完成，任一步失败全部回滚。
+- 创建用户和用户角色绑定、替换用户角色、替换角色权限都必须在单事务中完成。`sys_user_role` 外键不能保证 user、role、relation 的 tenant 一致，服务必须验证三者同租户、角色为 ACTIVE、role_scope=TENANT、deleted=0。
+- `sys_role_permission` 没有 tenant_id，绑定与查询都必须经 `sys_role` 校验当前 tenant、role_scope 和角色状态。
+- 创建租户、店铺、用户以及基础信息修改要求 `Idempotency-Key`；状态和绑定操作以 version 乐观锁作为重试/冲突边界。
+- 停用租户后不修改已签发 Access Token，但每个请求实时重载身份并立即拒绝。
+- 最小审计字段为 trace_id、UTC 时间、operator_user_id、operator_tenant_id、operation、resource_type、resource_id、target_tenant_id、结果、错误码、Idempotency-Key 摘要及非敏感变更摘要；不记录 temporaryPassword、password_hash、Token、Cookie 或完整请求体。
+
+### 6.8 实施前置条件
+
+当前 `SecurityConfig` 对未知路径为 `anyRequest().permitAll()`；第二阶段 Java 实施的第一项必须将所有管理路径置于 authenticated 下，并建立基于实时权限的统一授权入口。当前初始化权限字典未包含完整的 `tenant:read`、`tenant:manage`、`store:read`、`store:manage`、`role:read`、`role:manage`、`permission:read`，必须先通过受控迁移和角色绑定补齐，不能用角色名称字符串替代权限判断。
+
 ## 7. 租户隔离
 
 1. 租户上下文来自已验证身份：租户用户取 JWT/数据库主体中的 `tenant_id`；平台用户为平台作用域。请求参数、查询参数和普通 Header 中的 `tenant_id` 不产生授权作用。

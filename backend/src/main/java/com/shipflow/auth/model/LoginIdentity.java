@@ -11,6 +11,7 @@ public record LoginIdentity(
         String username,
         String displayName,
         Scope scope,
+        Set<String> roleCodes,
         Set<String> permissionCodes) {
 
     public LoginIdentity {
@@ -23,7 +24,18 @@ public record LoginIdentity(
         if (scope == Scope.PLATFORM && tenantId != null) {
             throw new IllegalArgumentException("Platform login identity must not contain tenant_id");
         }
-        permissionCodes = Collections.unmodifiableSet(new LinkedHashSet<>(permissionCodes));
+        roleCodes = immutableCopy(roleCodes);
+        permissionCodes = immutableCopy(permissionCodes);
+    }
+
+    /** Compatibility constructor for callers that do not need to expose role codes. */
+    public LoginIdentity(Long userId, Long tenantId, String username, String displayName,
+                         Scope scope, Set<String> permissionCodes) {
+        this(userId, tenantId, username, displayName, scope, Set.of(), permissionCodes);
+    }
+
+    private static Set<String> immutableCopy(Set<String> values) {
+        return Collections.unmodifiableSet(new LinkedHashSet<>(values == null ? Set.of() : values));
     }
 
     public enum Scope {

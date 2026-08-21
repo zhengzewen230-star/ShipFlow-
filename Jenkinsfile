@@ -37,6 +37,21 @@ pipeline {
             defaultValue: 'shipflow_qa_reader',
             description: 'Read-only QA test-case database username'
         )
+        booleanParam(
+            name: 'RUN_MODULE2_ISOLATED',
+            defaultValue: false,
+            description: 'Run only the isolated module-2 66-case HTTP acceptance suite'
+        )
+        string(
+            name: 'MODULE2_BASE_URL',
+            defaultValue: 'http://localhost:18080',
+            description: 'Externally managed isolated module-2 backend base URL'
+        )
+        string(
+            name: 'MODULE2_HTTP_TEST_DB_USERNAME',
+            defaultValue: '',
+            description: 'Dedicated shipflow_http_test database username; required only for module 2'
+        )
     }
 
     environment {
@@ -125,6 +140,9 @@ if ($LASTEXITCODE -ne 0) {
         }
 
         stage('Check External Environment') {
+            when {
+                expression { !params.RUN_MODULE2_ISOLATED }
+            }
             environment {
                 SHIPFLOW_QA_DB_PASSWORD = credentials('shipflow-qa-db-password')
                 SHIPFLOW_TEST_PASSWORD = credentials('shipflow-test-password')
@@ -197,6 +215,9 @@ if ($LASTEXITCODE -ne 0) {
         }
 
         stage('Run API Tests') {
+            when {
+                expression { !params.RUN_MODULE2_ISOLATED }
+            }
             environment {
                 SHIPFLOW_QA_DB_PASSWORD = credentials('shipflow-qa-db-password')
                 SHIPFLOW_TEST_PASSWORD = credentials('shipflow-test-password')
@@ -215,25 +236,147 @@ exit $LASTEXITCODE
                 }
             }
         }
+
+        stage('Check Module 2 Isolated Environment') {
+            when {
+                expression { params.RUN_MODULE2_ISOLATED }
+            }
+            environment {
+                SHIPFLOW_MODULE2_RUN = '1'
+                SHIPFLOW_MODULE2_ISOLATED_ENV = '1'
+                SHIPFLOW_MODULE2_BASE_URL = "${params.MODULE2_BASE_URL}"
+                SHIPFLOW_MODULE2_ISOLATED_BASE_URL = "${params.MODULE2_BASE_URL}"
+                SHIPFLOW_MODULE2_BUSINESS_DB_NAME = 'shipflow_http_test'
+                SHIPFLOW_QA_DB_URL = credentials('shipflow-module2-qa-db-url')
+                SHIPFLOW_QA_DB_PASSWORD = credentials('shipflow-qa-db-password')
+                SHIPFLOW_HTTP_TEST_DB_URL = credentials('shipflow-module2-http-test-db-url')
+                SHIPFLOW_HTTP_TEST_DB_USERNAME = "${params.MODULE2_HTTP_TEST_DB_USERNAME}"
+                SHIPFLOW_HTTP_TEST_DB_PASSWORD = credentials('shipflow-module2-http-test-db-password')
+                SHIPFLOW_TEST_PASSWORD = credentials('shipflow-test-password')
+                SHIPFLOW_PLATFORM_TEST_PASSWORD = credentials('shipflow-platform-test-password')
+            }
+            steps {
+                dir('api-tests') {
+                    powershell '''
+$checkScript = @'
+import os
+import sys
+from urllib.parse import urlparse
+
+import pymysql
+import requests
+
+
+def fail(message):
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
+
+def verify_database(url_name, username_name, password_name, expected_database):
+    raw_url = os.environ[url_name].removeprefix("jdbc:")
+    parsed = urlparse(raw_url)
+    database = parsed.path.lstrip("/").split("?", 1)[0]
+    if parsed.scheme != "mysql" or not parsed.hostname or database != expected_database:
+        fail(f"{url_name} target validation failed")
+    try:
+        connection = pymysql.connect(
+            host=parsed.hostname,
+            port=parsed.port or 3306,
+            user=os.environ[username_name],
+            password=os.environ[password_name],
+            database=database,
+            connect_timeout=10,
+            autocommit=True,
+        )
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT DATABASE()")
+                if cursor.fetchone()[0] != expected_database:
+                    fail(f"{url_name} selected database validation failed")
+        finally:
+            connection.close()
+    except Exception:
+        fail(f"{url_name} connectivity validation failed")
+
+
+base_url = os.environ["SHIPFLOW_MODULE2_BASE_URL"].rstrip("/")
+if base_url != os.environ["SHIPFLOW_MODULE2_ISOLATED_BASE_URL"].rstrip("/"):
+    fail("Module 2 API URL approval validation failed")
+try:
+    response = requests.get(base_url + "/actuator/health", timeout=10)
+    if response.status_code != 200 or response.json().get("status") != "UP":
+        fail("Module 2 backend health check failed")
+except Exception:
+    fail("Module 2 backend health check failed")
+
+if not os.environ["SHIPFLOW_HTTP_TEST_DB_USERNAME"]:
+    fail("MODULE2_HTTP_TEST_DB_USERNAME is required")
+verify_database("SHIPFLOW_QA_DB_URL", "SHIPFLOW_QA_DB_USERNAME", "SHIPFLOW_QA_DB_PASSWORD", "shipflow_qa")
+verify_database("SHIPFLOW_HTTP_TEST_DB_URL", "SHIPFLOW_HTTP_TEST_DB_USERNAME", "SHIPFLOW_HTTP_TEST_DB_PASSWORD", "shipflow_http_test")
+print("Module 2 isolated environment check: PASS")
+'@
+
+$checkScript | & .\\.venv\\Scripts\\python.exe -
+exit $LASTEXITCODE
+'''
+                }
+            }
+        }
+
+        stage('Run Module 2 Isolated API Tests') {
+            when {
+                expression { params.RUN_MODULE2_ISOLATED }
+            }
+            environment {
+                SHIPFLOW_MODULE2_RUN = '1'
+                SHIPFLOW_MODULE2_ISOLATED_ENV = '1'
+                SHIPFLOW_MODULE2_BASE_URL = "${params.MODULE2_BASE_URL}"
+                SHIPFLOW_MODULE2_ISOLATED_BASE_URL = "${params.MODULE2_BASE_URL}"
+                SHIPFLOW_MODULE2_BUSINESS_DB_NAME = 'shipflow_http_test'
+                SHIPFLOW_QA_DB_URL = credentials('shipflow-module2-qa-db-url')
+                SHIPFLOW_QA_DB_PASSWORD = credentials('shipflow-qa-db-password')
+                SHIPFLOW_HTTP_TEST_DB_URL = credentials('shipflow-module2-http-test-db-url')
+                SHIPFLOW_HTTP_TEST_DB_USERNAME = "${params.MODULE2_HTTP_TEST_DB_USERNAME}"
+                SHIPFLOW_HTTP_TEST_DB_PASSWORD = credentials('shipflow-module2-http-test-db-password')
+                SHIPFLOW_TEST_PASSWORD = credentials('shipflow-test-password')
+                SHIPFLOW_PLATFORM_TEST_PASSWORD = credentials('shipflow-platform-test-password')
+            }
+            steps {
+                dir('api-tests') {
+                    powershell '''
+New-Item -ItemType Directory -Force -Path reports | Out-Null
+& .\\.venv\\Scripts\\python.exe -m pytest -q tests/module2/test_module2_api.py `
+    --alluredir=reports/module2-allure-results `
+    --clean-alluredir `
+    --junitxml=reports/module2-junit.xml
+exit $LASTEXITCODE
+'''
+                }
+            }
+        }
     }
 
     post {
         always {
             powershell '''
 New-Item -ItemType Directory -Force -Path api-tests/reports/allure-results | Out-Null
+New-Item -ItemType Directory -Force -Path api-tests/reports/module2-allure-results | Out-Null
 '''
             allure(
                 includeProperties: false,
                 jdk: '',
-                results: [[path: 'api-tests/reports/allure-results']]
+                results: [
+                    [path: 'api-tests/reports/allure-results'],
+                    [path: 'api-tests/reports/module2-allure-results']
+                ]
             )
             junit(
                 allowEmptyResults: true,
-                testResults: 'api-tests/reports/junit.xml'
+                testResults: 'api-tests/reports/junit.xml,api-tests/reports/module2-junit.xml'
             )
             archiveArtifacts(
                 allowEmptyArchive: true,
-                artifacts: 'api-tests/reports/junit.xml',
+                artifacts: 'api-tests/reports/junit.xml,api-tests/reports/module2-junit.xml',
                 fingerprint: false
             )
         }

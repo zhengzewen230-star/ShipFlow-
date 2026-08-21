@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.tenant.mapper.TenantMapper">
+  <resultMap id="tenantMap" type="com.shipflow.tenant.domain.model.Tenant"><constructor><idArg column="id" javaType="java.lang.Long"/><arg column="tenant_code" javaType="string"/><arg column="tenant_name" javaType="string"/><arg column="status" javaType="string"/><arg column="version" javaType="_long"/><arg column="created_at" javaType="java.time.LocalDateTime"/><arg column="updated_at" javaType="java.time.LocalDateTime"/></constructor></resultMap>
+  <sql id="columns">id, tenant_code, tenant_name, status, version, created_at, updated_at</sql>
+  <select id="findById" resultMap="tenantMap">SELECT <include refid="columns"/> FROM tenant WHERE id=#{tenantId} AND deleted=0</select>
+  <select id="findByCode" resultMap="tenantMap">SELECT <include refid="columns"/> FROM tenant WHERE tenant_code=#{tenantCode} AND deleted=0</select>
+  <select id="findPage" resultMap="tenantMap">SELECT <include refid="columns"/> FROM tenant WHERE deleted=0 AND (#{status} IS NULL OR status=#{status}) AND (#{tenantCode} IS NULL OR tenant_code=#{tenantCode}) ORDER BY id LIMIT #{offset}, #{pageSize}</select>
+  <select id="count" resultType="long">SELECT COUNT(id) FROM tenant WHERE deleted=0 AND (#{status} IS NULL OR status=#{status}) AND (#{tenantCode} IS NULL OR tenant_code=#{tenantCode})</select>
+  <insert id="insertTenant">INSERT INTO tenant (tenant_code,tenant_name,status,deleted,version) VALUES (#{tenantCode},#{tenantName},'ACTIVE',0,0)</insert>
+  <update id="updateName">UPDATE tenant SET tenant_name=#{tenantName}, version=version+1 WHERE id=#{tenantId} AND deleted=0 AND version=#{version}</update>
+  <update id="updateStatus">UPDATE tenant SET status=#{status}, version=version+1 WHERE id=#{tenantId} AND deleted=0 AND version=#{version}</update>
+</mapper>

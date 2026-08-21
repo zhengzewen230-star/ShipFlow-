@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.warehouse.mapper.WarehouseOverviewMapper">
+  <resultMap id="overviewCounts" type="com.shipflow.warehouse.domain.WarehouseOverviewCounts">
+    <result property="pendingInbound" column="pending_inbound" javaType="java.lang.Long"/>
+    <result property="pendingMeasurement" column="pending_measurement" javaType="java.lang.Long"/>
+    <result property="pendingLabel" column="pending_label" javaType="java.lang.Long"/>
+    <result property="pendingHandover" column="pending_handover" javaType="java.lang.Long"/>
+    <result property="pendingOutbound" column="pending_outbound" javaType="java.lang.Long"/>
+    <result property="inTransit" column="in_transit" javaType="java.lang.Long"/>
+    <result property="trackingExceptions" column="tracking_exceptions" javaType="java.lang.Long"/>
+    <result property="todayInbound" column="today_inbound" javaType="java.lang.Long"/>
+    <result property="todayOutbound" column="today_outbound" javaType="java.lang.Long"/>
+  </resultMap>
+  <resultMap id="recentOrder" type="com.shipflow.warehouse.domain.WarehouseOverview$RecentWarehouseOrder"><constructor><idArg column="id" javaType="long"/><arg column="order_no" javaType="string"/><arg column="tracking_no" javaType="string"/><arg column="status" javaType="string"/><arg column="destination_country" javaType="string"/><arg column="chargeable_weight" javaType="java.math.BigDecimal"/><arg column="action" javaType="string"/><arg column="created_at" javaType="java.time.LocalDateTime"/></constructor></resultMap>
+  <resultMap id="recentTrackingException" type="com.shipflow.warehouse.domain.WarehouseOverview$RecentTrackingException"><constructor><idArg column="id" javaType="long"/><arg column="order_id" javaType="long"/><arg column="order_no" javaType="string"/><arg column="tracking_no" javaType="string"/><arg column="exception_no" javaType="string"/><arg column="status" javaType="string"/><arg column="description" javaType="string"/><arg column="reported_at" javaType="java.time.LocalDateTime"/></constructor></resultMap>
+  <select id="findOverviewCounts" resultMap="overviewCounts">
+    SELECT
+      CAST(COALESCE(SUM(CASE WHEN current_status='PENDING_INBOUND' THEN 1 ELSE 0 END), 0) AS SIGNED) AS pending_inbound,
+      CAST(COALESCE(SUM(CASE WHEN current_status='INBOUND' THEN 1 ELSE 0 END), 0) AS SIGNED) AS pending_measurement,
+      CAST(COALESCE((SELECT COUNT(DISTINCT label_order.id) FROM shipment_order label_order
+        LEFT JOIN provider_order label_provider ON label_provider.tenant_id=label_order.tenant_id
+          AND label_provider.shipment_order_id=label_order.id
+        WHERE label_order.tenant_id=#{tenantId} AND label_order.current_status='READY_FOR_OUTBOUND'
+          AND COALESCE(label_provider.lifecycle_status, '') &lt;&gt; 'LABEL_READY'), 0) AS SIGNED) AS pending_label,
+      CAST(COALESCE((SELECT COUNT(1) FROM shipment_order handover_order
+        JOIN provider_order handover_provider ON handover_provider.tenant_id=handover_order.tenant_id
+          AND handover_provider.shipment_order_id=handover_order.id
+        WHERE handover_order.tenant_id=#{tenantId} AND handover_order.current_status='READY_FOR_OUTBOUND'
+          AND handover_provider.lifecycle_status='LABEL_READY'), 0) AS SIGNED) AS pending_handover,
+      CAST(COALESCE(SUM(CASE WHEN current_status='READY_FOR_OUTBOUND' THEN 1 ELSE 0 END), 0) AS SIGNED) AS pending_outbound,
+      CAST(COALESCE(SUM(CASE WHEN current_status='IN_TRANSIT' THEN 1 ELSE 0 END), 0) AS SIGNED) AS in_transit,
+      CAST(COALESCE((SELECT COUNT(*) FROM tracking_event t WHERE t.tenant_id=#{tenantId} AND t.process_status IN ('RETRY','REJECTED')), 0) AS SIGNED) AS tracking_exceptions,
+      CAST(COALESCE((SELECT COUNT(*) FROM audit_log a WHERE a.tenant_id=#{tenantId} AND a.resource_type='SHIPMENT_ORDER' AND a.action_type='INBOUND' AND a.result_status='SUCCESS' AND a.occurred_at &gt;= UTC_DATE()), 0) AS SIGNED) AS today_inbound,
+      CAST(COALESCE((SELECT COUNT(*) FROM audit_log a WHERE a.tenant_id=#{tenantId} AND a.resource_type='SHIPMENT_ORDER' AND a.action_type='OUTBOUND' AND a.result_status='SUCCESS' AND a.occurred_at &gt;= UTC_DATE()), 0) AS SIGNED) AS today_outbound
+    FROM shipment_order
+    WHERE tenant_id=#{tenantId}
+  </select>
+  <select id="findRecentOrders" resultMap="recentOrder">
+    SELECT o.id, o.order_no, COALESCE(po.tracking_no, obr.tracking_no) AS tracking_no,
+      CASE WHEN o.current_status='PENDING_INBOUND' THEN 'PENDING_INBOUND'
+           WHEN o.current_status='INBOUND' THEN 'PENDING_MEASUREMENT'
+           WHEN o.current_status='READY_FOR_OUTBOUND' AND po.lifecycle_status='CREATED' THEN 'PENDING_LABEL'
+           WHEN o.current_status='READY_FOR_OUTBOUND' AND po.lifecycle_status='LABEL_READY' THEN 'PENDING_HANDOVER'
+           WHEN o.current_status='READY_FOR_OUTBOUND' THEN 'PENDING_LABEL'
+           WHEN o.current_status='IN_TRANSIT' THEN 'IN_TRANSIT' ELSE o.current_status END AS status,
+      o.destination_country, o.chargeable_weight,
+      CASE WHEN o.current_status='PENDING_INBOUND' THEN '确认入库'
+           WHEN o.current_status='INBOUND' THEN '录入复称'
+           WHEN o.current_status='READY_FOR_OUTBOUND' AND po.lifecycle_status='LABEL_READY' THEN '确认交接出库'
+           WHEN o.current_status='READY_FOR_OUTBOUND' THEN '获取面单'
+           WHEN o.current_status IN ('OUTBOUND','IN_TRANSIT') THEN '查看轨迹' ELSE '查看详情' END AS action,
+      o.created_at
+    FROM shipment_order o
+    LEFT JOIN provider_order po ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+    LEFT JOIN warehouse_outbound_record obr ON obr.tenant_id=o.tenant_id AND obr.shipment_order_id=o.id
+    WHERE o.tenant_id=#{tenantId} AND o.current_status IN ('PENDING_INBOUND','INBOUND','READY_FOR_OUTBOUND','OUTBOUND','IN_TRANSIT')
+    ORDER BY o.created_at DESC,o.id DESC LIMIT #{limit}
+  </select>
+  <select id="findRecentTrackingExceptions" resultMap="recentTrackingException">
+    SELECT t.id, t.shipment_order_id AS order_id, o.order_no,
+      COALESCE(po.tracking_no, obr.tracking_no) AS tracking_no, t.event_id AS exception_no,
+      t.process_status AS status, COALESCE(t.event_description,t.process_message,'') AS description,
+      t.event_time AS reported_at
+    FROM tracking_event t
+    JOIN shipment_order o ON o.tenant_id=t.tenant_id AND o.id=t.shipment_order_id
+    LEFT JOIN provider_order po ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+    LEFT JOIN warehouse_outbound_record obr ON obr.tenant_id=o.tenant_id AND obr.shipment_order_id=o.id
+    WHERE t.tenant_id=#{tenantId} AND t.process_status IN ('RETRY','REJECTED')
+    ORDER BY t.event_time DESC,t.id DESC LIMIT #{limit}
+  </select>
+</mapper>

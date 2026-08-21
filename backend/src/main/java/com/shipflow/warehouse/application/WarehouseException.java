@@ -1,0 +1,1 @@
+package com.shipflow.warehouse.application;public class WarehouseException extends RuntimeException{private final String code;private final int status;public WarehouseException(String c,int s){code=c;status=s;}public String code(){return code;}public int status(){return status;}}

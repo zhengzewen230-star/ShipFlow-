@@ -58,6 +58,7 @@ class LoginIdentityServiceTest {
 
         assertThat(identity.scope()).isEqualTo(LoginIdentity.Scope.PLATFORM);
         assertThat(identity.tenantId()).isNull();
+        assertThat(identity.roleCodes()).containsExactly("PLATFORM_ADMIN");
         assertThat(identity.permissionCodes()).containsExactly("tenant:create");
     }
 
@@ -73,6 +74,7 @@ class LoginIdentityServiceTest {
 
         assertThat(identity.scope()).isEqualTo(LoginIdentity.Scope.TENANT);
         assertThat(identity.tenantId()).isEqualTo(1L);
+        assertThat(identity.roleCodes()).containsExactly("MERCHANT_ADMIN");
     }
 
     @Test
@@ -186,6 +188,15 @@ class LoginIdentityServiceTest {
     }
 
     @Test
+    void disabledRoleUsesUnifiedFailureImmediately() {
+        when(sysUserMapper.findPlatformUser("platform_admin")).thenReturn(user(1L, null, null));
+        when(userAuthorityMapper.findActiveAuthorities(1L, null, "PLATFORM"))
+                .thenReturn(List.of(authority(1L, null, "PLATFORM_ADMIN", "PLATFORM", "tenant:create", "DISABLED")));
+
+        assertFailure(new LoginCredentials("platform_admin", PASSWORD, null));
+    }
+
+    @Test
     void roleScopeMismatchUsesUnifiedFailure() {
         when(sysUserMapper.findPlatformUser("platform_admin")).thenReturn(user(1L, null, null));
         when(userAuthorityMapper.findActiveAuthorities(1L, null, "PLATFORM"))
@@ -223,6 +234,7 @@ class LoginIdentityServiceTest {
         LoginIdentity identity = service.authenticate(new LoginCredentials("merchant", PASSWORD, "TENANT_DEMO_001"));
 
         assertThat(identity.permissionCodes()).containsExactly("order:create", "order:operate");
+        assertThat(identity.roleCodes()).containsExactly("MERCHANT_ADMIN");
     }
 
     @Test
@@ -270,6 +282,20 @@ class LoginIdentityServiceTest {
 
         assertThat(identity.permissionCodes()).containsExactly("order:create");
         assertThatThrownBy(() -> identity.permissionCodes().add("admin:all"))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void loginIdentityRoleCodesAreImmutableAndDefensivelyCopied() {
+        java.util.LinkedHashSet<String> mutableRoles = new java.util.LinkedHashSet<>();
+        mutableRoles.add("MERCHANT_ADMIN");
+        LoginIdentity identity = new LoginIdentity(1L, 1L, "user-a", "User A",
+                LoginIdentity.Scope.TENANT, mutableRoles, java.util.Set.of("order:create"));
+
+        mutableRoles.add("PLATFORM_ADMIN");
+
+        assertThat(identity.roleCodes()).containsExactly("MERCHANT_ADMIN");
+        assertThatThrownBy(() -> identity.roleCodes().add("PLATFORM_ADMIN"))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 
@@ -351,7 +377,12 @@ class LoginIdentityServiceTest {
     }
 
     private UserAuthorityView authority(Long userId, Long tenantId, String roleCode, String roleScope,
-                                       String permissionCode) {
-        return new UserAuthorityView(userId, tenantId, roleCode, roleScope, "ACTIVE", permissionCode);
+                                        String permissionCode) {
+        return authority(userId, tenantId, roleCode, roleScope, permissionCode, "ACTIVE");
+    }
+
+    private UserAuthorityView authority(Long userId, Long tenantId, String roleCode, String roleScope,
+                                        String permissionCode, String roleStatus) {
+        return new UserAuthorityView(userId, tenantId, roleCode, roleScope, roleStatus, permissionCode);
     }
 }

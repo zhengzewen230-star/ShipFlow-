@@ -120,6 +120,7 @@ public class LoginIdentityService {
             throw failure();
         }
 
+        Set<String> roleCodes = new LinkedHashSet<>();
         Set<String> permissionCodes = new LinkedHashSet<>();
         boolean validRole = false;
         for (UserAuthorityView authority : authorities) {
@@ -133,6 +134,7 @@ public class LoginIdentityService {
                 throw failure();
             }
             validRole = true;
+            roleCodes.add(authority.roleCode());
             if (!isBlank(authority.permissionCode())) {
                 permissionCodes.add(authority.permissionCode());
             }
@@ -147,6 +149,7 @@ public class LoginIdentityService {
                 user.username(),
                 user.displayName(),
                 user.tenantId() == null ? LoginIdentity.Scope.PLATFORM : LoginIdentity.Scope.TENANT,
+                roleCodes,
                 permissionCodes);
     }
 

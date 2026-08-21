@@ -1,5 +1,6 @@
 package com.shipflow.auth;
 
+import com.shipflow.IntegrationJwtTestConfiguration;
 import com.shipflow.auth.mapper.UserAuthorityMapper;
 import com.shipflow.auth.model.UserAuthorityView;
 import org.junit.jupiter.api.Test;
@@ -8,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -16,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("integration")
+@Import(IntegrationJwtTestConfiguration.class)
 @Transactional
 class UserAuthorityMapperIT {
 

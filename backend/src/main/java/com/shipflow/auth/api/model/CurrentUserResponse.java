@@ -5,10 +5,10 @@ import com.shipflow.auth.model.LoginIdentity;
 import java.util.List;
 
 public record CurrentUserResponse(String userId, String username, String displayName, String scope,
-                                  String tenantId, List<String> permissions) {
+                                  String tenantId, List<String> roles, List<String> permissions) {
     public static CurrentUserResponse from(LoginIdentity identity) {
         return new CurrentUserResponse(identity.userId().toString(), identity.username(), identity.displayName(),
                 identity.scope().name(), identity.tenantId() == null ? null : identity.tenantId().toString(),
-                List.copyOf(identity.permissionCodes()));
+                List.copyOf(identity.roleCodes()), List.copyOf(identity.permissionCodes()));
     }
 }

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.store.mapper.StoreAuditMapper">
+  <resultMap id="summary" type="com.shipflow.store.api.model.StoreAuditSummary">
+    <constructor>
+      <arg column="action_type" javaType="string"/>
+      <arg column="result_status" javaType="string"/>
+      <arg column="occurred_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+  <insert id="insert">INSERT INTO audit_log (tenant_id,operator_user_id,action_type,resource_type,resource_id,request_id,result_status,occurred_at) VALUES (#{tenantId},#{operatorUserId},#{actionType},'store',#{resourceId},#{requestId},'SUCCESS',#{occurredAt})</insert>
+  <select id="findRecent" resultMap="summary">
+    SELECT action_type,result_status,occurred_at FROM audit_log
+    WHERE tenant_id=#{tenantId} AND resource_type='store' AND resource_id=#{storeId}
+    ORDER BY occurred_at DESC,id DESC LIMIT #{limit}
+  </select>
+</mapper>

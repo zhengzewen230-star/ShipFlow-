@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.tracking.mapper.TrackingCallbackMapper">
+  <resultMap id="callbackOrder" type="com.shipflow.tracking.domain.TrackingCallbackOrder">
+    <constructor>
+      <arg column="tenant_id" javaType="long"/>
+      <arg column="order_id" javaType="long"/>
+      <arg column="current_status" javaType="string"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="existingEvent" type="com.shipflow.tracking.domain.ExistingTrackingEvent">
+    <constructor>
+      <idArg column="id" javaType="long"/>
+      <arg column="raw_payload" javaType="string"/>
+      <arg column="process_status" javaType="string"/>
+    </constructor>
+  </resultMap>
+
+  <select id="authorizedProviderId" resultType="long">
+    SELECT DISTINCT lp.id
+    FROM logistics_provider lp
+    JOIN sys_user u ON u.id = #{systemUserId} AND u.tenant_id IS NULL
+      AND u.status = 'ACTIVE' AND u.deleted = 0
+    JOIN sys_user_role ur ON ur.user_id = u.id AND ur.tenant_id IS NULL
+    JOIN sys_role r ON r.id = ur.role_id AND r.tenant_id IS NULL
+      AND r.role_scope = 'PLATFORM' AND r.status = 'ACTIVE' AND r.deleted = 0
+    JOIN sys_role_permission rp ON rp.role_id = r.id
+    JOIN sys_permission p ON p.id = rp.permission_id AND p.permission_code = 'tracking:callback'
+    WHERE lp.provider_code = #{providerCode} AND lp.status = 'ACTIVE' AND lp.deleted = 0
+    LIMIT 1
+  </select>
+
+  <select id="lockOrder" resultMap="callbackOrder">
+    SELECT o.tenant_id, o.id AS order_id, o.current_status
+    FROM warehouse_outbound_record w
+    JOIN shipment_order o ON o.id = w.shipment_order_id AND o.tenant_id = w.tenant_id
+    WHERE w.provider_id = #{providerId} AND w.tracking_no = #{trackingNo}
+    FOR UPDATE
+  </select>
+
+  <select id="findEvent" resultMap="existingEvent">
+    SELECT id, CAST(raw_payload AS CHAR) AS raw_payload, process_status
+    FROM tracking_event
+    WHERE provider_id = #{providerId} AND tracking_no = #{trackingNo} AND event_id = #{eventId}
+  </select>
+
+  <insert id="insertEvent">
+    INSERT INTO tracking_event
+      (tenant_id, provider_id, shipment_order_id, tracking_no, event_id, event_code,
+       event_description, event_time, received_time, raw_payload, process_status, process_message)
+    VALUES
+      (#{tenantId}, #{providerId}, #{orderId}, #{trackingNo}, #{eventId}, #{eventCode},
+       #{description}, #{eventTime}, #{receivedTime}, CAST(#{rawPayload} AS JSON),
+       #{processStatus}, #{processMessage})
+  </insert>
+
+  <update id="advanceOrder">
+    UPDATE shipment_order
+    SET current_status = #{toStatus}, version = version + 1
+    WHERE tenant_id = #{tenantId} AND id = #{orderId} AND current_status = #{fromStatus}
+  </update>
+
+  <insert id="insertAudit">
+    INSERT INTO audit_log
+      (tenant_id, operator_user_id, action_type, resource_type, resource_id, request_id,
+       result_status, reason, detail, occurred_at)
+    VALUES
+      (#{tenantId}, #{systemUserId}, 'TRACKING_CALLBACK', 'SHIPMENT_ORDER', #{orderId},
+       #{requestId}, 'SUCCESS', NULL, CAST(#{detail} AS JSON), #{occurredAt})
+  </insert>
+  <insert id="insertRetainedAudit">
+    INSERT INTO audit_log
+      (tenant_id, operator_user_id, action_type, resource_type, resource_id, request_id,
+       result_status, reason, detail, occurred_at)
+    VALUES
+      (#{tenantId}, #{systemUserId}, 'TRACKING_CALLBACK', 'SHIPMENT_ORDER', #{orderId},
+       #{requestId}, 'RETAINED', #{reason}, CAST(#{detail} AS JSON), #{occurredAt})
+  </insert>
+</mapper>

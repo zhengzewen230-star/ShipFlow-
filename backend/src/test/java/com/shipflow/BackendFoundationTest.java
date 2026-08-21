@@ -7,6 +7,44 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import com.shipflow.store.mapper.StoreMapper;
+import com.shipflow.store.mapper.StoreIdempotencyMapper;
+import com.shipflow.store.mapper.StoreAuditMapper;
+import com.shipflow.store.mapper.StoreScopeMapper;
+import com.shipflow.store.mapper.StoreResourceMapper;
+import com.shipflow.user.mapper.UserMapper;
+import com.shipflow.user.mapper.UserIdempotencyMapper;
+import com.shipflow.user.mapper.UserAuditMapper;
+import com.shipflow.rbac.mapper.RoleMapper;
+import com.shipflow.rbac.mapper.PermissionMapper;
+import com.shipflow.rbac.mapper.RbacAuditMapper;
+import com.shipflow.tenant.mapper.TenantMapper;
+import com.shipflow.tenant.mapper.TenantProvisioningMapper;
+import com.shipflow.tenant.mapper.TenantIdempotencyMapper;
+import com.shipflow.tenant.mapper.TenantAuditMapper;
+import com.shipflow.logistics.mapper.LogisticsMasterMapper;
+import com.shipflow.logistics.mapper.LogisticsIdempotencyMapper;
+import com.shipflow.logistics.mapper.LogisticsAuditMapper;
+import com.shipflow.quote.mapper.QuoteMapper;
+import com.shipflow.quote.mapper.QuoteIdempotencyMapper;
+import com.shipflow.quote.mapper.QuotePricingMapper;
+import com.shipflow.quote.mapper.QuoteAuditMapper;
+import com.shipflow.order.mapper.ShipmentOrderMapper;
+import com.shipflow.order.mapper.ShipmentOrderIdempotencyMapper;
+import com.shipflow.order.mapper.PriceConfirmationMapper;
+import com.shipflow.order.mapper.PriceConfirmationIdempotencyMapper;
+import com.shipflow.order.mapper.OrderActionIdempotencyMapper;
+import com.shipflow.warehouse.mapper.WarehouseMapper;
+import com.shipflow.warehouse.mapper.WarehouseOverviewMapper;
+import com.shipflow.tracking.mapper.TrackingQueryMapper;
+import com.shipflow.tracking.mapper.TrackingCallbackMapper;
+import com.shipflow.tracking.mapper.ShipmentTrackingMapper;
+import com.shipflow.exceptioncase.mapper.ExceptionClaimMapper;
+import com.shipflow.billing.mapper.BillingMapper;
+import com.shipflow.audit.mapper.AuditQueryMapper;
+import com.shipflow.operations.mapper.OperationsMapper;
+import com.shipflow.sf.mapper.SfProviderOrderMapper;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,6 +58,44 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class BackendFoundationTest {
+
+    @MockBean StoreMapper storeMapper;
+    @MockBean StoreIdempotencyMapper storeIdempotencyMapper;
+    @MockBean StoreAuditMapper storeAuditMapper;
+    @MockBean StoreScopeMapper storeScopeMapper;
+    @MockBean StoreResourceMapper storeResourceMapper;
+    @MockBean UserMapper userMapper;
+    @MockBean UserIdempotencyMapper userIdempotencyMapper;
+    @MockBean UserAuditMapper userAuditMapper;
+    @MockBean RoleMapper roleMapper;
+    @MockBean PermissionMapper permissionMapper;
+    @MockBean RbacAuditMapper rbacAuditMapper;
+    @MockBean TenantMapper tenantMapper;
+    @MockBean TenantProvisioningMapper tenantProvisioningMapper;
+    @MockBean TenantIdempotencyMapper tenantIdempotencyMapper;
+    @MockBean TenantAuditMapper tenantAuditMapper;
+    @MockBean LogisticsMasterMapper logisticsMasterMapper;
+    @MockBean LogisticsIdempotencyMapper logisticsIdempotencyMapper;
+    @MockBean LogisticsAuditMapper logisticsAuditMapper;
+    @MockBean QuoteMapper quoteMapper;
+    @MockBean QuoteIdempotencyMapper quoteIdempotencyMapper;
+    @MockBean QuotePricingMapper quotePricingMapper;
+    @MockBean QuoteAuditMapper quoteAuditMapper;
+    @MockBean ShipmentOrderMapper shipmentOrderMapper;
+    @MockBean ShipmentOrderIdempotencyMapper shipmentOrderIdempotencyMapper;
+    @MockBean PriceConfirmationMapper priceConfirmationMapper;
+    @MockBean PriceConfirmationIdempotencyMapper priceConfirmationIdempotencyMapper;
+    @MockBean OrderActionIdempotencyMapper orderActionIdempotencyMapper;
+    @MockBean WarehouseMapper warehouseMapper;
+    @MockBean WarehouseOverviewMapper warehouseOverviewMapper;
+    @MockBean TrackingQueryMapper trackingQueryMapper;
+    @MockBean TrackingCallbackMapper trackingCallbackMapper;
+    @MockBean ShipmentTrackingMapper shipmentTrackingMapper;
+    @MockBean ExceptionClaimMapper exceptionClaimMapper;
+    @MockBean BillingMapper billingMapper;
+    @MockBean AuditQueryMapper auditQueryMapper;
+    @MockBean OperationsMapper operationsMapper;
+    @MockBean SfProviderOrderMapper sfProviderOrderMapper;
 
     @Autowired
     private MockMvc mockMvc;

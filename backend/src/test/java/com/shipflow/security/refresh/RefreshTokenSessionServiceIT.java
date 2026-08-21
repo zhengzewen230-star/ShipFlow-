@@ -1,5 +1,6 @@
 package com.shipflow.security.refresh;
 
+import com.shipflow.IntegrationJwtTestConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
 
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -26,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /** Real Spring-proxy transaction tests; this class intentionally has no @Transactional test boundary. */
 @SpringBootTest
 @ActiveProfiles("integration")
-@org.springframework.context.annotation.Import(RefreshTokenSessionServiceIT.TestBeans.class)
+@Import({IntegrationJwtTestConfiguration.class, RefreshTokenSessionServiceIT.TestBeans.class})
 class RefreshTokenSessionServiceIT {
 
     @Autowired

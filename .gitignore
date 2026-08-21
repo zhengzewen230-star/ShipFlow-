@@ -33,11 +33,12 @@ logs/
 
 # Allure temporary results and reports
 api-tests/reports/
+backend/reports/
 allure-results/
 allure-report/
+module2-acceptance-artifacts-*/
 
 # Environment files
-.env
 .env.*
 !.env.example
 
@@ -53,6 +54,9 @@ mysql-data/
 
 # Local backend configuration
 backend/src/main/resources/application-local.yml
+
+# Local JWT key material (never commit)
+local-secrets/
 
 # OS files
 .DS_Store

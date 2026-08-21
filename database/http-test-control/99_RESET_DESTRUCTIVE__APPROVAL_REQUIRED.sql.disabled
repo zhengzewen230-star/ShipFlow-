@@ -1,0 +1,39 @@
+-- DESTRUCTIVE RESET PLAN. DEFAULT: DO NOT EXECUTE.
+-- This file is intentionally named .sql.disabled and its first statement aborts execution.
+-- It never creates, selects, or switches databases. The client must already select shipflow_http_test.
+-- Preconditions: written approval for this exact file, verified SELECT DATABASE() result, and a reviewable backup/export of the target test data.
+
+SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'RESET BLOCKED: explicit approval required; remove this guard only after verifying the selected database is shipflow_http_test';
+
+-- DESTRUCTIVE STATEMENTS BELOW. They are intentionally unreachable until the guard above is removed after approval.
+-- DROP TABLE IF EXISTS audit_log;
+-- DROP TABLE IF EXISTS auth_refresh_session;
+-- DROP TABLE IF EXISTS api_idempotency_record;
+-- DROP TABLE IF EXISTS reconciliation_record;
+-- DROP TABLE IF EXISTS bill_detail;
+-- DROP TABLE IF EXISTS bill_import_batch;
+-- DROP TABLE IF EXISTS warehouse_outbound_record;
+-- DROP TABLE IF EXISTS claim_record;
+-- DROP TABLE IF EXISTS exception_case;
+-- DROP TABLE IF EXISTS tracking_event;
+-- DROP TABLE IF EXISTS fee_adjustment;
+-- DROP TABLE IF EXISTS warehouse_measurement;
+-- DROP TABLE IF EXISTS shipment_item;
+-- DROP TABLE IF EXISTS shipment_address;
+-- DROP TABLE IF EXISTS shipment_package;
+-- DROP TABLE IF EXISTS shipment_quote_snapshot;
+-- DROP TABLE IF EXISTS shipment_order;
+-- DROP TABLE IF EXISTS quote;
+-- DROP TABLE IF EXISTS price_rule_tier;
+-- DROP TABLE IF EXISTS price_rule;
+-- DROP TABLE IF EXISTS logistics_channel_service_country;
+-- DROP TABLE IF EXISTS logistics_channel;
+-- DROP TABLE IF EXISTS logistics_provider;
+-- DROP TABLE IF EXISTS sys_role_permission;
+-- DROP TABLE IF EXISTS sys_user_role;
+-- DROP TABLE IF EXISTS sys_permission;
+-- DROP TABLE IF EXISTS sys_role;
+-- DROP TABLE IF EXISTS sys_user;
+-- DROP TABLE IF EXISTS merchant_store;
+-- DROP TABLE IF EXISTS tenant;

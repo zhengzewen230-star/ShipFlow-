@@ -1,4 +1,6 @@
 spring:
+  main:
+    allow-bean-definition-overriding: true
   datasource:
     url: ${SHIPFLOW_IT_DB_URL}
     username: ${SHIPFLOW_IT_DB_USERNAME}
@@ -8,6 +10,12 @@ spring:
       mode: never
   flyway:
     enabled: false
+
+shipflow:
+  security:
+    refresh-token:
+      enabled: true
+      hmac-key: aW50ZWdyYXRpb24tdGVzdC1obWFjLWtleS0zMmJ5dGU=
 
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml

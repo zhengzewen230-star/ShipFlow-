@@ -1,0 +1,1 @@
+package com.shipflow.warehouse.api.model; import jakarta.validation.constraints.NotBlank;import jakarta.validation.constraints.NotNull; public record OutboundRequest(@NotNull Long version,@NotBlank String trackingNo,String remark){}

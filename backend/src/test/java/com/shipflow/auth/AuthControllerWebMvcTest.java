@@ -158,6 +158,12 @@ class AuthControllerWebMvcTest {
     }
 
     @Test
+    void refreshDoesNotAcceptBrowserAddressBarGet() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/refresh"))
+                .andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
     void logoutClearsCookiesAndIsSuccessful() throws Exception {
         doNothing().when(service).logout("old");
         mockMvc.perform(post("/api/v1/auth/logout").with(SecurityMockMvcRequestPostProcessors.csrf())
@@ -205,13 +211,40 @@ class AuthControllerWebMvcTest {
     @Test
     void meWithBearerIdentityReturnsCurrentUser() throws Exception {
         var identity = new LoginIdentity(1L, 2L, "u", "User", LoginIdentity.Scope.TENANT,
-                java.util.Set.of("auth:read"));
+                java.util.Set.of("MERCHANT_ADMIN"), java.util.Set.of("auth:read"));
         when(service.currentUser(any())).thenReturn(identity);
         mockMvc.perform(get("/api/v1/users/me")
                         .with(SecurityMockMvcRequestPostProcessors.jwt()
                                 .jwt(jwt -> jwt.subject("1").claim("tenant_id", "2"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.userId").value("1"))
-                .andExpect(jsonPath("$.data.tenantId").value("2"));
+                .andExpect(jsonPath("$.data.tenantId").value("2"))
+                .andExpect(jsonPath("$.data.roles[0]").value("MERCHANT_ADMIN"))
+                .andExpect(jsonPath("$.data.permissions[0]").value("auth:read"));
+    }
+
+    @Test
+    void unknownApiPathRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/not-implemented"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("COMMON-1002"))
+                .andExpect(traceIdMatchesBody());
+    }
+
+    @Test
+    void managementPathWithoutTokenRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/platform/tenants"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("COMMON-1002"))
+                .andExpect(traceIdMatchesBody());
+    }
+
+    @Test
+    void managementPathWithAuthenticatedCallerWithoutPermissionIsForbidden() throws Exception {
+        mockMvc.perform(get("/api/v1/platform/tenants")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("COMMON-1004"))
+                .andExpect(traceIdMatchesBody());
     }
 }

@@ -4,6 +4,7 @@ import allure
 import pytest
 
 from common.config_loader import (PROJECT_ROOT, load_yaml, settings)
+from common.environment import skip_if_missing_environment
 from common.assertions import (
     assert_error_response,
     assert_success_response
@@ -19,9 +20,12 @@ login_failure_cases=auth_data["login_failure_cases"]
 @pytest.mark.auth
 @pytest.mark.smoke
 def test_login_success(auth_client):
-    password=os.getenv("SHIPFLOW_TEST_PASSWORD")
-    if not password:
-        pytest.fail("Please set SHIPFLOW_TEST_PASSWORD env variable")
+    password_env = settings["auth"]["password_env"]
+    skip_if_missing_environment(
+        [password_env],
+        reason="authentication environment is not configured",
+    )
+    password = os.getenv(password_env)
     with allure.step("获取CSRF Token"):
         csrf_response=auth_client.get_csrf_token()
         assert csrf_response.status_code == 204

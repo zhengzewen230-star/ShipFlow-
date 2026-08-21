@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shipflow.logistics.mapper.LogisticsAuditMapper">
+  <insert id="insert">INSERT INTO audit_log (tenant_id,operator_user_id,action_type,resource_type,resource_id,request_id,result_status,occurred_at) VALUES (NULL,#{operatorUserId},#{actionType},#{resourceType},#{resourceId},#{requestId},'SUCCESS',#{occurredAt})</insert>
+  <insert id="insertRejection">INSERT INTO audit_log (tenant_id,operator_user_id,action_type,resource_type,resource_id,request_id,result_status,reason,occurred_at) VALUES (#{tenantId},#{operatorUserId},#{actionType},#{resourceType},#{resourceId},#{requestId},'REJECTED',#{reason},UTC_TIMESTAMP(3))</insert>
+</mapper>

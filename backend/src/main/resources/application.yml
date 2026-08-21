@@ -14,9 +14,18 @@ mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
 
 shipflow:
+  sf:
+    api-base-url: ${SF_OPEN_URL:https://sfapi-sbox.sf-express.com/std/service}
+    partner-id: ${SF_OPEN_PARTNER_ID:YBGO1LWA}
+    check-word: ${SF_OPEN_CHECK_WORD:OkhXKWh8E66Aoacd4WawoZ7cBaj2CR7i}
+    customer-code: ${SF_OPEN_CUSTOMER_CODE:YBGO1LWA}
+    api-timeout-ms: ${SF_OPEN_TIMEOUT_MS:5000}
+    api-retry-limit: ${SF_OPEN_RETRY_LIMIT:0}
+    sandbox-enabled: ${SF_OPEN_SANDBOX_ENABLED:true}
+    strict-mode: ${SF_OPEN_STRICT_MODE:false}
   security:
     jwt:
-      enabled: ${SHIPFLOW_JWT_ENABLED:false}
+      enabled: ${SHIPFLOW_JWT_ENABLED:true}
       issuer: ${SHIPFLOW_JWT_ISSUER:shipflow}
       audience: ${SHIPFLOW_JWT_AUDIENCE:shipflow-api}
       access-token-ttl: ${SHIPFLOW_JWT_ACCESS_TOKEN_TTL:15m}
@@ -28,12 +37,16 @@ shipflow:
       enabled: ${SHIPFLOW_REFRESH_TOKEN_ENABLED:false}
       hmac-key: ${SHIPFLOW_REFRESH_TOKEN_HMAC_KEY:}
       family-ttl: ${SHIPFLOW_REFRESH_TOKEN_FAMILY_TTL:30d}
+  tracking:
+    callback:
+      max-clock-skew: 300s
+      credentials: []
   auth:
     cookies:
       refresh-name: ${SHIPFLOW_REFRESH_COOKIE_NAME:REFRESH_TOKEN}
       xsrf-name: ${SHIPFLOW_XSRF_COOKIE_NAME:XSRF-TOKEN}
       refresh-path: ${SHIPFLOW_REFRESH_COOKIE_PATH:/api/v1/auth}
-      xsrf-path: ${SHIPFLOW_XSRF_COOKIE_PATH:/api/v1/auth}
+      xsrf-path: ${SHIPFLOW_XSRF_COOKIE_PATH:/}
       secure: ${SHIPFLOW_AUTH_COOKIE_SECURE:true}
       same-site: ${SHIPFLOW_AUTH_COOKIE_SAME_SITE:Strict}
       refresh-max-age: ${SHIPFLOW_REFRESH_COOKIE_MAX_AGE:30d}
