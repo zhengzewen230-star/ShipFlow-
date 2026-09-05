@@ -56,7 +56,7 @@ npm run dev
 
 ## 接口与生命周期文档
 
-- [接口文档与契约使用说明](docs/API_REFERENCE.md)
+- [完整接口目录与契约说明](docs/API_REFERENCE.md) / [联调调用示例](docs/API_EXAMPLES.md)
 - [后端、前端、数据库与接口自动化测试生命周期](docs/PROJECT_LIFECYCLES.md)
 - [领域和数据库设计](docs/04-domain-model.md) / [数据库部署](docs/06-database-deployment.md)
 - [认证与 RBAC 设计](docs/14-auth-rbac-design.md)
