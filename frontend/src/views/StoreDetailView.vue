@@ -13,6 +13,8 @@ const detail = ref<StoreDetail>()
 const loading = ref(false)
 const error = ref('')
 const errorTraceId = ref<string>()
+const errorCode = ref<string>()
+const errorStatus = ref<number>()
 const invalidId = computed(() => !parseStoreId(route.params.storeId))
 const resourceFields = ['countryRegion', 'defaultShippingAddress', 'defaultLogisticsChannel'] as const
 const unconfiguredResourceFields = computed(() => {
@@ -36,6 +38,8 @@ async function load() {
   if (loading.value) return
   loading.value = true
   error.value = ''
+  errorCode.value = undefined
+  errorStatus.value = undefined
   errorTraceId.value = undefined
   try {
     detail.value = await getStore(storeId)
@@ -43,6 +47,8 @@ async function load() {
     detail.value = undefined
     const apiError = toApiError(cause)
     error.value = getApiErrorMessage(apiError, '店铺详情加载失败，请稍后重试。')
+    errorCode.value = apiError.code
+    errorStatus.value = apiError.status
     errorTraceId.value = apiError.traceId
   } finally {
     loading.value = false
@@ -77,7 +83,7 @@ watch(() => route.params.storeId, () => { void load() })
       </div>
     </div>
     <div class="panel table-panel">
-      <DataState :loading="loading" :error="error" :trace-id="errorTraceId" :retry="load" :empty="!detail && !error && !invalidId">
+      <DataState :loading="loading" :error="error" :error-code="errorCode" :status="errorStatus" :trace-id="errorTraceId" :retry="load" :empty="!detail && !error && !invalidId">
         <template v-if="detail">
           <div class="detail-grid">
             <div><span>店铺编码</span><strong>{{ detail.storeCode }}</strong></div>

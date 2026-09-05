@@ -73,19 +73,25 @@
       (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/>
         AND o.current_status IN ('DRAFT','PENDING_INBOUND','INBOUND','PENDING_PRICE_CONFIRMATION','READY_FOR_OUTBOUND','OUTBOUND','IN_TRANSIT')
         AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}) AS pending_orders,
-      (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status='PENDING_INBOUND') AS pending_inbound,
+      (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status='PENDING_INBOUND'
+        AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}) AS pending_inbound,
       (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status='INBOUND'
         AND NOT EXISTS (SELECT 1 FROM shipment_package sp JOIN warehouse_measurement wm ON wm.shipment_package_id=sp.id
-          WHERE sp.tenant_id=o.tenant_id AND sp.shipment_order_id=o.id AND wm.tenant_id=o.tenant_id)) AS pending_measurement,
+          WHERE sp.tenant_id=o.tenant_id AND sp.shipment_order_id=o.id AND wm.tenant_id=o.tenant_id)
+        AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}) AS pending_measurement,
       (SELECT COUNT(*) FROM shipment_order o LEFT JOIN provider_order po ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
-        WHERE <include refid="orderVisible"/> AND o.current_status='READY_FOR_OUTBOUND' AND COALESCE(po.lifecycle_status,'') &lt;&gt; 'LABEL_READY') AS pending_label,
+        WHERE <include refid="orderVisible"/> AND o.current_status='READY_FOR_OUTBOUND' AND COALESCE(po.lifecycle_status,'') &lt;&gt; 'LABEL_READY'
+          AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}) AS pending_label,
       (SELECT COUNT(*) FROM shipment_order o JOIN provider_order po ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
-        WHERE <include refid="orderVisible"/> AND o.current_status='READY_FOR_OUTBOUND' AND po.lifecycle_status='LABEL_READY') AS pending_outbound,
-      (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status='IN_TRANSIT') AS in_transit,
+        WHERE <include refid="orderVisible"/> AND o.current_status='READY_FOR_OUTBOUND' AND po.lifecycle_status='LABEL_READY'
+          AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}) AS pending_outbound,
+      (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status='IN_TRANSIT'
+        AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}) AS in_transit,
       (SELECT COUNT(DISTINCT t.shipment_order_id) FROM tracking_event t JOIN shipment_order o ON o.id=t.shipment_order_id AND o.tenant_id=t.tenant_id
         WHERE <include refid="orderVisible"/> AND t.process_status IN ('RETRY','REJECTED') AND t.received_time &gt;= #{from} AND t.received_time &lt; #{to}) AS tracking_exception,
       (SELECT COUNT(*) FROM fee_adjustment fa JOIN shipment_order o ON o.id=fa.shipment_order_id AND o.tenant_id=fa.tenant_id
-        WHERE <include refid="orderVisible"/> AND fa.confirmation_status IN ('PENDING_CONFIRMATION','REQUESTED')) AS pending_fee_confirmation,
+        WHERE <include refid="orderVisible"/> AND fa.confirmation_status IN ('PENDING_CONFIRMATION','REQUESTED')
+          AND fa.created_at &gt;= #{from} AND fa.created_at &lt; #{to}) AS pending_fee_confirmation,
       (SELECT COUNT(DISTINCT b.id) FROM bill_import_batch b JOIN bill_detail d ON d.bill_import_batch_id=b.id AND d.tenant_id=b.tenant_id
         JOIN shipment_order o ON o.id=d.shipment_order_id AND o.tenant_id=d.tenant_id
         WHERE <include refid="orderVisible"/> AND (b.status IN ('FAILED','PARTIAL_SUCCESS') OR d.detail_status='ERROR')
@@ -101,12 +107,16 @@
           OR NOT EXISTS (SELECT 1 FROM shipment_address a WHERE a.tenant_id=o.tenant_id AND a.shipment_order_id=o.id AND a.address_type='SENDER'))
         AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}) AS missing_address,
       (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status IN ('PENDING_INBOUND','INBOUND','READY_FOR_OUTBOUND')
-        AND NOT EXISTS (SELECT 1 FROM customs_document cd WHERE cd.tenant_id=o.tenant_id AND cd.shipment_order_id=o.id AND cd.document_status='UPLOADED')) AS missing_customs_document,
-      (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status IN ('PENDING_INBOUND','INBOUND','READY_FOR_OUTBOUND')) AS pending_warehouse,
+        AND NOT EXISTS (SELECT 1 FROM customs_document cd WHERE cd.tenant_id=o.tenant_id AND cd.shipment_order_id=o.id AND cd.document_status='UPLOADED')
+        AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}) AS missing_customs_document,
+      (SELECT COUNT(*) FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status IN ('PENDING_INBOUND','INBOUND','READY_FOR_OUTBOUND')
+        AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}) AS pending_warehouse,
       (SELECT COUNT(*) FROM exception_case e JOIN shipment_order o ON o.id=e.shipment_order_id AND o.tenant_id=e.tenant_id
-        WHERE <include refid="orderVisible"/> AND e.status IN ('OPEN','PROCESSING','WAITING_PROVIDER_FEEDBACK')) AS pending_exception_follow_up,
+        WHERE <include refid="orderVisible"/> AND e.status IN ('OPEN','PROCESSING','WAITING_PROVIDER_FEEDBACK')
+          AND e.created_at &gt;= #{from} AND e.created_at &lt; #{to}) AS pending_exception_follow_up,
       (SELECT COUNT(*) FROM reconciliation_record rr JOIN shipment_order o ON o.id=rr.shipment_order_id AND o.tenant_id=rr.tenant_id
-        WHERE <include refid="orderVisible"/> AND rr.reconciliation_status='PENDING_CONFIRMATION') AS pending_reconciliation
+        WHERE <include refid="orderVisible"/> AND rr.reconciliation_status='PENDING_CONFIRMATION'
+          AND rr.created_at &gt;= #{from} AND rr.created_at &lt; #{to}) AS pending_reconciliation
   </select>
 
   <select id="findRecentOrders" resultType="com.shipflow.operations.domain.WorkbenchRecentOrder">
@@ -175,5 +185,95 @@
     ) risk
     ORDER BY occurred_at DESC, id DESC
     LIMIT #{limit}
+  </select>
+  <!-- The workbench count and its drill-down both include this exact fact-row set. -->
+  <sql id="metricDrilldownFacts">
+    <choose>
+      <when test="metricKey == 'PENDING_ORDERS'">
+        SELECT CONCAT('ORDER:',o.id) item_id,'SHIPMENT_ORDER' resource_type,o.id resource_id,o.id order_id,o.store_id,
+               o.order_no display_no,o.current_status status,'shipment_order' source,o.updated_at occurred_at
+        FROM shipment_order o WHERE <include refid="orderVisible"/>
+          AND o.current_status IN ('DRAFT','PENDING_INBOUND','INBOUND','PENDING_PRICE_CONFIRMATION','READY_FOR_OUTBOUND','OUTBOUND','IN_TRANSIT')
+          AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}
+      </when>
+      <when test="metricKey == 'PENDING_INBOUND'">
+        SELECT CONCAT('ORDER:',o.id) item_id,'SHIPMENT_ORDER' resource_type,o.id resource_id,o.id order_id,o.store_id,
+               o.order_no display_no,o.current_status status,'shipment_order' source,o.updated_at occurred_at
+        FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status='PENDING_INBOUND'
+          AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}
+      </when>
+      <when test="metricKey == 'PENDING_MEASUREMENT'">
+        SELECT CONCAT('ORDER:',o.id) item_id,'SHIPMENT_ORDER' resource_type,o.id resource_id,o.id order_id,o.store_id,
+               o.order_no display_no,o.current_status status,'shipment_order + warehouse_measurement' source,o.updated_at occurred_at
+        FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status='INBOUND'
+          AND NOT EXISTS (SELECT 1 FROM shipment_package sp JOIN warehouse_measurement wm ON wm.shipment_package_id=sp.id
+            WHERE sp.tenant_id=o.tenant_id AND sp.shipment_order_id=o.id AND wm.tenant_id=o.tenant_id)
+          AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}
+      </when>
+      <when test="metricKey == 'PENDING_LABEL'">
+        SELECT CONCAT('ORDER:',o.id) item_id,'SHIPMENT_ORDER' resource_type,o.id resource_id,o.id order_id,o.store_id,
+               o.order_no display_no,o.current_status status,'shipment_order + provider_order' source,o.updated_at occurred_at
+        FROM shipment_order o LEFT JOIN provider_order po ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+        WHERE <include refid="orderVisible"/> AND o.current_status='READY_FOR_OUTBOUND' AND COALESCE(po.lifecycle_status,'') &lt;&gt; 'LABEL_READY'
+          AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}
+      </when>
+      <when test="metricKey == 'PENDING_OUTBOUND'">
+        SELECT CONCAT('ORDER:',o.id) item_id,'SHIPMENT_ORDER' resource_type,o.id resource_id,o.id order_id,o.store_id,
+               o.order_no display_no,o.current_status status,'shipment_order + provider_order' source,o.updated_at occurred_at
+        FROM shipment_order o JOIN provider_order po ON po.tenant_id=o.tenant_id AND po.shipment_order_id=o.id
+        WHERE <include refid="orderVisible"/> AND o.current_status='READY_FOR_OUTBOUND' AND po.lifecycle_status='LABEL_READY'
+          AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}
+      </when>
+      <when test="metricKey == 'IN_TRANSIT'">
+        SELECT CONCAT('ORDER:',o.id) item_id,'SHIPMENT_ORDER' resource_type,o.id resource_id,o.id order_id,o.store_id,
+               o.order_no display_no,o.current_status status,'shipment_order' source,o.updated_at occurred_at
+        FROM shipment_order o WHERE <include refid="orderVisible"/> AND o.current_status='IN_TRANSIT'
+          AND o.updated_at &gt;= #{from} AND o.updated_at &lt; #{to}
+      </when>
+      <when test="metricKey == 'TRACKING_EXCEPTION'">
+        SELECT CONCAT('ORDER:',o.id) item_id,'SHIPMENT_ORDER' resource_type,o.id resource_id,o.id order_id,o.store_id,
+               o.order_no display_no,o.current_status status,'tracking_event' source,MAX(t.received_time) occurred_at
+        FROM tracking_event t JOIN shipment_order o ON o.id=t.shipment_order_id AND o.tenant_id=t.tenant_id
+        WHERE <include refid="orderVisible"/> AND t.process_status IN ('RETRY','REJECTED')
+          AND t.received_time &gt;= #{from} AND t.received_time &lt; #{to}
+        GROUP BY o.id,o.store_id,o.order_no,o.current_status
+      </when>
+      <when test="metricKey == 'PENDING_FINANCE'">
+        SELECT CONCAT('FEE:',fa.id) item_id,'FEE_ADJUSTMENT' resource_type,fa.id resource_id,o.id order_id,o.store_id,
+               o.order_no display_no,fa.confirmation_status status,'fee_adjustment' source,fa.created_at occurred_at
+        FROM fee_adjustment fa JOIN shipment_order o ON o.id=fa.shipment_order_id AND o.tenant_id=fa.tenant_id
+        WHERE <include refid="orderVisible"/> AND fa.confirmation_status IN ('PENDING_CONFIRMATION','REQUESTED')
+          AND fa.created_at &gt;= #{from} AND fa.created_at &lt; #{to}
+        UNION ALL
+        SELECT DISTINCT CONCAT('BATCH:',b.id),'BILL_IMPORT_BATCH',b.id,o.id,o.store_id,b.batch_no,b.status,
+               'bill_import_batch',b.created_at
+        FROM bill_import_batch b JOIN bill_detail d ON d.bill_import_batch_id=b.id AND d.tenant_id=b.tenant_id
+          JOIN shipment_order o ON o.id=d.shipment_order_id AND o.tenant_id=d.tenant_id
+        WHERE <include refid="orderVisible"/> AND (b.status IN ('FAILED','PARTIAL_SUCCESS') OR d.detail_status='ERROR')
+          AND b.created_at &gt;= #{from} AND b.created_at &lt; #{to}
+        UNION ALL
+        SELECT CONCAT('RECON:',rr.id),'RECONCILIATION',rr.id,o.id,o.store_id,o.order_no,rr.reconciliation_status,
+               'reconciliation_record',rr.created_at
+        FROM reconciliation_record rr JOIN shipment_order o ON o.id=rr.shipment_order_id AND o.tenant_id=rr.tenant_id
+        WHERE <include refid="orderVisible"/> AND rr.reconciliation_status IN ('PENDING_CONFIRMATION','REJECTED')
+          AND rr.difference_amount &lt;&gt; 0 AND rr.created_at &gt;= #{from} AND rr.created_at &lt; #{to}
+        UNION ALL
+        SELECT CONCAT('EXCEPTION:',e.id),'EXCEPTION_CASE',e.id,o.id,o.store_id,o.order_no,e.status,
+               'exception_case',e.created_at
+        FROM exception_case e JOIN shipment_order o ON o.id=e.shipment_order_id AND o.tenant_id=e.tenant_id
+        WHERE <include refid="orderVisible"/> AND e.status='PENDING_FINANCE_CONFIRMATION'
+          AND e.created_at &gt;= #{from} AND e.created_at &lt; #{to}
+      </when>
+    </choose>
+  </sql>
+
+  <select id="countMetricDrilldown" resultType="long">
+    SELECT COUNT(*) FROM (<include refid="metricDrilldownFacts"/>) metric_fact
+  </select>
+
+  <select id="findMetricDrilldown" resultType="com.shipflow.operations.domain.MetricDrilldownItem">
+    SELECT item_id,resource_type,resource_id,order_id,store_id,display_no,status,source,occurred_at
+    FROM (<include refid="metricDrilldownFacts"/>) metric_fact
+    ORDER BY occurred_at DESC,item_id DESC LIMIT #{limit} OFFSET #{offset}
   </select>
 </mapper>

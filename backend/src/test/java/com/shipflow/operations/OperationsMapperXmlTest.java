@@ -26,5 +26,7 @@ class OperationsMapperXmlTest {
                 "#{asOf}", "#{thresholdHours}",
                 "pending_orders", "pending_inbound", "pending_measurement", "pending_label",
                 "order_id", "order_status", "label_status", "resource_id", "occurred_at");
+        assertThat(xml.split("&gt;= #\\{from}", -1).length - 1).isGreaterThanOrEqualTo(14);
+        assertThat(xml.split("&lt; #\\{to}", -1).length - 1).isGreaterThanOrEqualTo(14);
     }
 }

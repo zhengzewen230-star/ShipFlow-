@@ -2,8 +2,13 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ClipboardCheck, FileText, PackageCheck, Printer, Ruler, Search, Truck, Warehouse as WarehouseIcon } from '@lucide/vue'
+import ActionError from '@/components/ActionError.vue'
+import CopyTextButton from '@/components/CopyTextButton.vue'
 import DataState from '@/components/DataState.vue'
+import ListPagination from '@/components/ListPagination.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { getApiErrorMessage, toApiError } from '@/services/http'
+import { useConfirmAction } from '@/composables/useConfirmAction'
 import { useSubmit } from '@/composables/useSubmit'
 import * as tracking from '@/services/tracking'
 import * as warehouse from '@/services/warehouse'
@@ -13,9 +18,12 @@ import { warehouseListFilter } from './workbenchTargetFilters'
 
 const route = useRoute()
 const router = useRouter()
+const { confirm } = useConfirmAction()
 const loading = ref(false)
 const error = ref('')
 const errorTraceId = ref<string>()
+const errorCode = ref<string>()
+const errorStatus = ref<number>()
 const success = ref('')
 const rows = ref<warehouse.WarehouseWorkItem[]>([])
 const selected = ref<warehouse.WarehouseWorkItem>()
@@ -23,7 +31,7 @@ const selectedId = ref<string>()
 const activeStatus = ref<warehouse.WarehouseWorkStatus>()
 const orderNo = ref('')
 const page = ref(1)
-const pageSize = 20
+const pageSize = ref(20)
 const total = ref(0)
 const totalPages = ref(0)
 const routeFilterNotice = ref('')
@@ -48,10 +56,6 @@ const customs = reactive({ certName: '', certCardNo: '', certType: '', frontPic:
 const measurementError = computed(() => measurementValidationMessage(action))
 const measurementSaveEnabled = computed(() => canSaveMeasurement(selected.value, action, submit.submitting.value))
 const sfCreateEnabled = computed(() => canCreateSfOrder(selected.value, submit.submitting.value))
-async function copySubmitTrace() {
-  if (!submit.errorTraceId.value) return
-  try { await navigator.clipboard.writeText(submit.errorTraceId.value) } catch { /* 页面保留编号供人工记录 */ }
-}
 
 type Tab = { label: string; status?: warehouse.WarehouseWorkStatus; count?: number; enabled: boolean; hint?: string }
 const tabs = computed<Tab[]>(() => [
@@ -93,7 +97,7 @@ async function load() {
   errorTraceId.value = undefined
   success.value = ''
   try {
-    const pageResult = await warehouse.listWarehouseWork({ page: page.value, pageSize, status: activeStatus.value, orderNo: orderNo.value || undefined })
+    const pageResult = await warehouse.listWarehouseWork({ page: page.value, pageSize: pageSize.value, status: activeStatus.value, orderNo: orderNo.value || undefined })
     rows.value = pageResult.items
     total.value = pageResult.total
     totalPages.value = pageResult.totalPages
@@ -110,13 +114,16 @@ async function load() {
   } catch (cause) {
     const apiError = toApiError(cause)
     error.value = getApiErrorMessage(apiError, '仓库作业数据加载失败，请稍后重试。')
+    errorCode.value = apiError.code
+    errorStatus.value = apiError.status
     errorTraceId.value = apiError.traceId
   } finally {
     loading.value = false
   }
 }
 
-async function open(item: warehouse.WarehouseWorkItem) {
+async function open(item: warehouse.WarehouseWorkItem, sync = true) {
+  if (sync) { await router.replace({ query: { ...route.query, recordId: item.id, page: page.value, pageSize: pageSize.value } }); return }
   selectedId.value = item.id
   error.value = ''
   trackingError.value = ''
@@ -157,7 +164,7 @@ function retryTracking() { return selected.value ? loadTracking(selected.value.i
 
 async function run(kind: 'inbound' | 'measure' | 'outbound') {
   if (!selected.value) return
-  if (kind === 'outbound' && !window.confirm('确认执行出库交接？该操作会推进订单状态，请确认当前物流单号无误。')) return
+  if (kind === 'outbound' && !await confirm({ title: '确认交接出库', description: '该操作会推进订单状态，请确认当前物流单号和货物信息无误。', confirmLabel: '确认出库' })) return
   const result = await submit.submit(async () => {
     success.value = ''
     if (kind === 'inbound') return warehouse.confirmInbound(selected.value!.id, action.version)
@@ -174,14 +181,14 @@ async function run(kind: 'inbound' | 'measure' | 'outbound') {
     })
   })
   if (!result) return
-  await open(selected.value)
+  await open(selected.value, false)
   await load()
   success.value = ({ inbound: '已完成入库。', measure: '复称数据已保存，计费重量和费用已重新计算。', outbound: '已完成交接出库。' } as const)[kind]
 }
 
 async function runSf(operation: warehouse.SfOperation) {
   if (!selected.value) return
-  if (operation === 'CANCEL_ORDER' && !window.confirm('确认取消顺丰订单？取消后不能恢复，请确认后继续。')) return
+  if (operation === 'CANCEL_ORDER' && !await confirm({ title: '确认取消顺丰订单', description: '取消后不能恢复，请确认后继续。', confirmLabel: '取消顺丰订单', danger: true })) return
   const result = await submit.submit(async () => {
     success.value = ''
     const payload = operation === 'UPLOAD_CERTIFY' ? JSON.stringify(customs) : ''
@@ -191,7 +198,7 @@ async function runSf(operation: warehouse.SfOperation) {
   if (result.trackingNo) action.trackingNo = result.trackingNo
   if (result.labelUrl) sfLabelUrl.value = result.labelUrl
   if (result.invoiceUrl) sfInvoiceUrl.value = result.invoiceUrl
-  await open(selected.value)
+  await open(selected.value, false)
   success.value = `${warehouse.sfOperationLabel(operation)}已提交，requestID：${result.requestId}`
 }
 
@@ -208,6 +215,8 @@ function syncRoute() {
     status: activeStatus.value || undefined,
     orderNo: orderNo.value || undefined,
     page: page.value > 1 ? String(page.value) : undefined,
+    pageSize: pageSize.value !== 20 ? String(pageSize.value) : undefined,
+    recordId: undefined,
   } })
 }
 
@@ -230,19 +239,24 @@ function closeDetail() {
   trackingErrorTraceId.value = undefined
   sfLabelUrl.value = ''
   sfInvoiceUrl.value = ''
+  void router.replace({ query: { ...route.query, recordId: undefined } })
 }
+function changePage(next: number) { page.value = next; syncRoute() }
+function changePageSize(next: number) { pageSize.value = next; page.value = 1; syncRoute() }
 
-function previousPage() { if (page.value > 1) { page.value -= 1; syncRoute() } }
-function nextPage() { if (page.value < totalPages.value) { page.value += 1; syncRoute() } }
-
-watch(() => route.fullPath, () => {
+watch(() => route.fullPath, async () => {
   const filter = warehouseListFilter(route.query)
   activeStatus.value = filter.status
   routeFilterNotice.value = filter.notice ?? ''
   orderNo.value = typeof route.query.orderNo === 'string' ? route.query.orderNo : ''
   const requestedPage = typeof route.query.page === 'string' && /^\d+$/.test(route.query.page) ? Number(route.query.page) : 1
   page.value = requestedPage > 0 ? requestedPage : 1
-  void load()
+  const requestedPageSize = typeof route.query.pageSize === 'string' && ['20', '50', '100'].includes(route.query.pageSize) ? Number(route.query.pageSize) : 20
+  pageSize.value = requestedPageSize
+  await load()
+  const recordId = typeof route.query.recordId === 'string' ? route.query.recordId : ''
+  const item = recordId ? rows.value.find(row => String(row.id) === recordId) : undefined
+  if (item) await open(item, false)
 }, { immediate: true })
 </script>
 
@@ -273,10 +287,10 @@ watch(() => route.fullPath, () => {
       <button class="btn btn--secondary" type="button" @click="resetFilters">重置</button>
     </form>
 
-    <DataState :loading="loading" :error="error" :trace-id="errorTraceId" :retry="load" :empty="!rows.length && !selected" empty-title="当前没有待处理业务">
+    <DataState :loading="loading" :error="error" :error-code="errorCode" :status="errorStatus" :trace-id="errorTraceId" :retry="load" :empty="!rows.length && !selected" empty-title="当前没有待处理业务">
       <div v-if="selected" class="warehouse-detail panel">
         <div class="warehouse-detail__header">
-          <div><span class="kicker">作业详情</span><h2>{{ selected.businessOrderNo }}</h2></div>
+          <div><span class="kicker">作业详情</span><h2>{{ selected.businessOrderNo }} <CopyTextButton :value="selected.businessOrderNo" label="订单号" /></h2></div>
           <button class="btn btn--secondary" @click="closeDetail">返回列表</button>
         </div>
 
@@ -325,9 +339,8 @@ watch(() => route.fullPath, () => {
 
         <section class="warehouse-operation">
           <h3>物流轨迹</h3>
-          <div v-if="trackingLoading" class="data-state">正在加载轨迹…</div>
           <DataState :loading="trackingLoading" :error="trackingError" :trace-id="trackingErrorTraceId" :retry="retryTracking" :empty="!trackingEvents.length" empty-title="暂无轨迹事件">
-            <div class="data-table-wrap"><table class="data-table"><thead><tr><th>时间</th><th>物流单号</th><th>事件</th><th>说明</th><th>处理状态</th></tr></thead><tbody><tr v-for="event in trackingEvents" :key="event.id"><td>{{ displayValue('eventTime', event.eventTime) }}</td><td>{{ event.trackingNo }}</td><td>{{ event.eventCode }}</td><td>{{ event.eventDescription || '—' }}</td><td>{{ displayValue('processStatus', event.processStatus) }}</td></tr></tbody></table></div>
+            <div class="data-table-wrap"><table class="data-table"><thead><tr><th>时间</th><th>物流单号</th><th>事件</th><th>说明</th><th>处理状态</th></tr></thead><tbody><tr v-for="event in trackingEvents" :key="event.id"><td>{{ displayValue('eventTime', event.eventTime) }}</td><td>{{ event.trackingNo }} <CopyTextButton v-if="event.trackingNo" :value="event.trackingNo" label="物流单号" /></td><td>{{ event.eventCode }}</td><td>{{ event.eventDescription || '—' }}</td><td><StatusBadge :status="event.processStatus" :label="displayValue('processStatus', event.processStatus)" /></td></tr></tbody></table></div>
           </DataState>
         </section>
 
@@ -336,13 +349,13 @@ watch(() => route.fullPath, () => {
           <a v-if="sfInvoiceUrl" :href="sfInvoiceUrl" target="_blank" rel="noopener">查看商业发票</a>
         </div>
         <div v-if="success" class="alert alert--success" role="status">{{ success }}</div>
-        <div v-if="submit.errorMessage.value" class="alert alert--error" role="alert"><b v-if="submit.errorCode.value">{{ submit.errorCode.value }}：</b>{{ submit.errorMessage.value }} <span v-if="submit.errorTraceId.value">追踪编号：{{ submit.errorTraceId.value }} <button class="text-button" type="button" @click="copySubmitTrace">复制</button></span></div>
+        <ActionError :message="submit.errorMessage.value" :code="submit.errorCode.value" :trace-id="submit.errorTraceId.value" />
       </div>
 
       <div v-else class="table-panel panel">
-        <div class="data-table-wrap"><table class="data-table"><thead><tr><th>业务单号</th><th>顺丰单号</th><th>所属商户</th><th>目的国</th><th>申报重量</th><th>实测规格</th><th>实测重量</th><th>计费重量</th><th>费用差额预警</th><th>仓库状态</th><th>操作</th></tr></thead><tbody><tr v-for="item in rows" :key="item.id"><td>{{ item.businessOrderNo }}</td><td>{{ item.sfTrackingNo || '尚未生成' }}</td><td>{{ item.tenantName }}</td><td>{{ displayValue('destinationCountry', item.destinationCountry) }}</td><td>{{ item.declaredWeight }} kg</td><td>{{ item.actualLength == null ? '尚未复称' : `${item.actualLength} × ${item.actualWidth} × ${item.actualHeight} cm` }}</td><td>{{ item.actualWeight == null ? '尚未复称' : `${item.actualWeight} kg` }}</td><td>{{ formatChargeableWeight(item.chargeableWeight) }}</td><td><span :class="item.feeAlert ? 'fee-alert' : 'fee-ok'">{{ item.feeAlert ? `${item.feeDifference} ${item.currency}` : '正常' }}</span></td><td>{{ displayValue('status', item.warehouseStatus) }}</td><td><button class="table-link" :disabled="selectedId === item.id" @click="open(item)">查看详情</button></td></tr></tbody></table></div>
+        <div class="data-table-wrap"><table class="data-table"><thead><tr><th>业务单号</th><th>顺丰单号</th><th>所属商户</th><th>目的国</th><th>申报重量</th><th>实测规格</th><th>实测重量</th><th>计费重量</th><th>费用差额预警</th><th>仓库状态</th><th>操作</th></tr></thead><tbody><tr v-for="item in rows" :key="item.id"><td>{{ item.businessOrderNo }} <CopyTextButton :value="item.businessOrderNo" label="订单号" /></td><td>{{ item.sfTrackingNo || '尚未生成' }} <CopyTextButton v-if="item.sfTrackingNo" :value="item.sfTrackingNo" label="顺丰单号" /></td><td>{{ item.tenantName }}</td><td>{{ displayValue('destinationCountry', item.destinationCountry) }}</td><td>{{ item.declaredWeight }} kg</td><td>{{ item.actualLength == null ? '尚未复称' : `${item.actualLength} × ${item.actualWidth} × ${item.actualHeight} cm` }}</td><td>{{ item.actualWeight == null ? '尚未复称' : `${item.actualWeight} kg` }}</td><td>{{ formatChargeableWeight(item.chargeableWeight) }}</td><td><StatusBadge :status="item.feeAlert ? 'WARNING' : 'NORMAL'" :label="item.feeAlert ? `${item.feeDifference} ${item.currency}` : '正常'" /></td><td><StatusBadge :status="item.warehouseStatus" :label="displayValue('status', item.warehouseStatus)" /></td><td><button class="table-link" type="button" :disabled="selectedId === item.id" @click="open(item)">查看详情</button></td></tr></tbody></table></div>
         <p v-if="!rows.length" class="data-state">当前筛选条件下暂无数据</p>
-        <div v-if="rows.length && totalPages > 1" class="warehouse-pagination"><button class="btn btn--secondary" :disabled="page <= 1 || loading" @click="previousPage">上一页</button><span>第 {{ page }} / {{ totalPages }} 页，共 {{ total }} 条</span><button class="btn btn--secondary" :disabled="page >= totalPages || loading" @click="nextPage">下一页</button></div>
+        <ListPagination :page="page" :page-size="pageSize" :total="total" :total-pages="totalPages" :loading="loading" @update:page="changePage" @update:page-size="changePageSize" />
       </div>
     </DataState>
   </section>

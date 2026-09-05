@@ -30,6 +30,8 @@ class OperationsQueryApplicationServiceTest {
                 10, 2, 3, 4, 5, 6, 7,
                 1, 2, 3, 4,
                 5, 6, 7, 8, 9));
+        when(mapper.countMetricDrilldown(eq(7L), eq(2L), any(), any(), isNull(), anyString()))
+                .thenAnswer(invocation -> "PENDING_FINANCE".equals(invocation.getArgument(5)) ? 10L : 0L);
         when(mapper.findRecentOrders(eq(7L), eq(2L), any(), any(), isNull(), eq("updatedAt"), eq("DESC"), eq(0), eq(10)))
                 .thenReturn(List.of(new WorkbenchRecentOrder(31L, "SO-31", 11L, "店铺一", "US",
                         "IN_TRANSIT", "LABEL_READY", new BigDecimal("5.400"), new BigDecimal("99.00"),
@@ -50,6 +52,13 @@ class OperationsQueryApplicationServiceTest {
         assertThat(result.metrics()).extracting(metric -> metric.key())
                 .containsExactly("PENDING_ORDERS", "PENDING_INBOUND", "PENDING_MEASUREMENT", "PENDING_LABEL",
                         "PENDING_OUTBOUND", "IN_TRANSIT", "TRACKING_EXCEPTION", "PENDING_FINANCE");
+        assertThat(result.metrics()).allSatisfy(metric -> {
+            assertThat(metric.definition()).isNotBlank();
+            assertThat(metric.dataSource()).isNotBlank();
+            assertThat(metric.timeField()).isNotBlank();
+            assertThat(metric.target().query()).containsKeys("timeRange", "from", "to");
+        });
+        assertThat(result.metrics().get(0).unit()).isEqualTo("ORDER_COUNT");
         var finance = result.metrics().get(7);
         assertThat(finance.count()).isEqualTo(10);
         assertThat(finance.breakdown()).extracting(item -> item.key())
@@ -59,6 +68,7 @@ class OperationsQueryApplicationServiceTest {
         assertThat(result.recentOrders().get(0).storeId()).isEqualTo(11L);
         assertThat(result.risks().get(0).description()).contains("24 小时");
         verify(mapper).findVisibleStoreIds(7L, 2L, null);
+        verify(mapper, times(8)).countMetricDrilldown(eq(7L), eq(2L), any(), any(), isNull(), anyString());
     }
 
     @Test
@@ -94,5 +104,23 @@ class OperationsQueryApplicationServiceTest {
         assertThat(result.todos()).hasSize(6).allSatisfy(todo -> assertThat(todo.count()).isZero());
         assertThat(result.recentOrders()).isEmpty();
         assertThat(result.risks()).isEmpty();
+    }
+
+    @Test
+    void drilldownUsesTheSameMetricKeyWindowScopeAndPaginationAsTheMetricTotal() {
+        OperationsMapper mapper = mock(OperationsMapper.class);
+        when(mapper.findVisibleStoreIds(7L, 2L, 11L)).thenReturn(List.of(11L));
+        when(mapper.countMetricDrilldown(eq(7L), eq(2L), any(), any(), eq(11L), eq("PENDING_INBOUND"))).thenReturn(1L);
+        when(mapper.findMetricDrilldown(eq(7L), eq(2L), any(), any(), eq(11L), eq("PENDING_INBOUND"), eq(0), eq(20)))
+                .thenReturn(List.of(new com.shipflow.operations.domain.MetricDrilldownItem("ORDER:31", "SHIPMENT_ORDER", 31L,
+                        31L, 11L, "SO-31", "PENDING_INBOUND", "shipment_order", LocalDateTime.of(2026, 8, 17, 2, 0))));
+
+        var result = new OperationsQueryApplicationService(mapper, Clock.fixed(NOW, ZoneOffset.UTC)).metricDrilldown(7L, 2L,
+                "pending_inbound", new OperationsWorkbenchQuery("TODAY", null, null, 11L, 1, 20, null, null, null, null));
+
+        assertThat(result.metricKey()).isEqualTo("PENDING_INBOUND");
+        assertThat(result.total()).isEqualTo(1L);
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).itemId()).isEqualTo("ORDER:31");
     }
 }

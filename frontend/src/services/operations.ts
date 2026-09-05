@@ -41,6 +41,10 @@ export interface OperationsMetric {
   refreshedAt: string
   target: OperationsTarget
   breakdown: OperationsMetricBreakdown[]
+  definition?: string | null
+  dataSource?: string | null
+  timeField?: string | null
+  unit?: 'TASK_COUNT' | 'ORDER_COUNT' | string | null
 }
 export interface OperationsTodo {
   key: string
@@ -89,3 +93,31 @@ export interface OperationsWorkbench {
 }
 export const getOperationsWorkbench = async (params: OperationsWorkbenchQuery = {}) =>
   unwrap<OperationsWorkbench>(await http.get('/operations/workbench', { params }))
+
+export interface OperationsMetricDrilldownItem {
+  itemId: string
+  resourceType: string
+  resourceId?: number | string | null
+  orderId?: number | string | null
+  storeId?: number | string | null
+  displayNo?: string | null
+  status?: string | null
+  source: string
+  occurredAt?: string | null
+}
+export interface OperationsMetricDrilldownPage {
+  metricKey: string
+  metricLabel: string
+  definition: string
+  dataSource: string
+  timeField: string
+  unit: 'ORDER_COUNT' | 'TASK_COUNT' | string
+  timeRange: OperationsTimeWindow
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
+  items: OperationsMetricDrilldownItem[]
+}
+export const getOperationsMetricDrilldown = async (metricKey: string, params: OperationsWorkbenchQuery = {}) =>
+  unwrap<OperationsMetricDrilldownPage>(await http.get(`/operations/workbench/metrics/${encodeURIComponent(metricKey)}/items`, { params }))

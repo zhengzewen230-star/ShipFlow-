@@ -27,7 +27,14 @@ public record OperationsWorkbenchResponse(
     public record Breakdown(String key, String label, long count, Target target) { }
 
     public record Metric(String key, String label, long count, TimeRange window,
-                         OffsetDateTime refreshedAt, Target target, List<Breakdown> breakdown) { }
+                         OffsetDateTime refreshedAt, Target target, List<Breakdown> breakdown,
+                         String definition, String dataSource, String timeField, String unit) {
+        public Metric(String key, String label, long count, TimeRange window,
+                      OffsetDateTime refreshedAt, Target target, List<Breakdown> breakdown) {
+            this(key, label, count, window, refreshedAt, target, breakdown,
+                    null, null, null, "TASK_COUNT");
+        }
+    }
 
     public record Todo(String key, String label, long count, TimeRange window, Target target) { }
 

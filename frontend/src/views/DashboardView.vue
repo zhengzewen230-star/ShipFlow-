@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { ArrowUpRight, Building2, ChevronRight, CircleAlert, ClipboardList, PackageCheck, RefreshCw, Route, ScrollText, Users } from '@lucide/vue'
+import { ArrowUpRight, Building2, CircleAlert, ClipboardList, PackageCheck, RefreshCw, Route, ScrollText, Users } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth'
 import { getApiErrorMessage } from '@/services/http'
 import type { OperationsMetric, OperationsTimeRange, OperationsWorkbench } from '@/services/operations'
 import { getWarehouseOverview, type WarehouseOverview } from '@/services/warehouse'
 import { formatChargeableWeight } from '@/utils/display'
+import MetricCard from '@/components/MetricCard.vue'
+import WorkQueue from '@/components/WorkQueue.vue'
+import RiskPanel from '@/components/RiskPanel.vue'
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import {
   classifyWorkbenchError,
   copyWorkbenchTraceId,
@@ -15,6 +19,7 @@ import {
   formatShanghaiWindow,
   formatWeightKg,
   isOperationsWorkbenchEmpty,
+  metricUnitLabel,
   workbenchStatusLabel,
   workbenchTargetLocation,
 } from './operationsWorkbench'
@@ -61,6 +66,24 @@ const warehouseMetrics = computed(() => [
   [Route, '在途运输', warehouseOverview.value?.inTransit ?? 0],
   [CircleAlert, '轨迹异常', warehouseOverview.value?.trackingExceptions ?? 0],
 ] as const)
+const queueItems = computed(() => (workbench.value?.todos ?? []).map((todo, index) => ({
+  key: todo.key,
+  label: todo.label,
+  count: todo.count,
+  priority: index === 0 ? '优先处理' : '待处理',
+  to: targetLocation(todo.target),
+})))
+const riskItems = computed(() => (workbench.value?.risks ?? []).map(risk => ({
+  id: risk.id,
+  level: risk.level,
+  title: risk.title,
+  description: risk.description,
+  occurredAt: formatShanghaiDateTime(risk.occurredAt),
+  to: targetLocation(risk.target),
+})))
+const coreMetrics = computed(() => {
+  return workbench.value?.metrics ?? []
+})
 
 async function load() {
   if (isPlatform.value || (!canReadOperations.value && !canReadWarehouse.value)) return
@@ -124,7 +147,7 @@ onMounted(() => { void load() })
     </div>
 
     <div v-if="!canReadOperations" class="panel workbench-state" role="status"><CircleAlert :size="24" /><strong>暂无运营概览权限</strong><p>当前账号没有 operations:read 权限，后端不会返回租户工作台数据。</p></div>
-    <div v-else-if="loading" class="panel workbench-state" role="status">正在加载运营概览…</div>
+    <LoadingSkeleton v-else-if="loading" :rows="6" />
     <div v-else-if="errorKind === 'unauthorized'" class="panel workbench-state" role="alert"><strong>登录状态已失效</strong><p>{{ error }}</p><p v-if="errorTraceId" class="workbench-trace">追踪编号：{{ errorTraceId }} <button class="text-button" type="button" @click="copyTraceId">复制</button></p><small v-if="traceCopyMessage" role="status">{{ traceCopyMessage }}</small><RouterLink class="btn btn--primary" to="/login">重新登录</RouterLink></div>
     <div v-else-if="errorKind === 'forbidden'" class="panel workbench-state" role="alert"><CircleAlert :size="24" /><strong>当前账号暂无访问权限</strong><p>{{ error }}</p><p v-if="errorTraceId" class="workbench-trace">追踪编号：{{ errorTraceId }} <button class="text-button" type="button" @click="copyTraceId">复制</button></p><small v-if="traceCopyMessage" role="status">{{ traceCopyMessage }}</small></div>
     <div v-else-if="error" class="panel workbench-state" role="alert"><CircleAlert :size="24" /><strong>运营概览暂时不可用</strong><p>{{ error }}</p><p v-if="errorTraceId" class="workbench-trace">追踪编号：{{ errorTraceId }} <button class="text-button" type="button" @click="copyTraceId">复制</button></p><small v-if="traceCopyMessage" role="status">{{ traceCopyMessage }}</small><button class="btn btn--secondary" type="button" @click="retry">重试</button></div>
@@ -135,18 +158,15 @@ onMounted(() => { void load() })
       <section aria-labelledby="workbench-metrics-title">
         <div class="panel__heading workbench-section-heading"><h2 id="workbench-metrics-title">今日核心指标</h2><span>后端返回数量，不在前端重新合计</span></div>
         <div class="metric-grid workbench-metrics">
-          <RouterLink v-for="metric in workbench.metrics" :key="metric.key" class="workbench-card" :to="targetLocation(metric.target)">
-            <span class="workbench-card__icon"><component :is="metricIcon(metric)" :size="20" /></span>
-            <div class="workbench-card__body"><small>{{ metric.label }}</small><b>{{ metric.count }}</b><em>{{ formatShanghaiWindow(metric.window) }}</em></div>
-            <ArrowUpRight class="workbench-card__arrow" :size="16" />
-            <ul v-if="metric.breakdown.length" class="workbench-breakdown"><li v-for="item in metric.breakdown" :key="item.key"><span>{{ item.label }}</span><b>{{ item.count }}</b></li></ul>
-          </RouterLink>
+          <MetricCard v-for="metric in coreMetrics" :key="metric.key" :label="metric.label" :value="metric.count" :hint="`${formatShanghaiWindow(metric.window)} · ${metricUnitLabel(metric)}`" :definition="metric.definition" :source="metric.dataSource && metric.timeField ? `${metric.dataSource}（${metric.timeField}）` : metric.dataSource" :to="targetLocation(metric.target)" :tone="metric.key.includes('EXCEPTION') ? 'danger' : metric.key.includes('FINANCE') || metric.key.includes('FEE') ? 'warning' : 'default'">
+            <template #icon><component :is="metricIcon(metric)" :size="19" /></template>
+          </MetricCard>
         </div>
       </section>
 
       <section class="workbench-two-column" aria-label="待办和风险">
-        <div class="panel workbench-panel"><div class="panel__heading workbench-section-heading"><h2>我的待办</h2><span>共 {{ workbench.todos.reduce((total, item) => total + item.count, 0) }} 项</span></div><div class="todo-list"><RouterLink v-for="todo in workbench.todos" :key="todo.key" class="todo-item" :to="targetLocation(todo.target)"><span>{{ todo.label }}</span><b>{{ todo.count }}</b><ChevronRight :size="16" /></RouterLink></div><p v-if="!workbench.todos.length" class="data-state">暂无待办</p></div>
-        <div class="panel workbench-panel"><div class="panel__heading workbench-section-heading"><h2>风险提醒</h2><span>{{ workbench.risks.length }} 条</span></div><div v-if="workbench.risks.length" class="risk-list"><RouterLink v-for="risk in workbench.risks" :key="risk.id" class="risk-item" :to="targetLocation(risk.target)"><span class="risk-item__level" :data-level="risk.level">{{ risk.level }}</span><div><strong>{{ risk.title }}</strong><small>{{ risk.description }}</small><em>{{ formatShanghaiDateTime(risk.occurredAt) }}</em></div><ChevronRight :size="16" /></RouterLink></div><p v-else class="data-state">暂无风险提醒</p></div>
+        <WorkQueue :items="queueItems" />
+        <RiskPanel :items="riskItems" />
       </section>
 
         <section class="panel workbench-panel" aria-labelledby="recent-orders-title"><div class="panel__heading workbench-section-heading"><div><h2 id="recent-orders-title">最近订单</h2><span>按后端返回的最近更新时间排序</span></div><RouterLink class="table-link" to="/app/orders">进入订单列表 <ArrowUpRight :size="15" /></RouterLink></div><p v-if="!workbench.recentOrders.length" class="data-state">暂无最近订单</p><div v-else class="data-table-wrap"><table class="data-table"><thead><tr><th>订单号</th><th>店铺</th><th>目的地</th><th>当前状态</th><th>计费重量</th><th>预计费用</th><th>顺丰单号</th><th>最近更新时间</th><th>下一步操作</th></tr></thead><tbody><tr v-for="order in workbench.recentOrders" :key="order.orderId"><td><RouterLink class="table-link" :to="targetLocation(order.target)">{{ order.orderNo }}</RouterLink></td><td>{{ order.storeName }}</td><td>{{ order.destination }}</td><td>{{ workbenchStatusLabel(order.orderStatus) }}</td><td>{{ formatWeightKg(order.chargeableWeight) }}</td><td>{{ formatMoney(order.estimatedFee, order.currency) }}</td><td>{{ order.sfTrackingNo || '尚未生成' }}</td><td>{{ formatShanghaiDateTime(order.updatedAt) }}</td><td>{{ order.nextAction }}</td></tr></tbody></table></div></section>

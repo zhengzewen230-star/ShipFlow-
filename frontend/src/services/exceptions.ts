@@ -18,7 +18,14 @@ export const transitionExceptionCase = async (id: Id, body: { status: Exclude<Ex
 export const listHandlingRecords = async (id: Id) => unwrap<HandlingRecord[]>(await http.get(`/exceptions/${id}/handling-records`))
 export const addHandlingRecord = async (id: Id, body: { recordType: HandlingRecord['recordType']; content: string; version: number }) => unwrap<HandlingRecord>(await http.post(`/exceptions/${id}/handling-records`, body, writeConfig('exception-handling')))
 export const listEvidence = async (id: Id) => unwrap<EvidenceAttachment[]>(await http.get(`/exceptions/${id}/evidence`))
-export const uploadEvidence = async (id: Id, file: File, version: number, description?: string) => { const form = new FormData(); form.append('file', file); form.append('version', String(version)); if (description?.trim()) form.append('description', description.trim()); const config = writeConfig('exception-evidence'); return unwrap<EvidenceAttachment>(await http.post(`/exceptions/${id}/evidence`, form, { ...config, headers: { ...config.headers, 'Content-Type': 'multipart/form-data' } })) }
+export const uploadEvidence = async (id: Id, file: File, version: number, description?: string) => {
+  const form = new FormData()
+  form.append('file', file, file.name)
+  form.append('version', String(version))
+  form.append('description', description?.trim() ?? '')
+  // Do not manually set Content-Type: the browser must add the multipart boundary.
+  return unwrap<EvidenceAttachment>(await http.post(`/exceptions/${id}/evidence`, form, writeConfig('exception-evidence')))
+}
 export const downloadEvidence = async (exceptionId: Id, attachmentId: Id) => http.get(`/exceptions/${exceptionId}/evidence/${attachmentId}/content`, { responseType: 'blob' })
 export const createClaim = async (id: Id, body: { claimAmount: number; currency: string; claimReason: string; exceptionVersion: number; evidenceAttachmentIds: Id[] }) => unwrap<Claim>(await http.post(`/exceptions/${id}/claim`, body, writeConfig('claim')))
 export const getClaim = async (id: Id) => unwrap<Claim>(await http.get(`/claims/${id}`))

@@ -5,6 +5,8 @@ import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -144,7 +146,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ExceptionClaimException.class)
     public ResponseEntity<ApiErrorResponse> handleExceptionClaimFailure(ExceptionClaimException exception) {
-        return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), "Exception or claim operation failed"));
+        String message = switch (exception.code()) {
+            case "CLAIM-1001" -> "Claim requires PROCESSING exception status, an eligible order status, and matching order currency";
+            case "CLAIM-1002" -> "Claim already exists or the claim state does not allow this operation";
+            case "CLAIM-1003" -> "Claim amount, evidence reference, or result data is invalid";
+            case "EXCEPTION-1002" -> "Exception was updated by another operation; refresh and retry with the latest version";
+            case "EXCEPTION-1004" -> "Exception state transition prerequisites are not satisfied";
+            default -> "Exception or claim operation failed";
+        };
+        return response(HttpStatus.valueOf(exception.status()), new ApiErrorResponse(exception.code(), message));
     }
 
     @ExceptionHandler(BillingException.class)
@@ -160,6 +170,7 @@ public class GlobalExceptionHandler {
             case "BILL-1001" -> "账单文件或导入参数不合法";
             case "BILL-1002" -> "账单导入批次发生并发冲突，请稍后重试";
             case "BILL-1003" -> "账单明细重复";
+            case "RECON-1003" -> "对账状态或版本冲突，请刷新后重试";
             default -> "账单操作失败";
         };
     }
@@ -212,6 +223,12 @@ public class GlobalExceptionHandler {
             builder.allow(exception.getSupportedHttpMethods().toArray(new org.springframework.http.HttpMethod[0]));
         }
         return builder.body(new ApiErrorResponse("COMMON-1001", "Method not allowed"));
+    }
+
+    @ExceptionHandler({HttpMediaTypeNotSupportedException.class, MissingServletRequestPartException.class})
+    public ResponseEntity<ApiErrorResponse> handleMultipartRequest(Exception exception) {
+        return response(HttpStatus.BAD_REQUEST,
+                new ApiErrorResponse("COMMON-1001", "Multipart request is missing or has an unsupported media type"));
     }
 
     @ExceptionHandler(MissingRequestHeaderException.class)

@@ -37,8 +37,22 @@ backend/reports/
 allure-results/
 allure-report/
 module2-acceptance-artifacts-*/
+/.codex-build/
+
+# Local and historical build workspaces (never source or release artifacts)
+.m2-*/
+.p*-maven-output/
+.vite/
+backend/.codex-build/
+backend/target-*/
+build-*/
+p*-build/
+p*-runtime-tests/
+p*-runtime-*/
+p*-verify-*/
 
 # Environment files
+.env
 .env.*
 !.env.example
 

@@ -10,8 +10,8 @@ import {
 
 describe('workbench target filters', () => {
   it('only accepts documented workbench destinations and query fields', () => {
-    expect(workbenchTargetLocation({ route: '/app/orders', query: { status: 'IN_TRANSIT', storeId: 11, ignored: 'x' } }))
-      .toEqual({ path: '/app/orders', query: { status: 'IN_TRANSIT', storeId: '11' } })
+    expect(workbenchTargetLocation({ route: '/app/orders', query: { status: 'IN_TRANSIT', storeId: 11, timeRange: 'TODAY', from: '2026-08-29T16:00:00Z', to: '2026-08-30T16:00:00Z', ignored: 'x' } }))
+      .toEqual({ path: '/app/orders', query: { status: 'IN_TRANSIT', storeId: '11', timeRange: 'TODAY', from: '2026-08-29T16:00:00Z', to: '2026-08-30T16:00:00Z' } })
     expect(workbenchTargetLocation({ route: 'https://example.test', query: {} })).toBeUndefined()
   })
 
@@ -31,9 +31,9 @@ describe('workbench target filters', () => {
   })
 
   it('maps finance workbench categories to their supported real lists', () => {
-    expect(financeListFilter({ status: 'PENDING_RECONCILIATION' })).toEqual({ tab: 'reconciliations', status: 'PENDING_CONFIRMATION' })
-    expect(financeListFilter({ status: 'BILL_IMPORT_ERRORS' })).toEqual({ tab: 'details', status: 'ERROR' })
-    expect(financeListFilter({ tab: 'details', status: 'ERROR' })).toEqual({ tab: 'details', status: 'ERROR' })
+    expect(financeListFilter({ status: 'PENDING_RECONCILIATION' })).toMatchObject({ tab: 'reconciliations', status: 'PENDING_CONFIRMATION', page: 1, pageSize: 20 })
+    expect(financeListFilter({ status: 'BILL_IMPORT_ERRORS' })).toMatchObject({ tab: 'details', status: 'ERROR', page: 1, pageSize: 20 })
+    expect(financeListFilter({ tab: 'details', status: 'ERROR', page: '3', pageSize: '50', recordId: '19' })).toEqual({ tab: 'details', status: 'ERROR', page: 3, pageSize: 50, recordId: '19' })
     expect(financeListFilter({ tab: ['details', 'audit'], status: 'ERROR' }).notice).toContain('聚合')
   })
 })

@@ -1499,7 +1499,7 @@ paths:
     get:
       tags: [Tracking]
       summary: 按订单、运单、状态和事件时间查询可见轨迹
-      operationId: listTrackingEvents
+      operationId: searchTrackingEvents
       parameters:
         - { name: orderNo, in: query, schema: { type: string, maxLength: 64 } }
         - { name: trackingNo, in: query, schema: { type: string, maxLength: 128 } }
@@ -1644,6 +1644,24 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ReconciliationError'
+
+  /reconciliations/{reconciliationId}/reject:
+    post:
+      tags: [Reconciliation]
+      summary: 驳回非零差异对账
+      operationId: rejectReconciliationDifference
+      parameters: [{ $ref: '#/components/parameters/ReconciliationId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ReconciliationActionRequest' } } } }
+      responses: { '200': { description: 驳回成功, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessReconciliation' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '422': { $ref: '#/components/responses/ReconciliationError' } }
+
+  /reconciliations/{reconciliationId}/comments:
+    post:
+      tags: [Reconciliation]
+      summary: 补充对账处理说明
+      operationId: addReconciliationComment
+      parameters: [{ $ref: '#/components/parameters/ReconciliationId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/RequestId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ReconciliationActionRequest' } } } }
+      responses: { '200': { description: 说明保存成功, headers: { X-Trace-Id: { $ref: '#/components/headers/TraceId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessReconciliation' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/AuthError' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '422': { $ref: '#/components/responses/ReconciliationError' } }
 
   /audit-logs:
     get:
@@ -1864,6 +1882,35 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/OrderRuleError' }
+  /operations/workbench/metrics/{metricKey}/items:
+    get:
+      tags: [Operations]
+      summary: 查询与首页指标同一事实谓词的分页明细
+      operationId: getOperationsMetricDrilldown
+      parameters:
+        - name: metricKey
+          in: path
+          required: true
+          schema: { type: string, enum: [PENDING_ORDERS, PENDING_INBOUND, PENDING_MEASUREMENT, PENDING_LABEL, PENDING_OUTBOUND, IN_TRANSIT, TRACKING_EXCEPTION, PENDING_FINANCE] }
+        - name: timeRange
+          in: query
+          schema: { type: string, enum: [TODAY, LAST_7_DAYS, LAST_30_DAYS, CUSTOM], default: TODAY }
+        - name: from
+          in: query
+          schema: { $ref: '#/components/schemas/UtcDateTime' }
+        - name: to
+          in: query
+          schema: { $ref: '#/components/schemas/UtcDateTime' }
+        - name: storeId
+          in: query
+          schema: { type: integer, format: int64, minimum: 1 }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200': { description: total 与首页同一指标的 count 使用同一事实 SQL, content: { application/json: { schema: { $ref: '#/components/schemas/ApiSuccessOperationsMetricDrilldownPage' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /warehouse/overview:
     get:
       tags: [Warehouse]
@@ -3132,10 +3179,18 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/Id'
+        providerId:
+          $ref: '#/components/schemas/Id'
         batchNo:
+          type: string
+        fileName:
           type: string
         fileHash:
           type: string
+        fileSize:
+          type: integer
+          format: int64
+          minimum: 0
         status:
           type: string
           enum: [PROCESSING, PARTIAL_SUCCESS, SUCCESS, FAILED]
@@ -3145,6 +3200,19 @@ components:
           type: integer
         failureCount:
           type: integer
+        duplicateCount:
+          type: integer
+          minimum: 0
+        importedAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        createdAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        updatedAt:
+          $ref: '#/components/schemas/UtcDateTime'
     ApiSuccessBillBatch:
       allOf:
         - $ref: '#/components/schemas/ApiSuccess'
@@ -3171,6 +3239,10 @@ components:
         feeType: { type: string }
         detailStatus: { type: string, enum: [IMPORTED, MATCHED, ERROR] }
         errorMessage: { type: string, nullable: true }
+        rawLineMasked: { type: string, nullable: true, description: 服务端脱敏后的原始CSV行 }
+        errorHandlingStatus: { type: string, enum: [NOT_APPLICABLE, PENDING, RESOLVED, IGNORED] }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
     BillDetailPage:
       allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/BillDetail' } } } }]
     ApiSuccessBillDetailPage:
@@ -3193,9 +3265,21 @@ components:
         reconciliationStatus:
           type: string
           enum: [AUTO_CLOSED, PENDING_CONFIRMATION, CONFIRMED, REJECTED]
+        resolutionType: { type: string, nullable: true }
+        confirmedBy: { $ref: '#/components/schemas/Id', nullable: true }
+        confirmedAt: { $ref: '#/components/schemas/UtcDateTime', nullable: true }
+        remark: { type: string, nullable: true }
+        differenceReason: { type: string, enum: [NO_DIFFERENCE, SYSTEM_AND_PROVIDER_AMOUNT_DIFFER] }
+        responsibleUserId: { $ref: '#/components/schemas/Id', nullable: true }
+        actionHistory:
+          type: array
+          items: { $ref: '#/components/schemas/ReconciliationAction' }
         version:
           type: integer
           format: int64
+          minimum: 0
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+        updatedAt: { $ref: '#/components/schemas/UtcDateTime' }
     ApiSuccessReconciliation:
       allOf:
         - $ref: '#/components/schemas/ApiSuccess'
@@ -3220,6 +3304,23 @@ components:
           type: integer
           format: int64
           minimum: 0
+    ReconciliationActionRequest:
+      type: object
+      required: [remark, version]
+      properties:
+        remark: { type: string, minLength: 1, maxLength: 1000 }
+        version: { type: integer, format: int64, minimum: 0 }
+    ReconciliationAction:
+      type: object
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        actionType: { type: string, enum: [CONFIRM, REJECT, COMMENT, AUTO_CLOSE] }
+        statusBefore: { type: string, nullable: true }
+        statusAfter: { type: string, nullable: true }
+        remark: { type: string, nullable: true }
+        operatorUserId: { $ref: '#/components/schemas/Id', nullable: true }
+        requestId: { type: string, nullable: true }
+        occurredAt: { $ref: '#/components/schemas/UtcDateTime' }
     OrderActionRequest:
       type: object
       required: [version]
@@ -3790,7 +3891,7 @@ components:
         target: { $ref: '#/components/schemas/OperationsWorkbenchTarget' }
     OperationsWorkbenchMetric:
       type: object
-      required: [key, label, count, window, refreshedAt, target, breakdown]
+      required: [key, label, count, window, refreshedAt, target, breakdown, definition, dataSource, timeField, unit]
       properties:
         key: { type: string, enum: [PENDING_ORDERS, PENDING_INBOUND, PENDING_MEASUREMENT, PENDING_LABEL, PENDING_OUTBOUND, IN_TRANSIT, TRACKING_EXCEPTION, PENDING_FINANCE] }
         label: { type: string }
@@ -3799,6 +3900,10 @@ components:
         refreshedAt: { $ref: '#/components/schemas/UtcDateTime' }
         target: { $ref: '#/components/schemas/OperationsWorkbenchTarget' }
         breakdown: { type: array, items: { $ref: '#/components/schemas/OperationsWorkbenchBreakdown' } }
+        definition: { type: string, description: 指标业务口径；明确计数对象和去重规则 }
+        dataSource: { type: string, description: 后端事实表或事实表组合，不得由前端推算 }
+        timeField: { type: string, description: 统计窗口实际作用的数据库时间字段，数据库按 UTC 查询 }
+        unit: { type: string, enum: [ORDER_COUNT, TASK_COUNT] }
     OperationsWorkbenchTodo:
       type: object
       required: [key, label, count, window, target]
@@ -3842,6 +3947,37 @@ components:
         target: { $ref: '#/components/schemas/OperationsWorkbenchTarget' }
     ApiSuccessOperationsWorkbench:
       allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OperationsWorkbench' } } }]
+    OperationsMetricDrilldownItem:
+      type: object
+      required: [itemId, resourceType, source]
+      properties:
+        itemId: { type: string }
+        resourceType: { type: string }
+        resourceId: { type: integer, format: int64, nullable: true }
+        orderId: { type: integer, format: int64, nullable: true }
+        storeId: { type: integer, format: int64, nullable: true }
+        displayNo: { type: string, nullable: true }
+        status: { type: string, nullable: true }
+        source: { type: string }
+        occurredAt: { $ref: '#/components/schemas/UtcDateTime', nullable: true }
+    OperationsMetricDrilldownPage:
+      type: object
+      required: [metricKey, metricLabel, definition, dataSource, timeField, unit, timeRange, page, pageSize, total, totalPages, items]
+      properties:
+        metricKey: { type: string }
+        metricLabel: { type: string }
+        definition: { type: string }
+        dataSource: { type: string }
+        timeField: { type: string }
+        unit: { type: string, enum: [ORDER_COUNT, TASK_COUNT] }
+        timeRange: { $ref: '#/components/schemas/OperationsWorkbenchTimeRange' }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total: { type: integer, format: int64, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+        items: { type: array, items: { $ref: '#/components/schemas/OperationsMetricDrilldownItem' } }
+    ApiSuccessOperationsMetricDrilldownPage:
+      allOf: [{ $ref: '#/components/schemas/ApiSuccess' }, { type: object, properties: { data: { $ref: '#/components/schemas/OperationsMetricDrilldownPage' } } }]
     WarehouseOverview:
       type: object
       required: [pendingInbound, pendingMeasurement, pendingLabel, pendingHandover, pendingOutbound, inTransit, trackingExceptions, todayInbound, todayOutbound, recentOrders, recentTrackingExceptions]

@@ -1,14 +1,21 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { RefreshCw } from '@lucide/vue'
+import ActionError from '@/components/ActionError.vue'
+import CopyTextButton from '@/components/CopyTextButton.vue'
 import DataState from '@/components/DataState.vue'
-import { getApiErrorMessage } from '@/services/http'
+import StatusBadge from '@/components/StatusBadge.vue'
+import { getApiErrorMessage, toApiError } from '@/services/http'
 import * as onboarding from '@/services/onboarding'
 import { useSubmit } from '@/composables/useSubmit'
+import { useConfirmAction } from '@/composables/useConfirmAction'
 
 const applications = ref<onboarding.OnboardingApplication[]>([])
 const loading = ref(false)
 const error = ref('')
+const errorCode = ref<string>()
+const errorStatus = ref<number>()
+const errorTraceId = ref<string>()
 const selected = ref<onboarding.OnboardingApplication>()
 const detail = ref<onboarding.OnboardingApplication>()
 const detailLoading = ref(false)
@@ -17,6 +24,7 @@ const reviewRemark = ref('')
 const tenantCode = ref('')
 const adminUsername = ref('')
 const submit = useSubmit()
+const { confirm } = useConfirmAction()
 
 async function load() {
   loading.value = true
@@ -26,7 +34,11 @@ async function load() {
   try {
     applications.value = (await onboarding.listOnboardingApplications()).items
   } catch (cause) {
-    error.value = getApiErrorMessage(cause, '商户入驻申请加载失败。')
+    const converted = toApiError(cause)
+    error.value = getApiErrorMessage(converted, '商户入驻申请加载失败。')
+    errorCode.value = converted.code
+    errorStatus.value = converted.status
+    errorTraceId.value = converted.traceId
   } finally {
     loading.value = false
   }
@@ -61,6 +73,7 @@ async function viewDetail(application: onboarding.OnboardingApplication) {
 }
 
 async function approve(application: onboarding.OnboardingApplication) {
+  if (!await confirm({ title: '确认通过入驻申请', description: '通过后将创建正式租户和管理员邀请，请确认企业资料与审核意见无误。', confirmLabel: '审核通过' })) return
   selected.value = application
   await submit.submit(async () => {
     if (!tenantCode.value.trim() || !adminUsername.value.trim() || !reviewRemark.value.trim()) throw new Error('请填写租户编码、管理员用户名和审核意见。')
@@ -71,6 +84,7 @@ async function approve(application: onboarding.OnboardingApplication) {
 }
 
 async function reject(application: onboarding.OnboardingApplication) {
+  if (!await confirm({ title: '确认驳回入驻申请', description: '驳回原因将保留在审核记录中，请确认原因准确完整。', confirmLabel: '驳回申请', danger: true })) return
   await submit.submit(async () => {
     if (!reviewRemark.value.trim()) throw new Error('请填写驳回原因。')
     await onboarding.rejectOnboardingApplication(application.id, { reviewRemark: reviewRemark.value.trim(), version: application.version })
@@ -91,9 +105,9 @@ async function reject(application: onboarding.OnboardingApplication) {
         <RefreshCw :size="16" />刷新
       </button>
     </div>
-    <div v-if="submit.errorMessage.value" class="alert alert--error" role="alert">{{ submit.errorMessage.value }}</div>
+    <ActionError :message="submit.errorMessage.value" :code="submit.errorCode.value" :trace-id="submit.errorTraceId.value" />
     <div class="panel table-panel">
-      <DataState :loading="loading" :error="error" :empty="!applications.length" empty-title="暂无商户入驻申请">
+      <DataState :loading="loading" :error="error" :error-code="errorCode" :status="errorStatus" :trace-id="errorTraceId" :empty="!applications.length" empty-title="暂无商户入驻申请">
         <div class="data-table-wrap">
           <table class="data-table data-table--onboarding">
             <thead>
@@ -111,13 +125,13 @@ async function reject(application: onboarding.OnboardingApplication) {
             </thead>
             <tbody>
               <tr v-for="application in applications" :key="application.id">
-                <td>{{ application.applicationNo }}</td>
+                <td>{{ application.applicationNo }} <CopyTextButton :value="application.applicationNo" label="申请编号" /></td>
                 <td>{{ application.companyName }}</td>
                 <td>{{ application.contactName || '-' }}</td>
                 <td>{{ maskPhone(application.contactPhone) }}</td>
                 <td>{{ application.businessEmail || '-' }}</td>
                 <td>{{ application.countryCode }}</td>
-                <td>{{ application.status }}</td>
+                <td><StatusBadge :status="application.status" /></td>
                 <td>{{ formatDate(application.createdAt) }}</td>
                 <td><button class="table-link" type="button" :disabled="submit.submitting.value" @click="viewDetail(application)">查看详情</button><button v-if="application.status === 'PENDING'" class="table-link" type="button" :disabled="submit.submitting.value" @click="approve(application)">审核通过</button><button v-if="application.status === 'PENDING'" class="table-link" type="button" :disabled="submit.submitting.value" @click="reject(application)">驳回</button></td>
               </tr>
