@@ -5,5 +5,5 @@ import java.time.LocalDateTime;
 
 public record BillDetail(Long id, Long tenantId, Long batchId, Long providerId, String providerBillDetailNo,
                          int lineNo, Long shipmentOrderId, String trackingNo, BigDecimal billedAmount,
-                         String currency, String feeType, String detailStatus, String errorMessage,
+                         String currency, String feeType, String detailStatus, String errorMessage, String rawLineMasked, String errorHandlingStatus,
                          LocalDateTime createdAt, LocalDateTime updatedAt) { }

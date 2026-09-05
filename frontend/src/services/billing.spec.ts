@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { http } from './http'
 import {
+  addReconciliationComment,
   confirmReconciliationDifference,
   importBillingCsv,
   getBillImportBatch,
@@ -9,6 +10,7 @@ import {
   listBillImportErrors,
   listBillImportBatches,
   listReconciliations,
+  rejectReconciliationDifference,
 } from './billing'
 
 describe('finance billing service contracts', () => {
@@ -40,8 +42,12 @@ describe('finance billing service contracts', () => {
     await listReconciliations({ orderId: '9', status: 'PENDING_CONFIRMATION' })
     await getReconciliation('81')
     await confirmReconciliationDifference('81', { resolutionType: 'ACCEPT', remark: 'reviewed', version: 0 })
+    await rejectReconciliationDifference('81', { remark: 'reject reason', version: 0 })
+    await addReconciliationComment('81', { remark: 'more context', version: 0 })
     expect(get).toHaveBeenNthCalledWith(1, '/reconciliations', { params: { orderId: '9', status: 'PENDING_CONFIRMATION' } })
     expect(get).toHaveBeenNthCalledWith(2, '/reconciliations/81')
-    expect(post).toHaveBeenCalledWith('/reconciliations/81/confirm', { resolutionType: 'ACCEPT', remark: 'reviewed', version: 0 }, expect.objectContaining({ headers: expect.objectContaining({ 'X-Request-ID': expect.any(String), 'Idempotency-Key': expect.any(String) }) }))
+    expect(post).toHaveBeenNthCalledWith(1, '/reconciliations/81/confirm', { resolutionType: 'ACCEPT', remark: 'reviewed', version: 0 }, expect.objectContaining({ headers: expect.objectContaining({ 'X-Request-ID': expect.any(String), 'Idempotency-Key': expect.any(String) }) }))
+    expect(post).toHaveBeenNthCalledWith(2, '/reconciliations/81/reject', { remark: 'reject reason', version: 0 }, expect.objectContaining({ headers: expect.objectContaining({ 'Idempotency-Key': expect.stringMatching(/^reconciliation-reject-/) }) }))
+    expect(post).toHaveBeenNthCalledWith(3, '/reconciliations/81/comments', { remark: 'more context', version: 0 }, expect.objectContaining({ headers: expect.objectContaining({ 'Idempotency-Key': expect.stringMatching(/^reconciliation-comment-/) }) }))
   })
 })

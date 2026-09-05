@@ -92,7 +92,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/billing", "/api/v1/billing/**")
                         .access(AuthorizationManagers.allOf(hasAuthority("scope:TENANT"), AuthorizationManagers.anyOf(
                                 hasAuthority("billing:read"), hasAuthority("finance:bill-import"), hasAuthority("finance:reconcile"))))
-                        .requestMatchers(HttpMethod.POST, "/api/v1/reconciliations/*/confirm")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/reconciliations/*/confirm", "/api/v1/reconciliations/*/reject", "/api/v1/reconciliations/*/comments")
                         .access(AuthorizationManagers.allOf(hasAuthority("scope:TENANT"), hasAuthority("finance:reconcile")))
                         .requestMatchers(HttpMethod.GET, "/api/v1/reconciliations", "/api/v1/reconciliations/**")
                         .access(AuthorizationManagers.allOf(hasAuthority("scope:TENANT"), AuthorizationManagers.anyOf(

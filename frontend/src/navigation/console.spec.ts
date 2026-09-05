@@ -33,4 +33,12 @@ describe('console navigation permissions', () => {
     expect(roleSummary(['MERCHANT_OPERATOR'], 'TENANT')).toBe('商户业务人员')
     expect(roleSummary(['FINANCE_OPERATOR'], 'TENANT')).toBe('财务人员')
   })
+
+  it('groups tenant navigation into master data, fulfillment, settlement and governance', () => {
+    const items = visibleConsoleItems('TENANT', ['store:read', 'order:read', 'billing:read', 'audit:read'])
+    expect(items.map(item => [item.path, item.group])).toEqual([
+      ['/app', 'workspace'], ['/app/stores', 'master-data'], ['/app/orders', 'fulfillment'],
+      ['/app/billing', 'settlement'], ['/app/audit', 'governance'],
+    ])
+  })
 })

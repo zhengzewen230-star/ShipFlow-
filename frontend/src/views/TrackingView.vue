@@ -3,7 +3,9 @@ import { onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElTimeline, ElTimelineItem } from 'element-plus'
 import { RefreshCw, Search } from '@lucide/vue'
+import CopyTextButton from '@/components/CopyTextButton.vue'
 import DataState from '@/components/DataState.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { getApiErrorMessage, toApiError } from '@/services/http'
 import { getShipmentTrackingTimeline, type ShipmentTrackingTimelineEvent } from '@/services/tracking'
 import { trackingFilter } from './workbenchTargetFilters'
@@ -15,6 +17,8 @@ const events = ref<ShipmentTrackingTimelineEvent[]>([])
 const loading = ref(false)
 const error = ref('')
 const errorTraceId = ref<string>()
+const errorCode = ref<string>()
+const errorStatus = ref<number>()
 const searched = ref(false)
 const routeFilterNotice = ref('')
 let requestNo = 0
@@ -28,6 +32,8 @@ async function search() {
   const currentRequest = ++requestNo
   loading.value = true
   error.value = ''
+  errorCode.value = undefined
+  errorStatus.value = undefined
   errorTraceId.value = undefined
   searched.value = true
   try {
@@ -42,6 +48,8 @@ async function search() {
       events.value = []
       const apiError = toApiError(cause)
       error.value = getApiErrorMessage(apiError, '轨迹查询失败，请确认订单号或顺丰单号。')
+      errorCode.value = apiError.code
+      errorStatus.value = apiError.status
       errorTraceId.value = apiError.traceId
     }
   } finally {
@@ -83,6 +91,8 @@ watch(() => route.fullPath, () => {
   events.value = []
   searched.value = false
   errorTraceId.value = undefined
+  errorCode.value = undefined
+  errorStatus.value = undefined
   if (filter.reference) void search()
 }, { immediate: true })
 
@@ -108,21 +118,21 @@ onUnmounted(stopAutoRefresh)
         <Search :size="16" />查询轨迹
       </button>
       <button class="btn" type="button" :disabled="loading || !reference.trim()" @click="search">
-        <RefreshCw :size="16" :class="{ spinning: loading }" /> Refresh
+        <RefreshCw :size="16" :class="{ spinning: loading }" /> 刷新
       </button>
       <button class="btn" type="button" :disabled="!reference.trim()" @click="toggleAutoRefresh">
-        {{ autoRefresh ? 'Stop auto refresh' : 'Auto refresh (30s)' }}
+        {{ autoRefresh ? '停止自动刷新' : '自动刷新（30 秒）' }}
       </button>
     </form>
     <div v-if="routeFilterNotice" class="alert alert--warning" role="status">{{ routeFilterNotice }}</div>
 
-    <DataState :loading="loading" :error="error" :trace-id="errorTraceId" :retry="search" :empty="searched && !events.length && !loading && !error">
+    <DataState :loading="loading" :error="error" :error-code="errorCode" :status="errorStatus" :trace-id="errorTraceId" :retry="search" :empty="searched && !events.length && !loading && !error">
       <div v-if="!searched" class="panel data-state">请输入订单号或顺丰单号开始查询。</div>
       <div v-else class="panel tracking-timeline-panel">
         <div class="panel__heading">
           <div>
-            <h2>{{ events[0]?.orderNo || reference }}</h2>
-            <p>{{ events[0]?.waybillNo ? `顺丰运单号：${events[0].waybillNo}` : '暂无顺丰运单号' }}</p>
+            <h2>{{ events[0]?.orderNo || reference }} <CopyTextButton :value="events[0]?.orderNo || reference" label="订单号" /></h2>
+            <p>{{ events[0]?.waybillNo ? `顺丰运单号：${events[0].waybillNo}` : '暂无顺丰运单号' }} <CopyTextButton v-if="events[0]?.waybillNo" :value="events[0].waybillNo" label="顺丰单号" /></p>
           </div>
           <span v-if="events.length" class="tracking-count">{{ events.length }} 个节点</span>
         </div>
@@ -143,7 +153,7 @@ onUnmounted(stopAutoRefresh)
                 </span>
               </div>
               <p>{{ event.description || '—' }}</p>
-              <small>{{ event.location || '—' }} · {{ event.statusCode }}</small>
+              <small>{{ event.location || '—' }} · <StatusBadge :status="event.statusCode" /></small>
               <RouterLink v-if="['LOST', 'RETURNED', 'EXCEPTION'].includes(event.statusCode)" :to="{ path: '/app/exceptions', query: { orderId: event.orderId } }">查看异常处理</RouterLink>
             </div>
           </ElTimelineItem>

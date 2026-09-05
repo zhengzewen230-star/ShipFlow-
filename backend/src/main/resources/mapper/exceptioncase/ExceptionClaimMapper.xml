@@ -53,7 +53,7 @@
       <arg column="exception_case_id" javaType="long"/><arg column="uploaded_by_user_id" javaType="long"/>
       <arg column="original_file_name" javaType="string"/><arg column="content_type" javaType="string"/>
       <arg column="file_size" javaType="long"/><arg column="content_sha256" javaType="string"/>
-      <arg column="content" javaType="byte[]"/><arg column="description" javaType="string"/><arg column="created_at" javaType="java.time.LocalDateTime"/></constructor>
+      <arg column="content" javaType="_byte[]"/><arg column="description" javaType="string"/><arg column="created_at" javaType="java.time.LocalDateTime"/></constructor>
   </resultMap>
 
   <sql id="exceptionColumns">e.id,e.tenant_id,e.shipment_order_id,o.store_id,e.exception_no,e.exception_type,e.status,e.description,e.reported_at,e.version,e.created_at,e.updated_at,

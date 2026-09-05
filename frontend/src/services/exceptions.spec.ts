@@ -19,7 +19,11 @@ describe('exception handling and evidence service contracts', () => {
     await uploadEvidence('11', file, 4, 'delivery proof')
     expect(post).toHaveBeenNthCalledWith(1, '/exceptions/11/handling-records', expect.anything(), expect.objectContaining({ headers: expect.objectContaining({ 'Idempotency-Key': expect.stringMatching(/^exception-handling-/) }) }))
     expect(post).toHaveBeenNthCalledWith(2, '/exceptions/11/evidence', expect.any(FormData), expect.objectContaining({ headers: expect.objectContaining({ 'Idempotency-Key': expect.stringMatching(/^exception-evidence-/) }) }))
+    const uploadConfig = post.mock.calls[1][2] as { headers?: Record<string, string> }
+    expect(uploadConfig.headers?.['Content-Type']).toBeUndefined()
     const form = post.mock.calls[1][1] as FormData
+    const uploadedFile = form.get('file') as File
+    expect(uploadedFile.name).toBe('proof.txt')
     expect(form.get('version')).toBe('4')
     expect(form.get('description')).toBe('delivery proof')
   })

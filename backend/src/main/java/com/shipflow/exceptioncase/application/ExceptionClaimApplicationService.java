@@ -308,7 +308,7 @@ public class ExceptionClaimApplicationService {
         if ("CLOSED".equals(current.status())) throw new ExceptionClaimException("EXCEPTION-1002", 409);
         ClaimEligibility eligibility = mapper.findClaimEligibility(tenantId, exceptionId);
         if (eligibility == null) throw notFound();
-        if (!"PROCESSING".equals(eligibility.exceptionStatus()) || !Set.of("DELIVERED", "RETURNED", "LOST").contains(eligibility.orderStatus())
+        if (!"PROCESSING".equals(eligibility.exceptionStatus()) || !Set.of("OUTBOUND", "DELIVERED", "RETURNED", "LOST").contains(eligibility.orderStatus())
                 || !eligibility.orderCurrency().equals(currency)) throw new ExceptionClaimException("CLAIM-1001", 422);
         if (mapper.findClaimByException(tenantId, exceptionId) != null) throw new ExceptionClaimException("CLAIM-1002", 409);
         String no = number("CL", now());

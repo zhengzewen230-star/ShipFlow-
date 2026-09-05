@@ -807,6 +807,7 @@ CREATE TABLE bill_import_batch (
     total_count INT NOT NULL DEFAULT 0 COMMENT '总行数',
     success_count INT NOT NULL DEFAULT 0 COMMENT '成功行数',
     failure_count INT NOT NULL DEFAULT 0 COMMENT '失败行数',
+    duplicate_count INT NOT NULL DEFAULT 0 COMMENT '重复行数',
     status VARCHAR(32) NOT NULL DEFAULT 'PROCESSING' COMMENT '批次状态：PROCESSING、PARTIAL_SUCCESS、SUCCESS、FAILED',
     imported_at DATETIME(3) NOT NULL COMMENT '导入业务时间，系统时区为UTC',
     version BIGINT NOT NULL DEFAULT 0 COMMENT '技术乐观锁版本',
@@ -819,7 +820,9 @@ CREATE TABLE bill_import_batch (
     CONSTRAINT fk_bill_batch_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
     CONSTRAINT fk_bill_batch_provider FOREIGN KEY (provider_id) REFERENCES logistics_provider (id),
     CONSTRAINT chk_bill_batch_status CHECK (status IN ('PROCESSING', 'PARTIAL_SUCCESS', 'SUCCESS', 'FAILED')),
-    CONSTRAINT chk_bill_batch_counts CHECK (total_count >= 0 AND success_count >= 0 AND failure_count >= 0)
+    CONSTRAINT chk_bill_batch_counts CHECK (total_count >= 0 AND success_count >= 0 AND failure_count >= 0),
+    CONSTRAINT chk_bill_batch_duplicate_count CHECK (duplicate_count >= 0),
+    CONSTRAINT chk_bill_batch_result_counts CHECK (success_count + failure_count + duplicate_count <= total_count)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='物流商账单导入批次';
 
 CREATE TABLE bill_detail (
@@ -836,6 +839,8 @@ CREATE TABLE bill_detail (
     fee_type VARCHAR(64) NOT NULL COMMENT '费用类型',
     detail_status VARCHAR(32) NOT NULL DEFAULT 'IMPORTED' COMMENT '明细状态：IMPORTED、MATCHED、ERROR',
     error_message VARCHAR(1000) NULL COMMENT '行级错误信息',
+    raw_line_masked VARCHAR(2000) NULL COMMENT '脱敏后的CSV原始行',
+    error_handling_status VARCHAR(32) NOT NULL DEFAULT 'NOT_APPLICABLE' COMMENT '错误处理状态',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，系统时区为UTC',
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '更新时间，原始明细不修改',
     PRIMARY KEY (id),
@@ -843,12 +848,14 @@ CREATE TABLE bill_detail (
     UNIQUE KEY uk_bill_detail_tenant_provider_no (tenant_id, provider_id, provider_bill_detail_no),
     KEY idx_bill_detail_tenant_order (tenant_id, shipment_order_id),
     KEY idx_bill_detail_tenant_status (tenant_id, detail_status),
+    KEY idx_bill_detail_tenant_error_handling (tenant_id, detail_status, error_handling_status, bill_import_batch_id),
     CONSTRAINT fk_bill_detail_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
     CONSTRAINT fk_bill_detail_batch FOREIGN KEY (bill_import_batch_id) REFERENCES bill_import_batch (id),
     CONSTRAINT fk_bill_detail_provider FOREIGN KEY (provider_id) REFERENCES logistics_provider (id),
     CONSTRAINT fk_bill_detail_order FOREIGN KEY (shipment_order_id) REFERENCES shipment_order (id),
     CONSTRAINT chk_bill_detail_status CHECK (detail_status IN ('IMPORTED', 'MATCHED', 'ERROR')),
-    CONSTRAINT chk_bill_detail_amount CHECK (billed_amount >= 0)
+    CONSTRAINT chk_bill_detail_amount CHECK (billed_amount >= 0),
+    CONSTRAINT chk_bill_detail_error_handling_status CHECK (error_handling_status IN ('NOT_APPLICABLE','PENDING','RESOLVED','IGNORED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='物流商账单明细';
 
 CREATE TABLE reconciliation_record (
@@ -878,6 +885,25 @@ CREATE TABLE reconciliation_record (
     CONSTRAINT chk_reconciliation_status CHECK (reconciliation_status IN ('AUTO_CLOSED', 'PENDING_CONFIRMATION', 'CONFIRMED', 'REJECTED')),
     CONSTRAINT chk_reconciliation_amounts CHECK (system_amount >= 0 AND billed_amount >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='费用对账记录';
+
+CREATE TABLE reconciliation_action_history (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    tenant_id BIGINT NOT NULL,
+    reconciliation_record_id BIGINT NOT NULL,
+    action_type VARCHAR(32) NOT NULL,
+    status_before VARCHAR(32) NULL,
+    status_after VARCHAR(32) NULL,
+    remark VARCHAR(1000) NULL,
+    operator_user_id BIGINT NULL,
+    request_id VARCHAR(128) NULL,
+    occurred_at DATETIME(3) NOT NULL COMMENT 'UTC',
+    PRIMARY KEY (id),
+    KEY idx_reconciliation_history_tenant_record_time (tenant_id, reconciliation_record_id, occurred_at, id),
+    CONSTRAINT fk_reconciliation_history_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    CONSTRAINT fk_reconciliation_history_record FOREIGN KEY (reconciliation_record_id) REFERENCES reconciliation_record (id),
+    CONSTRAINT fk_reconciliation_history_operator FOREIGN KEY (operator_user_id) REFERENCES sys_user (id),
+    CONSTRAINT chk_reconciliation_history_action CHECK (action_type IN ('CONFIRM','REJECT','COMMENT','AUTO_CLOSE'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='对账人工处理历史';
 
 CREATE TABLE audit_log (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '审计日志主键',

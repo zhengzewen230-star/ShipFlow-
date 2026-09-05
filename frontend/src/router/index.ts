@@ -21,6 +21,7 @@ import GuestEstimateLeadsView from '@/views/GuestEstimateLeadsView.vue'
 import WarehouseWorkView from '@/views/WarehouseWorkView.vue'
 import TrackingView from '@/views/TrackingView.vue'
 import ExceptionManagementView from '@/views/ExceptionManagementView.vue'
+import OperationsMetricDrilldownView from '@/views/OperationsMetricDrilldownView.vue'
 import { isPublicRouteName, publicRouteRedirect } from '@/navigation/access'
 
 declare module 'vue-router' {
@@ -44,6 +45,7 @@ const moduleRoutes: RouteRecordRaw[] = [
   { path: 'tracking', name: 'app-tracking', component: TrackingView, meta: { scope: 'TENANT', permission: 'tracking:read' } },
   { path: 'exceptions', name: 'app-exceptions', component: ExceptionManagementView, meta: { scope: 'TENANT', permission: 'exception:read' } },
   { path: 'billing', name: 'app-billing', component: FinanceView, meta: { scope: 'TENANT', anyPermissions: ['billing:read', 'finance:bill-import', 'finance:reconcile'] } },
+  { path: 'workbench/metrics/:metricKey', name: 'app-workbench-metric', component: OperationsMetricDrilldownView, meta: { scope: 'TENANT', permission: 'operations:read' } },
   { path: 'audit', name: 'app-audit', component: WorkflowView, props: { domain: 'audit' }, meta: { permission: 'audit:read' } },
 ]
 
@@ -80,7 +82,7 @@ router.beforeEach(async to => {
 if (typeof window !== 'undefined') {
   window.addEventListener('shipflow:session-expired', () => {
     if (router.currentRoute.value.name !== 'login') {
-      void router.replace({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })
+      void router.replace({ name: 'login', query: { redirect: router.currentRoute.value.fullPath, reason: 'session-expired' } })
     }
   })
 }

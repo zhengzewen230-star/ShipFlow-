@@ -2,7 +2,7 @@
 import { reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { CheckCircle2 } from '@lucide/vue'
-import { getApiErrorMessage } from '@/services/http'
+import ActionError from '@/components/ActionError.vue'
 import * as onboarding from '@/services/onboarding'
 import { useSubmit } from '@/composables/useSubmit'
 
@@ -35,7 +35,7 @@ async function activate() {
         <form class="compact-form" @submit.prevent="activate">
           <label><span>激活令牌</span><input v-model.trim="form.invitationToken" autocomplete="one-time-code" required /></label>
           <label><span>登录密码</span><input v-model="form.password" type="password" autocomplete="new-password" minlength="12" required /></label>
-          <div v-if="submit.errorMessage.value" class="alert alert--error" role="alert">{{ getApiErrorMessage(submit.errorMessage.value, submit.errorMessage.value) }}</div>
+          <ActionError :message="submit.errorMessage.value" :code="submit.errorCode.value" :trace-id="submit.errorTraceId.value" />
           <button class="btn btn--primary" type="submit" :disabled="submit.submitting.value">{{ submit.submitting.value ? '提交中…' : '激活账号' }}</button>
         </form>
       </template>

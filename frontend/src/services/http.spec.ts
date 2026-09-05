@@ -96,6 +96,12 @@ describe('HTTP error classification', () => {
     expect(error.traceId).toBe('trace-http-1')
     expect(error.message).toBe(message)
   })
+
+  it('shows a Chinese network failure instead of swallowing the request', () => {
+    const error = toApiError(new AxiosError('Network Error', 'ERR_NETWORK', { url: '/orders' } as InternalAxiosRequestConfig))
+    expect(error.status).toBeUndefined()
+    expect(error.message).toBe('网络连接失败，请检查网络后重试。')
+  })
 })
 
 describe('HTTP session refresh', () => {

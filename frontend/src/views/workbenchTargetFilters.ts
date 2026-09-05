@@ -6,13 +6,14 @@ import type { WarehouseWorkStatus } from '@/services/warehouse'
 type QueryValue = string | null | undefined | Array<string | null>
 
 const routes = new Set(['/app/orders', '/app/warehouse', '/app/tracking', '/app/exceptions', '/app/billing'])
+const metricRoute = /^\/app\/workbench\/metrics\/[A-Z_]+$/
 const orderStatuses = new Set<OrderStatus>(['DRAFT', 'PENDING_INBOUND', 'INBOUND', 'PENDING_PRICE_CONFIRMATION', 'READY_FOR_OUTBOUND', 'OUTBOUND', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'RETURNED', 'LOST'])
 const warehouseStatuses = new Set<WarehouseWorkStatus>(['PENDING_INBOUND', 'INBOUND', 'PENDING_PRICE_CONFIRMATION', 'READY_FOR_OUTBOUND', 'OUTBOUND', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'RETURNED', 'LOST'])
 const exceptionStatuses = new Set<ExceptionStatus>(['OPEN', 'PROCESSING', 'WAITING_PROVIDER_FEEDBACK', 'RESOLVED', 'PENDING_FINANCE_CONFIRMATION', 'CLOSED'])
 const reconciliationStatuses = new Set(['AUTO_CLOSED', 'PENDING_CONFIRMATION', 'CONFIRMED', 'REJECTED'])
 const billDetailStatuses = new Set(['IMPORTED', 'MATCHED', 'ERROR'])
 const financeTabs = new Set(['batches', 'details', 'reconciliations', 'audit'])
-const safeTargetKeys = new Set(['resourceType', 'status', 'storeId', 'orderId', 'reference', 'resourceId', 'tab'])
+const safeTargetKeys = new Set(['resourceType', 'metricKey', 'status', 'storeId', 'orderId', 'reference', 'resourceId', 'tab', 'timeRange', 'from', 'to'])
 
 function scalar(value: QueryValue) {
   return typeof value === 'string' ? value.trim() : ''
@@ -24,7 +25,7 @@ function positiveId(value: QueryValue) {
 }
 
 export function workbenchTargetLocation(target?: { route: string; query?: Record<string, unknown> }) {
-  if (!target || !routes.has(target.route)) return undefined
+  if (!target || (!routes.has(target.route) && !metricRoute.test(target.route))) return undefined
   const query: LocationQueryRaw = {}
   for (const [key, value] of Object.entries(target.query ?? {})) {
     if (!safeTargetKeys.has(key) || value == null || value === '') continue
@@ -98,22 +99,30 @@ export function exceptionListFilter(query: LocationQuery): ExceptionListFilter {
 export interface FinanceListFilter {
   tab?: 'batches' | 'details' | 'reconciliations' | 'audit'
   status?: string
+  page: number
+  pageSize: number
+  recordId?: string
   notice?: string
 }
 
 export function financeListFilter(query: LocationQuery): FinanceListFilter {
   const requestedTab = scalar(query.tab)
   const status = scalar(query.status)
+  const page = Number(positiveId(query.page) ?? 1)
+  const requestedPageSize = Number(positiveId(query.pageSize) ?? 20)
+  const pageSize = [20, 50, 100].includes(requestedPageSize) ? requestedPageSize : 20
+  const recordId = positiveId(query.recordId)
+  const base = { page, pageSize, recordId }
   if (requestedTab && financeTabs.has(requestedTab)) {
     if ((requestedTab === 'reconciliations' && reconciliationStatuses.has(status))
       || (requestedTab === 'details' && billDetailStatuses.has(status))
       || (requestedTab === 'batches' && ['PROCESSING', 'PARTIAL_SUCCESS', 'SUCCESS', 'FAILED'].includes(status))
-      || !status) return { tab: requestedTab as FinanceListFilter['tab'], status: status || undefined }
+      || !status) return { ...base, tab: requestedTab as FinanceListFilter['tab'], status: status || undefined }
   }
-  if (status === 'PENDING_RECONCILIATION' || status === 'RECONCILIATION_DIFFERENCE') return { tab: 'reconciliations', status: 'PENDING_CONFIRMATION' }
-  if (status === 'BILL_IMPORT_ERRORS') return { tab: 'details', status: 'ERROR' }
+  if (status === 'PENDING_RECONCILIATION' || status === 'RECONCILIATION_DIFFERENCE') return { ...base, tab: 'reconciliations', status: 'PENDING_CONFIRMATION' }
+  if (status === 'BILL_IMPORT_ERRORS') return { ...base, tab: 'details', status: 'ERROR' }
   if (status || scalar(query.resourceType) === 'FINANCE') {
-    return { notice: '当前财务聚合指标包含多个真实列表来源，请从账单批次、账单明细或费用对账标签继续查看。' }
+    return { ...base, notice: '当前财务聚合指标包含多个真实列表来源，请从账单批次、账单明细或费用对账标签继续查看。' }
   }
-  return {}
+  return base
 }

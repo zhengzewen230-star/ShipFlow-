@@ -4,8 +4,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { Plus, RefreshCw, Pencil, Power } from '@lucide/vue'
 import DataState from '@/components/DataState.vue'
 import ActionError from '@/components/ActionError.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+import ListPagination from '@/components/ListPagination.vue'
 import { getApiErrorMessage, toApiError } from '@/services/http'
 import { useSubmit } from '@/composables/useSubmit'
+import { useConfirmAction } from '@/composables/useConfirmAction'
 import { useNotificationStore } from '@/stores/notifications'
 import * as tenants from '@/services/tenants'
 import * as stores from '@/services/stores'
@@ -14,16 +17,20 @@ import * as rbac from '@/services/rbac'
 import { useAuthStore } from '@/stores/auth'
 import { defaultStoreFilter, parseStoreQuery, toStoreQuery, type StoreFilterState } from './storeQuery'
 import { storeListBackQuery } from './storeDetail'
+import { displayValue } from '@/utils/display'
 
 const props = defineProps<{ domain: 'tenants' | 'stores' | 'users' | 'rbac' }>()
 const notify = useNotificationStore()
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+const { confirm } = useConfirmAction()
 const rows = ref<Record<string, unknown>[]>([])
-const storeRows = ref<stores.Store[]>([])
+type StorePresentationRow = stores.Store & { rawPlatformCode: string }
+const storeRows = ref<StorePresentationRow[]>([])
 const storeTotal = ref(0)
 const storeTotalPages = ref(0)
+const directoryPage = reactive({ page: 1, pageSize: 20, total: 0, totalPages: 0 })
 const storeFilter = reactive<StoreFilterState>({ ...defaultStoreFilter })
 const availableRoles = ref<rbac.Role[]>([])
 const loading = ref(false)
@@ -48,8 +55,9 @@ async function load() {
   loading.value = true; error.value = ''; errorTraceId.value = undefined
   try {
     if (props.domain === 'users') {
-      const [userPage, roles] = await Promise.all([users.listUsers(), rbac.listRoles('ACTIVE')])
+      const [userPage, roles] = await Promise.all([users.listUsers({ page: directoryPage.page, pageSize: directoryPage.pageSize }), rbac.listRoles('ACTIVE')])
       rows.value = userPage.items as unknown as Record<string, unknown>[]
+      Object.assign(directoryPage, { page: userPage.page, pageSize: userPage.pageSize, total: userPage.total, totalPages: userPage.totalPages })
       availableRoles.value = roles.filter(role => role.roleScope === 'TENANT' && role.status === 'ACTIVE' && role.roleCode !== 'TEST_NO_PERMISSION')
     } else if (props.domain === 'stores') {
       const data = await stores.listStores({
@@ -57,19 +65,39 @@ async function load() {
         platformCode: storeFilter.platformCode || undefined, status: storeFilter.status || undefined,
         page: storeFilter.page, pageSize: storeFilter.pageSize, sortBy: storeFilter.sortBy, sortDirection: storeFilter.sortDirection,
       })
-      storeRows.value = data.items
+      storeRows.value = data.items.map(store => ({
+        ...store,
+        rawPlatformCode: store.platformCode,
+        platformCode: displayValue('platformCode', store.platformCode),
+      }))
       storeTotal.value = data.total
       storeTotalPages.value = data.totalPages
       rows.value = []
       availableRoles.value = []
+    } else if (props.domain === 'tenants') {
+      const data = await tenants.listTenants({ page: directoryPage.page, pageSize: directoryPage.pageSize })
+      rows.value = data.items as unknown as Record<string, unknown>[]
+      Object.assign(directoryPage, { page: data.page, pageSize: data.pageSize, total: data.total, totalPages: data.totalPages })
+      availableRoles.value = []
     } else {
-      const data = props.domain === 'tenants' ? await tenants.listTenants() : await rbac.listRoles()
-      rows.value = (Array.isArray(data) ? data : data.items) as unknown as Record<string, unknown>[]
+      const roles = await rbac.listRoles()
+      const start = (directoryPage.page - 1) * directoryPage.pageSize
+      rows.value = roles.slice(start, start + directoryPage.pageSize) as unknown as Record<string, unknown>[]
+      directoryPage.total = roles.length
+      directoryPage.totalPages = Math.max(1, Math.ceil(roles.length / directoryPage.pageSize))
       availableRoles.value = []
     }
   } catch (cause) { const apiError = toApiError(cause); error.value = getApiErrorMessage(apiError, '列表加载失败。'); errorTraceId.value = apiError.traceId } finally { loading.value = false }
 }
 function readStoreQuery() { Object.assign(storeFilter, parseStoreQuery(route.query)) }
+function readDirectoryQuery() {
+  const rawPage = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page
+  const rawPageSize = Array.isArray(route.query.pageSize) ? route.query.pageSize[0] : route.query.pageSize
+  const page = Number(rawPage)
+  const pageSize = Number(rawPageSize)
+  directoryPage.page = Number.isInteger(page) && page > 0 ? page : 1
+  directoryPage.pageSize = [20, 50, 100].includes(pageSize) ? pageSize : 20
+}
 async function applyStoreFilterQuery() {
   storeFilter.page = 1
   await router.push({ query: toStoreQuery(storeFilter) })
@@ -82,6 +110,16 @@ async function changeStorePage(page: number) {
   if (page < 1 || page > storeTotalPages.value || page === storeFilter.page) return
   await router.replace({ query: toStoreQuery({ ...storeFilter, page }) })
 }
+async function changeStorePageSize(pageSize: number) {
+  await router.replace({ query: toStoreQuery({ ...storeFilter, pageSize, page: 1 }) })
+}
+async function changeDirectoryPage(page: number) {
+  if (page < 1 || page > directoryPage.totalPages || page === directoryPage.page) return
+  await router.replace({ query: { ...route.query, page: String(page), pageSize: String(directoryPage.pageSize) } })
+}
+async function changeDirectoryPageSize(pageSize: number) {
+  await router.replace({ query: { ...route.query, page: '1', pageSize: String(pageSize) } })
+}
 async function changeStoreSort(sortBy: StoreFilterState['sortBy']) {
   const sortDirection = storeFilter.sortBy === sortBy && storeFilter.sortDirection === 'ASC' ? 'DESC' : 'ASC'
   await router.replace({ query: toStoreQuery({ ...storeFilter, sortBy, sortDirection, page: 1 }) })
@@ -90,13 +128,9 @@ function storeStatusLabel(status: stores.Store['status']) { return status === 'A
 const createSubmit = useSubmit()
 const updateSubmit = useSubmit()
 const statusSubmit = useSubmit()
-async function copyCreateTrace() {
-  if (!createSubmit.errorTraceId.value) return
-  try { await navigator.clipboard.writeText(createSubmit.errorTraceId.value) } catch { /* 页面保留编号供人工记录 */ }
-}
-function openStoreEdit(store: stores.Store) {
+function openStoreEdit(store: StorePresentationRow) {
   editingStore.value = store
-  Object.assign(editForm, { name: store.storeName, platformCode: store.platformCode, platformAccount: '', version: store.version })
+  Object.assign(editForm, { name: store.storeName, platformCode: store.rawPlatformCode, platformAccount: '', version: store.version })
   updateSubmit.errorMessage.value = ''
   updateSubmit.errorCode.value = undefined
   updateSubmit.errorTraceId.value = undefined
@@ -126,7 +160,7 @@ async function toggleStoreStatus(store: stores.Store) {
   if (statusSubmit.submitting.value) return
   const nextStatus: stores.ActiveStatus = store.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
   const action = nextStatus === 'ACTIVE' ? '启用' : '停用'
-  if (typeof window !== 'undefined' && !window.confirm(`确认${action}店铺“${store.storeName}”吗？`)) return
+  if (!await confirm({ title: `${action}店铺`, description: `确认${action}店铺“${store.storeName}”吗？该操作会写入审计日志。`, confirmLabel: `确认${action}`, danger: nextStatus === 'DISABLED' })) return
   await statusSubmit.submit(async () => {
     const result = await stores.changeStoreStatus(store.id, { status: nextStatus, version: store.version })
     notify.push(`店铺已${action}`, 'success')
@@ -169,10 +203,14 @@ function format(key: string, value: unknown) {
     return labels.length ? labels.join('、') : '—'
   }
   if (Array.isArray(value)) return String(value.length)
-  return typeof value === 'string' && value.trim() ? value : value == null ? '—' : String(value)
+  return displayValue(key, value)
 }
-onMounted(() => { if (props.domain === 'stores') readStoreQuery(); void load() })
-watch(() => route.query, () => { if (props.domain === 'stores') { readStoreQuery(); void load() } }, { deep: true })
+onMounted(() => { if (props.domain === 'stores') readStoreQuery(); else readDirectoryQuery(); void load() })
+watch(() => route.query, () => {
+  if (props.domain === 'stores') readStoreQuery()
+  else readDirectoryQuery()
+  void load()
+}, { deep: true })
 </script>
 <template>
   <section>
@@ -186,7 +224,7 @@ watch(() => route.query, () => { if (props.domain === 'stores') { readStoreQuery
       <label v-if="domain === 'stores'"><span>平台编码</span><input v-model="form.platformCode" required /></label>
       <label v-if="domain === 'stores'"><span>平台账号</span><input v-model="form.platformAccount" required /></label>
       <button class="btn btn--primary" :disabled="createSubmit.submitting.value">{{ createSubmit.submitting.value ? '提交中…' : '确认创建' }}</button>
-    <div v-if="createSubmit.errorMessage.value" class="alert alert--error" role="alert"><b v-if="createSubmit.errorCode.value">{{ createSubmit.errorCode.value }}：</b>{{ createSubmit.errorMessage.value }} <span v-if="createSubmit.errorTraceId.value">追踪编号：{{ createSubmit.errorTraceId.value }} <button class="text-button" type="button" @click="copyCreateTrace">复制</button></span></div>
+    <ActionError :message="createSubmit.errorMessage.value" :code="createSubmit.errorCode.value" :trace-id="createSubmit.errorTraceId.value" />
     </form>
     <ActionError v-if="domain === 'stores' && statusSubmit.errorMessage.value" :message="statusSubmit.errorMessage.value" :code="statusSubmit.errorCode.value" :trace-id="statusSubmit.errorTraceId.value" />
     <form v-if="domain === 'stores' && showEdit" class="panel compact-form" @submit.prevent="updateStoreRecord">
@@ -206,8 +244,9 @@ watch(() => route.query, () => { if (props.domain === 'stores') { readStoreQuery
       <button class="btn btn--primary" type="submit">查询</button><button class="btn btn--secondary" type="button" @click="resetStoreFilters">重置</button>
     </form>
     <div v-if="domain === 'stores'" class="alert alert--warning" role="status">店铺国家/地区、默认发货地址和默认物流渠道以详情接口真实返回为准；当前未配置的资源会显示“当前未配置”，后端未提供的能力会显示“功能暂不可用”。</div>
-    <div class="panel table-panel"><DataState :loading="loading" :error="error" :trace-id="errorTraceId" :retry="load" :empty="domain === 'stores' ? !storeRows.length : !rows.length"><div v-if="domain === 'stores'" class="data-table-wrap"><table class="data-table"><thead><tr><th><button class="table-sort" type="button" @click="changeStoreSort('storeCode')">店铺编码</button></th><th><button class="table-sort" type="button" @click="changeStoreSort('storeName')">店铺名称</button></th><th><button class="table-sort" type="button" @click="changeStoreSort('platformCode')">平台</button></th><th>状态</th><th><button class="table-sort" type="button" @click="changeStoreSort('updatedAt')">最近更新时间</button></th><th>操作</th></tr></thead><tbody><tr v-for="row in storeRows" :key="String(row.id)"><td>{{ row.storeCode }}</td><td>{{ row.storeName }}</td><td>{{ row.platformCode }}</td><td>{{ storeStatusLabel(row.status) }}</td><td>{{ formatDate(row.updatedAt) }}</td><td><RouterLink class="text-button" :to="{ name: 'app-store-detail', params: { storeId: String(row.id) }, query: storeListBackQuery(route.query) }">查看详情</RouterLink><template v-if="canManageStores"><button class="text-button" type="button" @click="openStoreEdit(row)"><Pencil :size="14" />编辑</button><button class="text-button" type="button" :disabled="statusSubmit.submitting.value" @click="toggleStoreStatus(row)"><Power :size="14" />{{ row.status === 'ACTIVE' ? '停用' : '启用' }}</button></template></td></tr></tbody></table></div><div v-else class="data-table-wrap"><table class="data-table"><thead><tr><th v-for="[, label] in meta.columns" :key="label">{{ label }}</th></tr></thead><tbody><tr v-for="row in rows" :key="String(row.id)"><td v-for="[key] in meta.columns" :key="key">{{ format(key, row[key]) }}</td></tr></tbody></table></div></DataState></div>
-    <div v-if="domain === 'stores'" class="table-pagination" aria-label="店铺分页"><span>共 {{ storeTotal }} 条，第 {{ storeFilter.page }} / {{ Math.max(storeTotalPages, 1) }} 页</span><button class="btn btn--secondary" type="button" :disabled="storeFilter.page <= 1 || loading" @click="changeStorePage(storeFilter.page - 1)">上一页</button><button class="btn btn--secondary" type="button" :disabled="storeFilter.page >= storeTotalPages || loading" @click="changeStorePage(storeFilter.page + 1)">下一页</button></div>
+    <div class="panel table-panel"><DataState :loading="loading" :error="error" :trace-id="errorTraceId" :retry="load" :empty="domain === 'stores' ? !storeRows.length : !rows.length"><div v-if="domain === 'stores'" class="data-table-wrap"><table class="data-table"><thead><tr><th><button class="table-sort" type="button" @click="changeStoreSort('storeCode')">店铺编码</button></th><th><button class="table-sort" type="button" @click="changeStoreSort('storeName')">店铺名称</button></th><th><button class="table-sort" type="button" @click="changeStoreSort('platformCode')">平台</button></th><th>状态</th><th><button class="table-sort" type="button" @click="changeStoreSort('updatedAt')">最近更新时间</button></th><th>操作</th></tr></thead><tbody><tr v-for="row in storeRows" :key="String(row.id)"><td>{{ row.storeCode }}</td><td>{{ row.storeName }}</td><td>{{ row.platformCode }}</td><td><StatusBadge :status="row.status" :label="storeStatusLabel(row.status)" /></td><td>{{ formatDate(row.updatedAt) }}</td><td><RouterLink class="text-button" :to="{ name: 'app-store-detail', params: { storeId: String(row.id) }, query: storeListBackQuery(route.query) }">查看详情</RouterLink><template v-if="canManageStores"><button class="text-button" type="button" @click="openStoreEdit(row)"><Pencil :size="14" />编辑</button><button class="text-button" type="button" :disabled="statusSubmit.submitting.value" @click="toggleStoreStatus(row)"><Power :size="14" />{{ row.status === 'ACTIVE' ? '停用' : '启用' }}</button></template></td></tr></tbody></table></div><div v-else class="data-table-wrap"><table class="data-table"><thead><tr><th v-for="[, label] in meta.columns" :key="label">{{ label }}</th></tr></thead><tbody><tr v-for="row in rows" :key="String(row.id)"><td v-for="[key] in meta.columns" :key="key"><StatusBadge v-if="key === 'status'" :status="String(row[key] ?? '')" /><template v-else>{{ format(key, row[key]) }}</template></td></tr></tbody></table></div></DataState></div>
+    <ListPagination v-if="domain === 'stores'" :page="storeFilter.page" :page-size="storeFilter.pageSize" :total="storeTotal" :total-pages="storeTotalPages" :loading="loading" @update:page="changeStorePage" @update:page-size="changeStorePageSize" />
+    <ListPagination v-else :page="directoryPage.page" :page-size="directoryPage.pageSize" :total="directoryPage.total" :total-pages="directoryPage.totalPages" :loading="loading" @update:page="changeDirectoryPage" @update:page-size="changeDirectoryPageSize" />
     <section v-if="domain === 'stores'" class="panel table-panel" aria-label="店铺资源摘要">
       <table class="data-table"><thead><tr><th>国家/地区</th><th>默认发货地址</th><th>默认物流渠道</th></tr></thead>
         <tbody><tr v-for="row in storeRows" :key="`resources-${String(row.id)}`"><td>{{ row.countryRegion || '尚未配置' }}</td><td>{{ row.defaultShippingAddress || '尚未配置' }}</td><td>{{ row.defaultLogisticsChannel || '尚未配置' }}</td></tr></tbody>

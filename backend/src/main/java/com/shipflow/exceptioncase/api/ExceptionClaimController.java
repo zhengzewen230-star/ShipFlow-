@@ -85,7 +85,7 @@ public class ExceptionClaimController {
     @PostMapping(value = "/exceptions/{exceptionId}/evidence", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<EvidenceAttachmentResponse>> uploadEvidence(@PathVariable Long exceptionId,
             @RequestPart("file") MultipartFile file, @RequestPart(value = "description", required = false) String description,
-            @RequestPart("version") Long version, @RequestHeader("Idempotency-Key") String key,
+            @RequestParam("version") Long version, @RequestHeader("Idempotency-Key") String key,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId, @AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(service.uploadEvidence(tenant(jwt), user(jwt), exceptionId, file, description, version, key, requestId)));
     }

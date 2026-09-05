@@ -9,25 +9,34 @@ export interface ConsoleNavigationItem {
   scope?: UserScope
   permission?: string
   anyPermissions?: string[]
+  group: 'workspace' | 'master-data' | 'fulfillment' | 'settlement' | 'governance'
 }
 
 export const consoleNavigationItems: readonly ConsoleNavigationItem[] = [
-  { label: '概览', path: '/app', icon: 'overview' },
-  { label: '租户管理', path: '/app/tenants', icon: 'tenant', scope: 'PLATFORM', permission: 'tenant:read' },
-  { label: '商户入驻申请', path: '/app/onboarding-applications', icon: 'users', scope: 'PLATFORM', permission: 'tenant:manage' },
-  { label: '访客预估线索', path: '/app/guest-estimate-leads', icon: 'quote', scope: 'PLATFORM', permission: 'tenant:manage' },
-  { label: '用户管理', path: '/app/users', icon: 'users', scope: 'TENANT', permission: 'user:manage' },
-  { label: '店铺管理', path: '/app/stores', icon: 'store', scope: 'TENANT', permission: 'store:read' },
-  { label: '角色与权限', path: '/app/rbac', icon: 'rbac', scope: 'TENANT', permission: 'role:read' },
-  { label: '物流基础资料', path: '/app/logistics', icon: 'logistics', permission: 'logistics:read' },
-  { label: '报价', path: '/app/quotes', icon: 'quote', scope: 'TENANT', permission: 'quote:read' },
-  { label: '订单', path: '/app/orders', icon: 'order', scope: 'TENANT', permission: 'order:read' },
-  { label: '仓库', path: '/app/warehouse', icon: 'warehouse', scope: 'TENANT', permission: 'warehouse:manage' },
-  { label: '轨迹', path: '/app/tracking', icon: 'tracking', scope: 'TENANT', permission: 'tracking:read' },
-  { label: '异常与索赔', path: '/app/exceptions', icon: 'exception', scope: 'TENANT', permission: 'exception:read' },
-  { label: '账单与对账', path: '/app/billing', icon: 'billing', scope: 'TENANT', anyPermissions: ['billing:read', 'finance:bill-import', 'finance:reconcile'] },
-  { label: '审计日志', path: '/app/audit', icon: 'audit', permission: 'audit:read' },
+  { label: '概览', path: '/app', icon: 'overview', group: 'workspace' },
+  { label: '租户管理', path: '/app/tenants', icon: 'tenant', scope: 'PLATFORM', permission: 'tenant:read', group: 'governance' },
+  { label: '商户入驻申请', path: '/app/onboarding-applications', icon: 'users', scope: 'PLATFORM', permission: 'tenant:manage', group: 'governance' },
+  { label: '访客预估线索', path: '/app/guest-estimate-leads', icon: 'quote', scope: 'PLATFORM', permission: 'tenant:manage', group: 'governance' },
+  { label: '用户管理', path: '/app/users', icon: 'users', scope: 'TENANT', permission: 'user:manage', group: 'governance' },
+  { label: '店铺管理', path: '/app/stores', icon: 'store', scope: 'TENANT', permission: 'store:read', group: 'master-data' },
+  { label: '角色与权限', path: '/app/rbac', icon: 'rbac', scope: 'TENANT', permission: 'role:read', group: 'governance' },
+  { label: '物流基础资料', path: '/app/logistics', icon: 'logistics', permission: 'logistics:read', group: 'master-data' },
+  { label: '报价', path: '/app/quotes', icon: 'quote', scope: 'TENANT', permission: 'quote:read', group: 'fulfillment' },
+  { label: '订单', path: '/app/orders', icon: 'order', scope: 'TENANT', permission: 'order:read', group: 'fulfillment' },
+  { label: '仓库', path: '/app/warehouse', icon: 'warehouse', scope: 'TENANT', permission: 'warehouse:manage', group: 'fulfillment' },
+  { label: '轨迹', path: '/app/tracking', icon: 'tracking', scope: 'TENANT', permission: 'tracking:read', group: 'fulfillment' },
+  { label: '异常与索赔', path: '/app/exceptions', icon: 'exception', scope: 'TENANT', permission: 'exception:read', group: 'fulfillment' },
+  { label: '账单与对账', path: '/app/billing', icon: 'billing', scope: 'TENANT', anyPermissions: ['billing:read', 'finance:bill-import', 'finance:reconcile'], group: 'settlement' },
+  { label: '审计日志', path: '/app/audit', icon: 'audit', permission: 'audit:read', group: 'governance' },
 ]
+
+export const consoleGroupLabels: Record<ConsoleNavigationItem['group'], string> = {
+  workspace: '工作台',
+  'master-data': '基础资料',
+  fulfillment: '履约中心',
+  settlement: '费用结算',
+  governance: '组织与治理',
+}
 
 const roleLabels: Record<string, string> = {
   PLATFORM_ADMIN: '平台超级管理员',

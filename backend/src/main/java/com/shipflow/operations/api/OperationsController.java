@@ -6,10 +6,12 @@ import com.shipflow.operations.domain.OperationsSummary;
 import com.shipflow.operations.domain.OperationsTodos;
 import com.shipflow.operations.domain.OperationsWorkbenchQuery;
 import com.shipflow.operations.api.model.OperationsWorkbenchResponse;
+import com.shipflow.operations.api.model.OperationsMetricDrilldownPageResponse;
 import com.shipflow.order.application.ShipmentOrderException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -40,6 +42,17 @@ public class OperationsController {
         return ApiResponse.success(service.workbench(tenant(jwt), user(jwt), new OperationsWorkbenchQuery(
                 timeRange, parseOffset(from), parseOffset(to), parseLong(storeId), parseInt(page), parseInt(pageSize),
                 sortBy, sortDirection, parseInt(recentLimit), parseInt(riskLimit))));
+    }
+
+    @GetMapping("/workbench/metrics/{metricKey}/items")
+    public ApiResponse<OperationsMetricDrilldownPageResponse> metricItems(@PathVariable String metricKey,
+            @AuthenticationPrincipal Jwt jwt, @RequestParam(required = false) String timeRange,
+            @RequestParam(required = false) String from, @RequestParam(required = false) String to,
+            @RequestParam(required = false) String storeId, @RequestParam(required = false) String page,
+            @RequestParam(required = false) String pageSize) {
+        return ApiResponse.success(service.metricDrilldown(tenant(jwt), user(jwt), metricKey,
+                new OperationsWorkbenchQuery(timeRange, parseOffset(from), parseOffset(to), parseLong(storeId),
+                        parseInt(page), parseInt(pageSize), null, null, null, null)));
     }
 
     private Long user(Jwt jwt) {

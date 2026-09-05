@@ -10,6 +10,7 @@ import {
   formatShanghaiDateTime,
   formatWeightKg,
   isOperationsWorkbenchEmpty,
+  metricUnitLabel,
   workbenchTargetLocation,
 } from './operationsWorkbench'
 
@@ -44,6 +45,12 @@ function snapshot(overrides: Partial<OperationsWorkbench> = {}): OperationsWorkb
 
 describe('merchant operations workbench frontend contract', () => {
   afterEach(() => vi.restoreAllMocks())
+
+  it('keeps order-count semantics when an older runtime omits the new unit field', () => {
+    expect(metricUnitLabel({ key: 'PENDING_ORDERS' })).toBe('订单数')
+    expect(metricUnitLabel({ key: 'PENDING_FINANCE' })).toBe('任务数')
+    expect(metricUnitLabel({ key: 'PENDING_ORDERS', unit: 'TASK_COUNT' })).toBe('任务数')
+  })
 
   it('loads the backend snapshot through the documented endpoint', async () => {
     const get = vi.spyOn(http, 'get').mockResolvedValue({ data: { data: snapshot() } } as never)

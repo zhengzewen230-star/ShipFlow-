@@ -1,6 +1,7 @@
 import { getApiErrorMessage, toApiError } from '@/services/http'
 import { getOperationsWorkbench, type OperationsTarget, type OperationsWorkbench, type OperationsWorkbenchQuery } from '@/services/operations'
 import { workbenchTargetLocation as toWorkbenchTargetLocation } from './workbenchTargetFilters'
+import { displayValue, formatMoney as formatDisplayMoney } from '@/utils/display'
 
 export type WorkbenchErrorKind = 'unauthorized' | 'forbidden' | 'server' | 'network' | 'unknown'
 
@@ -64,12 +65,15 @@ export function formatShanghaiWindow(window?: { from: string; to: string }) {
   return `${formatShanghaiDateTime(window.from)} 至 ${formatShanghaiDateTime(window.to)}`
 }
 
-export function workbenchStatusLabel(value?: string | null) {
-  return ({
-    DRAFT: '草稿', PENDING_INBOUND: '待入库', INBOUND: '已入库', PENDING_PRICE_CONFIRMATION: '待确认费用',
-    READY_FOR_OUTBOUND: '待出库', OUTBOUND: '已出库', IN_TRANSIT: '在途', DELIVERED: '已签收',
-    CANCELLED: '已取消', RETURNED: '已退回', LOST: '遗失', LABEL_READY: '面单已就绪',
-  } as Record<string, string>)[String(value)] ?? value ?? '—'
+export function workbenchStatusLabel(value?: string | null) { return displayValue('status', value) }
+
+const orderCountMetricKeys = new Set([
+  'PENDING_ORDERS', 'PENDING_INBOUND', 'PENDING_MEASUREMENT', 'PENDING_LABEL',
+  'PENDING_OUTBOUND', 'IN_TRANSIT', 'TRACKING_EXCEPTION',
+])
+
+export function metricUnitLabel(metric: { key: string; unit?: string | null }) {
+  return metric.unit === 'ORDER_COUNT' || (!metric.unit && orderCountMetricKeys.has(metric.key)) ? '订单数' : '任务数'
 }
 
 export function formatWeightKg(value: number | string | null | undefined) {
@@ -79,8 +83,5 @@ export function formatWeightKg(value: number | string | null | undefined) {
 }
 
 export function formatMoney(value: number | string | null | undefined, currency?: string | null) {
-  if (value == null || value === '') return '—'
-  const parsed = Number(value)
-  const amount = Number.isFinite(parsed) ? parsed.toFixed(2) : String(value)
-  return currency ? `${currency} ${amount}` : amount
+  return formatDisplayMoney(value, currency)
 }
